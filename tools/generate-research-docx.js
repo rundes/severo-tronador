@@ -629,6 +629,235 @@ const providers = [
   callout(
     "Insight de arquitectura: Brandwatch (o cualquier social listening) y Severo Tronador son COMPLEMENTARIOS, no sustitutos. Brandwatch detecta DE QUÉ está hablando la gente; Severo Tronador pregunta directo a una muestra controlada del padrón. La pipeline ideal: usar listening para DESCUBRIR temas, después usar encuestas para MEDIR prevalencia en la población objetivo. Cierre del loop: las respuestas a encuestas pueden, a su vez, alimentar nuevas queries de listening (\"¿qué tan generalizada está esta queja sobre el barrio X?\")."
   ),
+
+  pageBreak(),
+
+  h2("5.8 Alternativas territoriales — escuchar un lugar, no una marca"),
+  callout(
+    "El uso 'escuchar un territorio' (Maipú, Mendoza) es DISTINTO al uso clásico de social listening ('monitorear mi marca'). Cambia la pregunta de '¿qué dicen de mí?' a '¿qué dicen acá?'. Esto desbloquea una familia de herramientas más adecuadas — y un par de gemas open source — que las plataformas enterprise no necesariamente ofrecen como ventaja."
+  ),
+
+  h3("La economía cambia para un municipio chico"),
+  p(
+    "Una ciudad como Maipú (~200k habitantes) no genera el volumen de menciones que justifica un Brandwatch / Talkwalker enterprise. Los mínimos de plan (típicamente miles de menciones/mes) no se llenan. Esto reordena la pirámide de costos en 5 tiers."
+  ),
+
+  h3("Tier 1 — Purpose-built para gobierno local: Zencity"),
+  callout(
+    "Zencity (zencity.io) es la herramienta MÁS RELEVANTE para este caso si el sponsor es la municipalidad. Plataforma israelí usada por cientos de municipios globalmente, con sentiment model calibrado específicamente para gobierno local (lanzado abril 2025), no para marcas genéricas."
+  ),
+  makeTable(
+    ["Feature de Zencity", "Por qué importa para Maipú"],
+    [
+      [
+        "Sentiment model calibrado para local gov",
+        "Mide percepción específica sobre servicios municipales, gestión, obra pública — no sentiment de 'marca' genérica",
+      ],
+      [
+        "Integra múltiples fuentes",
+        "Social (Nextdoor, Facebook, Twitter, Instagram) + llamadas 311 + medios locales + encuestas propias en una sola vista",
+      ],
+      [
+        "AI Insights (ZenCity AI)",
+        "Resume miles de menciones/posts/llamadas en temas accionables sin necesidad de queries Booleanas",
+      ],
+      [
+        "Encuestas integradas (vienen de NRC/Polco)",
+        "Pueden lanzarse desde la misma plataforma — compite y a la vez complementa a Severo Tronador",
+      ],
+      [
+        "Benchmarking",
+        "Compara métricas contra otros municipios similares (poco aplicable en AR por ahora)",
+      ],
+    ],
+    [3400, 5960]
+  ),
+  p(""),
+  bullet("Pricing: no público, escala con tamaño del municipio. Para una ciudad de ~200k habitantes, ticket histórico ronda $15k–$40k/año. Tienen plan 'Essentials' más liviano lanzado en 2024 para municipios chicos."),
+  bullet("Decisión: si Severo Tronador es para el MUNICIPIO de Maipú (no para un partido), Zencity es competencia directa Y complemento posible. Sin Zencity construimos más; con Zencity nos enfocamos en la pieza que ellos no cubren bien (segmentación fina del padrón)."),
+
+  h3("Tier 2 — Enterprise con geofencing"),
+  makeTable(
+    ["Plataforma", "Capacidad geo", "Notas"],
+    [
+      ["Brandwatch", "Geofence queries Booleanas, polígonos", "Cubierto en sección 5.7"],
+      ["Talkwalker", "Geo + visual AI (imágenes geotagueadas)", "Fuerte en multi-idioma"],
+      ["Meltwater", "Filtros por país/región + GenAI search", "Mejor para PR/medios"],
+      ["Synthesio (Ipsos)", "Global geo, X heatmaps, demografía + psicografía", "El más cercano filosóficamente a Severo (research)"],
+      ["Sprinklr", "Location metadata en X (country code), 30+ canales", "Enterprise, omnichannel completo"],
+      ["NetBase Quid", "Va más allá de social (patentes, foros, reviews)", "Market intelligence más que listening"],
+      ["Geofeedia", "Geospatial puro: polígonos, lenses, geofences sobre cualquier zona", "Especializado, usado por seguridad pública y eventos"],
+      ["Snaptrends", "Geofences de cualquier forma", "Similar a Geofeedia, foco eventos"],
+    ],
+    [2200, 3300, 3860]
+  ),
+  p(""),
+  p("Síntesis: para una ciudad chica con presupuesto medio, son sobredimensionados. Brand24/Awario (Tier 3) entregan ~70% de la utilidad a 10% del costo."),
+
+  pageBreak(),
+
+  h3("Tier 3 — SMB con geo asequible (sweet spot probable)"),
+  makeTable(
+    ["Plataforma", "Pricing", "Geo", "Ratio menciones/$", "Recomendación"],
+    [
+      [
+        { text: "Awario ⭐", bold: true },
+        "$49/mes (Starter)",
+        "País/ciudad/idioma",
+        "1.932 menciones/$ (2× Brand24)",
+        "Mejor balance — Boolean desde básico, scan 13B páginas/día",
+      ],
+      [
+        "Brand24",
+        "$99–$199/mes",
+        "País/idioma",
+        "649 menciones/$",
+        "Mejor UX y sentiment, más caro",
+      ],
+      [
+        "Mention",
+        "$41/mes (free limitado)",
+        "Filtros básicos",
+        "Variable",
+        "Alternativa light",
+      ],
+      [
+        "YouScan",
+        "~$300/mes en LATAM",
+        "Geo + visual recognition",
+        "—",
+        "Fuerte en EU/CA; visual analysis poderoso para Instagram",
+      ],
+      [
+        "Pulsar",
+        "Enterprise (custom)",
+        "Geo + audience cluster",
+        "—",
+        "Overkill para municipio",
+      ],
+    ],
+    [1700, 1600, 1800, 2000, 2260]
+  ),
+
+  h3("Tier 4 — LATAM y español"),
+  makeTable(
+    ["Plataforma", "Origen", "Cobertura AR", "Notas"],
+    [
+      [
+        { text: "Atribus ⭐", bold: true },
+        "España, presencia MX/CL/AR",
+        "Sí — soporte en español, monitorea medios AR",
+        "Social + medios + foros + blogs. Mejor opción 'regional' con soporte en castellano. Pricing custom (~$200–$500/mes típico).",
+      ],
+      [
+        "Audiense",
+        "UK, fuerte español",
+        "Sí (X)",
+        "Audience intelligence más que listening puro. Segmenta y describe audiencias detectadas, no monitorea en tiempo real.",
+      ],
+      [
+        "Bunker DB",
+        "México",
+        "Sí",
+        "Marketing analytics + social, ecosistema LATAM.",
+      ],
+      [
+        "Coobis",
+        "España",
+        "Sí",
+        "Más para influencers que listening puro.",
+      ],
+    ],
+    [1700, 1900, 2100, 3660]
+  ),
+
+  pageBreak(),
+
+  h3("Tier 5 — Open source y DIY (el más viable para presupuesto cero)"),
+  p(
+    "Para territorio chico, la combinación de herramientas gratuitas y un poco de pegamento custom puede REEMPLAZAR completamente a un Brand24/Awario por costo casi nulo."
+  ),
+  h3("GDELT Project — el secreto mejor guardado"),
+  bullet("GDELT (Global Database of Events, Language, and Tone) es un proyecto académico que monitorea TODA la prensa mundial en 100+ idiomas, con geocoding automático y actualización cada 15 minutos. Archivo desde 1979. Gratis y abierto vía BigQuery o downloads."),
+  bullet("Cada artículo procesado lleva: ubicación geográfica detectada, personas, organizaciones, temas (CAMEO codes), tono/sentiment, imágenes."),
+  bullet("Query típica: SELECT * WHERE Locations LIKE '%Maipú, Mendoza%' AND DATEADDED > now() - 7 days."),
+  bullet("Para periodismo y monitoreo de medios locales es directamente lo mejor que existe — y es gratis."),
+  bullet("Limitación: NO cubre redes sociales, sólo prensa online indexada por Google News y agregadores."),
+
+  h3("Mediacloud"),
+  bullet("Plataforma open source de MIT/Northeastern para análisis cuanti de cobertura mediática."),
+  bullet("Útil para preguntas como '¿cuánto se habló de transporte público en medios de Mendoza el último mes?'"),
+
+  h3("Scraping de redes (con cuidado)"),
+  bullet("snscrape (Python): scraper de X, Reddit, IG, FB, Telegram. X cambió TOS en 2023; scraping legalmente borroso. Forks de comunidad funcionan intermitentemente."),
+  bullet("X API Basic Tier (free): 1.500 tweets/mes — suficiente para queries puntuales geo-filtradas."),
+  bullet("X API Pro Tier ($200/mes): 1M tweets/mes — alcanza para un municipio con margen."),
+  bullet("Reddit API (free): r/argentina, r/mendoza monitorizables sin costo."),
+  bullet("Facebook/Instagram: virtualmente cerrados a scraping. Necesitan CrowdTangle (gratis para investigadores/ONG si aún lo dan) o aceptar que ese canal queda fuera."),
+
+  h3("Stack DIY recomendado para Maipú"),
+  new Paragraph({
+    spacing: { before: 200, after: 200 },
+    children: [
+      new TextRun({
+        text:
+          "┌─ Inputs ─────────────────────────────────────────────┐\n" +
+          "│ GDELT (gratis)         → Medios online geo-filtrados │\n" +
+          "│ X API Basic ($0/mes)   → Tweets con location Maipú   │\n" +
+          "│ Reddit API (free)      → r/mendoza, r/argentina      │\n" +
+          "│ RSS feeds locales      → Los Andes, El Sol, Uno      │\n" +
+          "└────────────────────┬─────────────────────────────────┘\n" +
+          "                     ▼\n" +
+          "┌─ Procesamiento ──────────────────────────────────────┐\n" +
+          "│ Cron job (Vercel, $0)  → consolida en Google Sheet   │\n" +
+          "│ Claude API (~$10/mes)  → sentiment + clustering      │\n" +
+          "└────────────────────┬─────────────────────────────────┘\n" +
+          "                     ▼\n" +
+          "┌─ Output ─────────────────────────────────────────────┐\n" +
+          "│ Dashboard en la misma app Next.js                    │\n" +
+          "│ Trigger: si volumen sobre tema X crece > 3× baseline │\n" +
+          "│ → notificar para diseñar encuesta sobre ese tema     │\n" +
+          "└──────────────────────────────────────────────────────┘",
+        font: "Consolas",
+        size: 18,
+      }),
+    ],
+  }),
+  bullet("Costo total: ~$10–$50/mes."),
+  bullet("Esfuerzo dev: ~2 semanas."),
+  bullet("Cubre: 80% del valor que daría Brand24 para este tamaño de territorio."),
+
+  h3("Tabla resumen — recomendación por escenario"),
+  makeTable(
+    ["Cliente", "Presupuesto", "Recomendación"],
+    [
+      [
+        "Municipalidad de Maipú (institucional)",
+        "Alto (~$15k+/año)",
+        "Zencity — purpose-built para municipios",
+      ],
+      [
+        "Equipo de investigación / ONG",
+        "Medio ($200–$500/mes)",
+        "Atribus (español + LATAM) o Awario (ratio costo/mención)",
+      ],
+      [
+        "Proyecto independiente",
+        "Bajo (<$50/mes)",
+        "DIY: GDELT + X API Basic + Claude — integrado en la misma app Severo Tronador",
+      ],
+      [
+        "Fase exploratoria",
+        "$0",
+        "Google Alerts + monitoreo manual de Twitter/X y Facebook locales + un Sheet",
+      ],
+    ],
+    [2900, 1900, 4560]
+  ),
+
+  callout(
+    "Para Severo Tronador en su forma actual (relevamiento territorial + encuestas), el stack DIY con GDELT en fase F7 es probablemente lo correcto: el listening alimenta el diseño de encuestas, y los componentes son baratos, controlables, y se integran nativamente en la misma app. Zencity entra en consideración sólo si el sponsor es la municipalidad y hay presupuesto institucional."
+  ),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1183,6 +1412,83 @@ const fuentes = [
     children: [
       new TextRun("· Brandwatch pricing on Vendr — "),
       link("vendr.com/marketplace/brandwatch", "https://www.vendr.com/marketplace/brandwatch"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Zencity (plataforma para gobierno local) — "),
+      link("zencity.io", "https://zencity.io/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Zencity — Listen Sentiment Model (abr 2025) — "),
+      link("help.zencity.io", "https://help.zencity.io/hc/en-us/articles/34647681640849-Listen-Sentiment-Model"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Polco (civic engagement) — "),
+      link("info.polco.us", "https://info.polco.us/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Atribus (social listening LATAM en español) — "),
+      link("atribus.com", "https://atribus.com/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Awario locations / geo filters — "),
+      link("awario.com/locations", "https://awario.com/locations/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brand24 vs Awario vs Mention budget comparison — "),
+      link("xpoz.ai", "https://www.xpoz.ai/blog/comparisons/brand24-vs-mention-vs-awario-budget-social-listening-compared/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch — Geofence queries (cómo armar queries por polígono) — "),
+      link("brandwatch.com/blog/geofence-queries", "https://www.brandwatch.com/blog/geofence-queries/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· GDELT Project (monitoreo global de prensa, gratis) — "),
+      link("gdeltproject.org", "https://www.gdeltproject.org/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Media Cloud (MIT, análisis de cobertura) — "),
+      link("mediacloud.org", "https://www.mediacloud.org/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· snscrape (scraper Python para X/Reddit/IG) — "),
+      link("github.com/JustAnotherArchivist/snscrape", "https://github.com/JustAnotherArchivist/snscrape"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Geofeedia (social intelligence geo-puro) — "),
+      link("aidoos.com/products/geofeedia", "https://aidoos.com/products/geofeedia/"),
     ],
     spacing: { after: 80 },
   }),

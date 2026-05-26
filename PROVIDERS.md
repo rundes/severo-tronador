@@ -176,6 +176,140 @@ Brandwatch tiene [guía específica para gobierno](https://www.brandwatch.com/gu
 
 ---
 
+## 🗺️ Social listening con foco territorial (alternativas a Brandwatch)
+
+> El uso "escuchar un territorio" (Maipú, Mendoza) es **distinto** al uso clásico de social listening ("monitorear mi marca"). Cambia la pregunta de "¿qué dicen de mí?" a "¿qué dicen acá?". Esto desbloquea una familia de herramientas más adecuadas y un par de gemas open source.
+
+### El caso particular de un municipio chico (200k habitantes)
+
+Vale aclarar la economía antes de elegir: una ciudad como Maipú **no genera el volumen de menciones** que justifica un Brandwatch / Talkwalker enterprise. Los mínimos de plan (típicamente miles de menciones/mes) no se llenan. Esto reordena la pirámide de costos:
+
+- **Enterprise SaaS ($25k+/año)**: sobredimensionado salvo presupuesto generoso o ambición provincial
+- **Purpose-built municipal ($pricing custom, escalable)**: **Zencity** — diseñado para este tamaño
+- **SMB con geo ($49–$199/mes)**: Awario, Brand24, Mention, Atribus
+- **Open source + DIY ($0–$50/mes)**: GDELT + scraping propio + Claude — viable porque el volumen es bajo
+
+### 🏛️ Tier 1 — Purpose-built para gobierno local
+
+#### Zencity ⭐⭐ — La herramienta más relevante para este caso
+
+[Zencity](https://zencity.io/) es una plataforma israelí usada por **cientos de municipios** globalmente (mayoría US/UK/Israel, también algunos LATAM). Lo que la hace específica para nuestro caso:
+
+| Feature | Por qué importa para Maipú |
+|---|---|
+| **Sentiment model calibrado para local gov** (lanzado abril 2025) | No mide sentiment de "marca" genérica, mide percepción específica sobre servicios municipales, gestión, obra pública |
+| **Integra múltiples fuentes** | Social (Nextdoor, Facebook, Twitter, Instagram) + 311 calls + medios locales + encuestas propias en una sola vista |
+| **AI Insights** ("ZenCity AI") | Resume miles de mentions/posts/llamadas en temas accionables sin necesidad de queries Booleanas |
+| **Encuestas integradas** | Vienen del NRC (mergeado con Polco), pueden lanzarse desde la misma plataforma — competiría con nuestra app |
+| **Benchmarking** | Compara métricas contra otros municipios similares |
+
+**Pricing**: no público, escala con tamaño del municipio. Para una ciudad de ~200k habitantes, el ticket histórico ronda **$15k–$40k/año**. Tiene un plan "Essentials" más liviano lanzado en 2024 para municipios chicos.
+
+**Decisión**: si Severo Tronador es para el **Municipio de Maipú** (no para un partido), Zencity es competencia directa **y** complemento posible. Sin Zencity = construimos nosotros más. Con Zencity = nos enfocamos en la pieza que ellos no cubren bien (segmentación fina del padrón).
+
+#### Polco
+
+Plataforma de civic engagement (encuestas + community input + benchmarks). Mergeó con NRC. Cubre 500+ jurisdicciones en US. Foco US, sin presencia LATAM relevante. **Mencionar como referencia conceptual**, no como provider real para Argentina.
+
+### 🌎 Tier 2 — Enterprise con geofencing (Brandwatch y amigos)
+
+| Plataforma | Capacidad geo | Notas |
+|---|---|---|
+| **Brandwatch** | [Geofence queries Booleanas](https://www.brandwatch.com/blog/geofence-queries/) | Permite definir polígonos; cubierto en sección 5.7 |
+| **Talkwalker** | Geo + visual AI (image recognition de imágenes geotagueadas) | Fuerte en multi-idioma |
+| **Meltwater** | Filtros por país/región, integra GenAI search | Mejor para PR/medios |
+| **Synthesio** (Ipsos) | Global geo, X heatmaps, demografía + psicografía | Pensado para investigación de mercado; el más cercano filosóficamente a Severo |
+| **Sprinklr** | Location metadata en X (country code) | 30+ canales |
+| **NetBase Quid** | Va más allá de social (patentes, foros, reviews) | Market intelligence más que listening |
+| **Geofeedia** | **Geospatial puro** — polígonos, lenses, geofences sobre cualquier zona | Especializado, usado por seguridad pública y eventos |
+| **Snaptrends** | Geofences de cualquier forma | Similar a Geofeedia, foco eventos |
+
+**Síntesis**: para una ciudad chica con presupuesto medio, son sobredimensionados. **Brand24/Awario** (Tier 3) entregan ~70% de la utilidad a 10% del costo.
+
+### 💸 Tier 3 — SMB con geo asequible (sweet spot probable)
+
+| Plataforma | Pricing | Geo | Mention-to-$ ratio | Recomendación |
+|---|---|---|---|---|
+| **Awario** ⭐ | $49/mes (Starter) | Filtros por país/ciudad/idioma | **1.932 menciones/$** (2× Brand24) | Mejor balance: Boolean queries desde plan básico, scan de 13B páginas/día |
+| **Brand24** | $99–$199/mes | Filtros por país/idioma | 649 menciones/$ | Mejor UX y sentiment; más caro por mención |
+| **Mention** | $41/mes (con free tier limitado) | Filtros básicos | Variable | Alternativa light |
+| **YouScan** | Custom (~$300/mes en LATAM) | Geo + **visual recognition** | — | Fuerte en EU/CA; visual analysis poderoso para Instagram |
+| **Pulsar** | Enterprise | Geo + audience cluster | — | B2B enterprise; potente pero overkill |
+
+### 🇦🇷 Tier 4 — LATAM y español
+
+| Plataforma | Origen | Cobertura AR | Notas |
+|---|---|---|---|
+| **Atribus** ⭐ | España, con presencia LATAM (MX, CL, AR) | Sí — soporte en español, monitorea medios AR | Social + medios + foros + blogs. Mejor opción "regional" si queremos soporte en castellano y conocimiento del mercado local. Pricing custom (~$200–$500/mes típico). |
+| **Audiense** | UK, fuerte español | Audience intelligence más que listening puro | Pensar como complemento, no sustituto: segmenta y describe audiencias detectadas, no las monitorea en tiempo real |
+| **Bunker DB** | Mexicano | Sí | Marketing analytics + social, ecosistema LATAM |
+| **Coobis** | España | Sí | Más para influencers que listening puro |
+
+### 🔓 Tier 5 — Open source y DIY (el más viable para presupuesto cero)
+
+Para territorio chico, **estas opciones combinadas reemplazan a Brand24/Awario por costo casi nulo**:
+
+#### GDELT Project ⭐ — el secreto mejor guardado
+
+[GDELT](https://www.gdeltproject.org/) (Global Database of Events, Language, and Tone) es un proyecto académico que monitorea **toda la prensa mundial en 100+ idiomas, con geocoding automático, actualización cada 15 minutos**, archivo desde 1979 — **gratis y abierto via BigQuery o downloads**.
+
+- Cada artículo procesado tiene: ubicación geográfica detectada, personas, organizaciones, temas (CAMEO codes), tono/sentiment, imágenes
+- Query: `WHERE Locations LIKE '%Maipú, Mendoza%' AND DATEADDED > now() - 7 days`
+- **Para periodismo y monitoreo de medios locales, es directamente lo mejor que existe** — y es gratis
+- Limitación: NO cubre redes sociales, sólo prensa online indexada por Google News y agregadores
+
+#### Mediacloud — análisis de cobertura mediática
+
+[Mediacloud](https://www.mediacloud.org/) — plataforma open source de MIT/Northeastern para análisis cuanti de cobertura mediática. Útil para "¿cuánto se habló de transporte público en medios de Mendoza el último mes?".
+
+#### Scraping de redes (con cuidado)
+
+- **snscrape** (Python): scraper de X, Reddit, IG, FB, Telegram. **X cambió TOS en 2023**, scraping de Twitter ahora es legalmente borroso y técnicamente más difícil. Forks de la comunidad siguen funcionando intermitentemente.
+- **X API Basic Tier** (free): 1.500 tweets/mes, suficiente para queries puntuales geo-filtradas
+- **X API Pro Tier**: $200/mes, 1M tweets/mes — alcanza para un municipio con margen
+- **Reddit API**: gratis con límites razonables, no hay mucho contenido AR pero r/argentina y r/mendoza son monitorizables
+- **Facebook/Instagram**: virtualmente cerrados a scraping; necesitan **CrowdTangle** (gratis para investigadores y ONG si aún lo dan) o aceptar que ese canal queda fuera
+
+#### Stack DIY recomendado para Maipú
+
+```
+┌─ Inputs ────────────────────────────────────────────┐
+│ GDELT (gratis)        → Medios online geo-filtrados │
+│ X API Basic ($0/mes)  → Tweets con location Maipú   │
+│ Reddit API (free)     → r/mendoza, r/argentina      │
+│ RSS feeds locales     → Los Andes, El Sol, Uno      │
+└───────────────────┬─────────────────────────────────┘
+                    ▼
+┌─ Procesamiento ─────────────────────────────────────┐
+│ Cron job (Vercel, $0) → consolida en Google Sheet   │
+│ Claude API (~$10/mes) → sentiment + clustering      │
+└───────────────────┬─────────────────────────────────┘
+                    ▼
+┌─ Output ────────────────────────────────────────────┐
+│ Dashboard en la misma app Next.js                   │
+│ Trigger automático: si volumen sobre tema X         │
+│ crece > 3× baseline → notificar para diseñar        │
+│ encuesta sobre ese tema                             │
+└─────────────────────────────────────────────────────┘
+```
+
+**Costo total**: ~$10–$50/mes. **Esfuerzo dev**: ~2 semanas. **Cubre**: 80% del valor que daría Brand24 para este tamaño de territorio.
+
+### Tabla resumen — recomendación por escenario
+
+| Quién es el cliente | Presupuesto | Recomendación |
+|---|---|---|
+| **Municipalidad de Maipú** (institucional) | Alto (~$15k+/año) | **Zencity** — purpose-built para municipios |
+| **Equipo de investigación / ONG** | Medio ($200–$500/mes) | **Atribus** (español + LATAM) o **Awario** (ratio costo/mención) |
+| **Proyecto independiente** | Bajo (<$50/mes) | **DIY: GDELT + X API Basic + Claude** — integrado en la misma app Severo Tronador |
+| **Fase exploratoria** | $0 | **Google Alerts + monitoreo manual de Twitter/X y FB locales** + un Sheet |
+
+### Insight final
+
+Para Severo Tronador en su forma actual (relevamiento territorial + encuestas), el **stack DIY con GDELT en F7** es probablemente lo correcto: el listening alimenta el diseño de encuestas, y los componentes son baratos, controlables, y se integran nativamente en la misma app. **Zencity** entra en consideración sólo si el sponsor es la municipalidad y hay presupuesto institucional.
+
+---
+
 ## 🎯 Stack recomendado por fase
 
 | Fase | Email | WhatsApp | SMS | Voz | Encuesta |
