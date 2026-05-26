@@ -1,6 +1,6 @@
 # severo-tronador
 
-Plataforma de contactación segmentada para **relevamientos territoriales y encuestas de opinión** sobre el padrón enriquecido de Maipú. Capa de datos en Google Sheets, envío multicanal (email, WhatsApp, SMS, voz), tracking de respuestas y opt-outs.
+Plataforma de contactación segmentada para **relevamientos territoriales y encuestas de opinión**Capa de datos en Google Sheets, envío multicanal (email, WhatsApp, SMS, voz), tracking de respuestas y opt-outs.
 
 > **Scope**: investigación social y opinión pública. **No** se usa para campañas electorales ni posicionamiento de candidatos.
 
