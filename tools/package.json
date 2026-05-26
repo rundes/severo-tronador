@@ -1,0 +1,12 @@
+{
+  "name": "severo-tronador-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-off scripts (research doc generation, etc.) — not part of the app",
+  "scripts": {
+    "build:research-docx": "node generate-research-docx.js"
+  },
+  "dependencies": {
+    "docx": "^9.0.0"
+  }
+}
