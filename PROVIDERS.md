@@ -131,6 +131,51 @@ Para la landing `/encuesta/[token]` tenemos dos caminos: **construirla nosotros*
 
 ---
 
+## 👂 Social listening (canal pasivo — Brandwatch & cía)
+
+> Mientras los canales anteriores son **activos** (nosotros contactamos al ciudadano), social listening es **pasivo**: monitoreamos qué dice la ciudadanía organicamente en X/Twitter, Reddit, TikTok, foros y noticias. Útil para **detectar temas emergentes ANTES de diseñar una encuesta**, calibrar sentiment baseline por barrio/tema, o disparar alertas en tiempo real.
+
+| Plataforma | Pricing 2026 | Fuentes | IA destacada | Recomendación |
+|---|---|---|---|---|
+| **Brandwatch** | Desde **$800/mes** (anual); típico $25k+/año | 100M+ (X, Reddit, TikTok, 70k podcasts, foros, news, blogs) | **Iris AI**: "Ask Iris" NL queries, AI dashboards narrativos, query writer automático | Enterprise — sobrado para municipio salvo presupuesto alto |
+| **Talkwalker** (ahora Hootsuite) | ~$9.6k/año entry; $27k+/año típico | Global + visual AI (image recognition) | Blue Silk AI | Similar a BW, fuerte en visual |
+| **Meltwater** | ~$25k/año mediano | PR + medios + social | Klear (influencers) | Mejor para PR/medios tradicionales |
+| **Brand24** ⭐ | **$99–$199/mes** | X, Reddit, TikTok, IG, FB, web, blogs | Sentiment + AI insights | **Mejor relación costo/feature para municipio** |
+| **Buska** | $49/mes | 30+ plataformas | AI intent scoring | Alternativa barata SMB |
+| **Mention** | $41/mes (free tier limitado) | Web + redes | Sí | Alternativa SMB |
+| **DIY** (X API Basic + Reddit API + Claude) | $0–$200/mes | Lo que integremos | Claude para sentiment | **Si tenemos dev time** |
+| **Google Alerts** | Gratis | Web | Ninguna | Mínimo viable, no real-time |
+
+### 🤖 Iris AI (lo destacado de Brandwatch en 2026)
+
+- **"Ask Iris"**: chat conversacional sobre el dataset — "¿qué se dice de transporte público en Maipú en los últimos 30 días?" devuelve respuesta narrativa con citas
+- **AI Dashboards**: genera resúmenes ejecutivos automáticos sobre cualquier query
+- **AI Query Writer**: traduce prompts en lenguaje natural a queries Booleanas complejas
+- **Conversation Insights**: agrupa miles de menciones en clusters temáticos digeribles
+- **Roadmap 2026**: análisis de video/imagen, "Bring Your Own Data" (cargar tus propios datasets), expansión a APAC y nueva app mobile
+
+### Casos de uso documentados en sector público
+
+Brandwatch tiene [guía específica para gobierno](https://www.brandwatch.com/guides/social-listening-for-government-best-practices/) con casos como:
+- Detectar shifts en prioridades ciudadanas (cambio climático, accountability, servicios)
+- Crisis comms en tiempo real
+- Validar mensajes oficiales antes/después de lanzamiento
+- Detectar misinformation que requiera respuesta institucional
+- (UK) Tienen procurement pathway pre-aprobado para entes públicos
+
+### Decisión para Severo Tronador
+
+| Escenario | Recomendación |
+|---|---|
+| Fases F1–F6 | **Omitir** — foco en contactación activa |
+| F7+ con presupuesto bajo (~$0–$200/mes) | **DIY**: X API Basic Tier (free) + Reddit API (free) + Claude API para sentiment → replica ~80% del valor por <$50/mes. Requiere ~2 semanas de dev. |
+| F7+ con presupuesto medio (~$1.2k/año) | **Brand24** — cobertura buena, IA decente, asequible para municipio |
+| F7+ con presupuesto alto (~$25k+/año) | **Brandwatch** — si necesitamos profundidad de podcasts/foros, reportes institucionales, o el storytelling de Iris para presentar a stakeholders |
+
+> **Insight de arquitectura**: Brandwatch (o cualquier social listening) y Severo Tronador son **complementarios, no sustitutos**. Brandwatch detecta de qué está hablando la gente; Severo Tronador pregunta directo a una muestra controlada del padrón. La pipeline ideal: usar listening para **descubrir temas**, después usar encuestas para **medir prevalencia** en la población objetivo.
+
+---
+
 ## 🎯 Stack recomendado por fase
 
 | Fase | Email | WhatsApp | SMS | Voz | Encuesta |

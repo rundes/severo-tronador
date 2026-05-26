@@ -527,6 +527,108 @@ const providers = [
   bullet("Bot API: gratis, sin per-message charge."),
   bullet("Broadcast: 30 msg/seg gratis; hasta 1.000/seg con Paid Broadcasts (0.1 Stars/msg ≈ centavos)."),
   bullet("Caso de uso: ofrecer 'respondé por Telegram: t.me/severo_maipu_bot' como canal opt-in alternativo en volantes y redes."),
+
+  pageBreak(),
+
+  h2("5.7 Social listening — Brandwatch y alternativas (canal pasivo)"),
+  callout(
+    "Mientras los canales 5.1–5.6 son ACTIVOS (nosotros contactamos al ciudadano), social listening es PASIVO: monitoreamos qué dice la ciudadanía organicamente en X/Twitter, Reddit, TikTok, foros, podcasts y noticias. Útil para detectar temas emergentes ANTES de diseñar una encuesta, calibrar sentiment baseline, o disparar alertas en tiempo real."
+  ),
+  h3("Comparativa de plataformas"),
+  makeTable(
+    ["Plataforma", "Pricing 2026", "Fuentes", "Recomendación"],
+    [
+      [
+        { text: "Brandwatch", bold: true },
+        "Desde $800/mes (anual); típico $25k+/año",
+        "100M+ (X, Reddit, TikTok, 70k podcasts, foros, news, blogs)",
+        "Enterprise — sobrado para municipio salvo presupuesto alto",
+      ],
+      [
+        "Talkwalker (Hootsuite)",
+        "~$9.6k/año entry; $27k+/año típico",
+        "Global + visual AI (image recognition)",
+        "Similar a BW, fuerte en visual y multi-idioma",
+      ],
+      [
+        "Meltwater",
+        "~$25k/año mediano",
+        "PR + medios + social + Klear influencers",
+        "Mejor para PR/medios tradicionales",
+      ],
+      [
+        { text: "Brand24 ⭐", bold: true },
+        "$99–$199/mes",
+        "X, Reddit, TikTok, IG, FB, web, blogs",
+        "Mejor relación costo/feature para municipio",
+      ],
+      [
+        "Buska",
+        "$49/mes",
+        "30+ plataformas",
+        "Alternativa barata SMB",
+      ],
+      [
+        "Mention",
+        "$41/mes (free limitado)",
+        "Web + redes",
+        "Alternativa SMB",
+      ],
+      [
+        { text: "DIY (X+Reddit+Claude)", bold: true },
+        "$0–$200/mes",
+        "Lo que integremos manualmente",
+        "Si tenemos dev time, ~80% del valor a 1% del costo",
+      ],
+      [
+        "Google Alerts",
+        "Gratis",
+        "Web",
+        "Mínimo viable, sin real-time ni APIs",
+      ],
+    ],
+    [2100, 2100, 2900, 2260]
+  ),
+
+  h3("Iris AI — el feature destacado de Brandwatch en 2026"),
+  bullet("\"Ask Iris\": chat conversacional sobre el dataset — preguntas en lenguaje natural tipo \"¿qué se dice de transporte público en Maipú en los últimos 30 días?\" devuelve respuesta narrativa con citas."),
+  bullet("AI Dashboards: genera resúmenes ejecutivos automáticos sobre cualquier query."),
+  bullet("AI Query Writer: traduce prompts en lenguaje natural a queries Booleanas complejas (lenguaje técnico de social listening)."),
+  bullet("Conversation Insights: agrupa miles de menciones en clusters temáticos digeribles."),
+  bullet("Roadmap 2026 (anunciado): análisis de video/imagen, \"Bring Your Own Data\" para cargar nuestros propios datasets junto al de Brandwatch, expansión APAC y app mobile nativa."),
+
+  h3("Casos de uso documentados en sector público"),
+  p(
+    "Brandwatch publica guías específicas para gobiernos: detectar shifts en prioridades ciudadanas, gestionar crisis comms en tiempo real, validar mensajes oficiales antes y después del lanzamiento, detectar misinformation que requiera respuesta institucional, y monitorear sentiment sobre proyectos de obra pública. En UK tienen procurement pathway pre-aprobado para entes públicos, lo que sugiere madurez en esta vertical."
+  ),
+
+  h3("Decisión para Severo Tronador"),
+  makeTable(
+    ["Escenario", "Recomendación"],
+    [
+      [
+        "Fases F1–F6",
+        "Omitir social listening — foco en contactación activa primero",
+      ],
+      [
+        "F7+ con presupuesto bajo (~$0–$200/mes)",
+        "DIY: X API Basic (free) + Reddit API (free) + Claude API para sentiment ≈ 80% del valor por <$50/mes. Requiere ~2 semanas de dev.",
+      ],
+      [
+        "F7+ con presupuesto medio (~$1.2k/año)",
+        "Brand24 — cobertura buena, IA decente, asequible y rápido de adoptar.",
+      ],
+      [
+        "F7+ con presupuesto alto (~$25k+/año)",
+        "Brandwatch — si necesitamos profundidad de podcasts/foros, reportes institucionales, o el storytelling de Iris AI para presentar a stakeholders.",
+      ],
+    ],
+    [3400, 5960]
+  ),
+
+  callout(
+    "Insight de arquitectura: Brandwatch (o cualquier social listening) y Severo Tronador son COMPLEMENTARIOS, no sustitutos. Brandwatch detecta DE QUÉ está hablando la gente; Severo Tronador pregunta directo a una muestra controlada del padrón. La pipeline ideal: usar listening para DESCUBRIR temas, después usar encuestas para MEDIR prevalencia en la población objetivo. Cierre del loop: las respuestas a encuestas pueden, a su vez, alimentar nuevas queries de listening (\"¿qué tan generalizada está esta queja sobre el barrio X?\")."
+  ),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1044,6 +1146,43 @@ const fuentes = [
     children: [
       new TextRun("· AI Voice Agents 2026 pricing — "),
       link("retellai.com", "https://www.retellai.com/blog/ai-voice-agent-pricing-full-cost-breakdown-platform-comparison-roi-analysis"),
+    ],
+    spacing: { after: 80 },
+  }),
+
+  h2("Social listening"),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch (home) — "),
+      link("brandwatch.com", "https://www.brandwatch.com/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch Iris AI — "),
+      link("brandwatch.com/products/iris-ai", "https://www.brandwatch.com/products/iris-ai/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch — Social listening for government (guía) — "),
+      link("brandwatch.com/guides/social-listening-for-government-best-practices", "https://www.brandwatch.com/guides/social-listening-for-government-best-practices/"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch vs Meltwater vs Talkwalker (Syncly) — "),
+      link("syncly.app", "https://syncly.app/blog/brandwatch-vs-meltwater-vs-talkwalker"),
+    ],
+    spacing: { after: 80 },
+  }),
+  new Paragraph({
+    children: [
+      new TextRun("· Brandwatch pricing on Vendr — "),
+      link("vendr.com/marketplace/brandwatch", "https://www.vendr.com/marketplace/brandwatch"),
     ],
     spacing: { after: 80 },
   }),
