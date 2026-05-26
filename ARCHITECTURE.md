@@ -139,7 +139,8 @@ export const connectorRegistry = {
   'resend': () => import('./resend'),
   'meta-wa-cloud': () => import('./meta-wa-cloud'),
   'telnyx-sms': () => import('./telnyx-sms'),
-  'telnyx-voice': () => import('./telnyx-voice'),
+  'telnyx-voice': () => import('./telnyx-voice'),   // IVR de menú simple
+  'bland-ai': () => import('./bland-ai'),           // encuesta telefónica conversacional IA
   'telegram-bot': () => import('./telegram-bot'),
 
   // listening
@@ -170,6 +171,7 @@ Agregar Brandwatch, Atribus, Brand24 o Listmonk en el futuro = un archivo nuevo 
 | **Meta Cloud API (WhatsApp)** | outreach | 1.000 conversaciones service-initiated | `wa.send_template`, `wa.send_freeform_in_24h_window` |
 | **Telnyx SMS** | outreach | $2 trial luego pago | `sms.send`, `sms.receive` |
 | **Telnyx Voice / IVR** | outreach | $2 trial luego pago | `voice.outbound_call`, `voice.ivr_flow` |
+| **Bland AI** (voz IA) | outreach | pago (~$0.13/min bundled) | `voice.conversational_survey` (entrevista con repregunta) |
 | **Telegram Bot** | outreach | ilimitado | `tg.send_message`, `tg.broadcast_channel` |
 | **Claude API** | analysis | depende del tier | `analysis.sentiment`, `analysis.coding_qualitative`, `analysis.cluster_responses` |
 | **GDELT** | listening | gratis (BigQuery quota) | `news.fetch_geo`, `news.fetch_topic` |
@@ -180,7 +182,7 @@ Agregar Brandwatch, Atribus, Brand24 o Listmonk en el futuro = un archivo nuevo 
 
 - **Brevo / Listmonk / AWS SES** (cuando Resend free se quede chico)
 - **360dialog** (alternativa WhatsApp a escala)
-- **Bland AI / Vapi / Retell** (encuestas telefónicas IA conversacional)
+- **Vapi / Retell / ElevenLabs Conv AI** (alternativas a Bland AI para voz IA conversacional — ver [PROVIDERS.md](./PROVIDERS.md))
 - **Atribus, Brand24, Awario** (social listening regional/SMB)
 - **Brandwatch** (enterprise, sólo si presupuesto institucional)
 
@@ -340,6 +342,40 @@ Después de 3 contactos a una persona, el sistema infiere su canal preferido com
 - **Opt-out global** (respondió "BAJA" o desuscribió) saca a la persona de TODOS los canales por defecto, salvo override explícito con justificación logueada.
 - **Bounce permanente** (email rebota duro, teléfono inválido) marca el canal como `unavailable` para esa persona.
 - **Cooldown** no se puede saltear desde la UI. Solo se puede acortar editando configuración global, y queda en logs.
+
+---
+
+## 5b. Análisis cualitativo asistido por LLM (conector `claude-api`)
+
+Las encuestas con preguntas abiertas ("¿qué cambiarías del barrio?") generan texto libre cuyo análisis tradicional exige *coders* humanos haciendo coding inductivo y deductivo. El conector `claude-api` (categoría `analysis`) reduce ese trabajo en órdenes de magnitud sin sacar al humano del loop.
+
+### 5b.1 Pipeline
+
+```
+1. Pre-procesamiento     Limpieza + anonimización (remover nombres y direcciones).
+        │
+2. Coding inductivo      1er pass de Claude sobre ~10% de respuestas →
+        │                códigos emergentes (descubrimiento de temas).
+3. Validación humana     El investigador revisa y consolida la lista de códigos.
+        │
+4. Coding deductivo      2do pass de Claude sobre el 100% → asigna códigos validados.
+        │
+5. Embeddings+clustering Detecta respuestas atípicas o sub-temas no contemplados.
+        │
+6. Dashboard             Frecuencia por código × filtros del padrón (edad, barrio, sexo).
+```
+
+La capability se expone como `analysis.coding_qualitative` (+ `analysis.sentiment`, `analysis.cluster_responses`), consumida por el dashboard de cierre de campaña (§7, paso 7).
+
+### 5b.2 Consideraciones
+
+| Tema | Decisión |
+|---|---|
+| **Privacidad** | Las respuestas van a la API de un tercero (Anthropic). Para datos sensibles, evaluar Claude vía Bedrock o un modelo open-source on-device. Anonimizar **antes** del paso 2. |
+| **Bias / consistencia** | Prompts estandarizados y versionados. Auditoría humana sobre ~5% de la salida para detectar alucinación de códigos. |
+| **Costo** | Claude Haiku ≈ $1/M tokens input → procesar 10.000 respuestas de ~200 palabras ≈ **$2**. El conector trackea gasto como cuota en unidad `tokens`. |
+
+Activado en **F7** (ver [PLAN.md](./PLAN.md)). Es el primer conector `analysis` del catálogo y el patrón para futuros (embeddings, traducción, etc.).
 
 ---
 
@@ -557,21 +593,22 @@ La hoja `envios` ya cubre el detalle granular de cada interacción; `relacion_co
 
 ---
 
-## 9. Cómo encaja en las fases de entrega existentes
+## 9. Cómo encaja en las fases de entrega
 
-Reorganizo el roadmap del PLAN.md para integrar el modelo de conectores desde el inicio:
+> El roadmap único y fuente de verdad vive en [PLAN.md → Fases de entrega](./PLAN.md#fases-de-entrega-roadmap-único). Acá solo se resume el **mapeo fase → conector** para mostrar que el modelo de plugins está presente desde el inicio.
 
-| # | Entregable | Status |
-|---|---|---|
-| F0 | Plan + research + arquitectura (este doc) | ✅ |
-| **F1** | Scaffold Next.js + auth + **panel de conectores vacío** + conector Google Sheets | ⏳ |
-| **F2** | Constructor de segmentos + ficha de contacto + health score básico | |
-| **F3** | Conector Resend funcional + primera campaña email end-to-end + tracking de cuotas | |
-| **F4** | Conector Meta Cloud API + templates + webhooks de estado | |
-| **F5** | Conectores Telnyx SMS/Voice + registro de llamadas | |
-| **F6** | Encuestas públicas tokenizadas + recolección de respuestas | |
-| **F7** | Conector Claude API para análisis cualitativo + dashboard | |
-| **F8** | Conectores listening (GDELT + X API + Reddit) + alertas de tema emergente | |
+Cada fase activa uno o más conectores del registry (§2.3) sin tocar el core:
+
+| Fase | Conectores que activa |
+|---|---|
+| F1 | `google-oauth`, `google-sheets` (+ panel de conectores) |
+| F2 | — (segmentos, ficha de contacto, health score) |
+| F3 | `resend` (+ tracking de cuotas) |
+| F4 | `meta-wa-cloud` (+ webhooks) |
+| F5 | `telnyx-sms`, `telnyx-voice` |
+| F6 | — (encuestas/intercambios tokenizados, opt-out cross-channel) |
+| F7 | `claude-api` (+ dashboard de cierre) |
+| F8 | `gdelt`, `x-api`, `reddit-api` |
 
 F1 ya construye **la infraestructura de conectores** aunque solo tenga uno vivo (Sheets). Cada fase siguiente agrega conectores sin tocar el core.
 

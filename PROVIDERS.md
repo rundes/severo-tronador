@@ -99,6 +99,21 @@
 - **Solo registro manual** (encuestador llama desde celular y carga resultado): no necesitamos provider de voz; basta con un formulario web mobile-friendly en la app.
 - **Llamada outbound con grabación**: Twilio o Telnyx, ambos generan recording URL que guardamos como referencia en Sheet.
 
+### 🤖 Agentes de voz con IA (alternativa conversacional al IVR clásico)
+
+> **Cambio de paradigma**: un agente de voz IA mantiene conversaciones reales por teléfono combinando LLM + speech-to-text + text-to-speech. Comprende habla no estructurada, repregunta si la respuesta es ambigua, y reemplaza el menú rígido del IVR por una **entrevista conversacional natural**. La barra de calidad actual es latencia end-to-end <800 ms.
+
+| Plataforma | Costo all-in | Fortaleza | Recomendación |
+|---|---|---|---|
+| **Vapi** | $0.05/min orquestación + LLM (~$0.15–0.30 all-in) | Más flexible para devs, multi-LLM | **Top pick si construimos algo custom** |
+| **Retell AI** | $0.055/min + LLM (~$0.07–0.31 all-in) | Mejor turn-taking (sensación natural) | Si la calidad conversacional es prioridad |
+| **Bland AI** | $0.11–0.14/min bundled (todo incluido) | Más barato a escala, paquete cerrado | **Si queremos costo predecible** |
+| **ElevenLabs Conv AI** | $0.10/min (sin LLM) | Mejor calidad de voz del mercado | Si la naturalidad de voz es crítica |
+
+**Costo realista de una encuesta telefónica por IA**: encuesta de 5 min × 100 personas = 500 min. Con Bland AI (~$0.13/min bundled) ≈ **$65 por 100 encuestas completas**, sin humanos. Comparado con encuestador humano AR (~500 min × $15/hr ≈ $125 + coordinación), el ahorro es ~50% y escala a miles de llamadas sin sumar staff.
+
+**Encaje en el modelo de conectores**: estos servicios entran como conectores `outreach` con capability `voice.conversational_survey` (ver [ARCHITECTURE.md §3](./ARCHITECTURE.md)). Telnyx IVR sigue siendo la opción para flujos de menú simples y baratos; los agentes IA son para encuestas con preguntas abiertas donde importa la repregunta.
+
 ---
 
 ## 📋 Formularios / Encuestas web
@@ -310,6 +325,65 @@ Para Severo Tronador en su forma actual (relevamiento territorial + encuestas), 
 
 ---
 
+## 🧩 Proyectos open source relevantes
+
+> Software libre que conviene **usar, integrar o tomar como referencia**. Se evalúa cada uno por mantenimiento, ajuste a research (no electoral), riesgo legal/TOS, y si vale adoptarlo o sólo inspirarse.
+
+### Email self-hosted
+
+| Proyecto | Stack | Uso para nosotros |
+|---|---|---|
+| **Listmonk** ⭐ (16k★) | Go + Postgres | Sustituto de Resend/Brevo a escala. Corre en VPS de $5/mes, conectado a AWS SES como backend SMTP. |
+| **Postal** (14k★) | Ruby on Rails | Servidor SMTP completo self-hosted, si queremos correr nuestro propio mail server. |
+| **Mautic** (8k★) | PHP + MySQL | ❌ Demasiado pesado (4 GB RAM mín), más automatización de la que necesitamos. |
+
+### WhatsApp no oficial (⚠️ violan TOS de Meta)
+
+> Se conectan al protocolo de **WhatsApp Web** (Linked Devices), **no** a la Cloud API oficial. Implica riesgo de baneo del número. Aceptable para experimentación con destinatarios consentidos en un número descartable; **nunca** con número productivo o padrón en frío.
+
+| Proyecto | Qué hace | Riesgo |
+|---|---|---|
+| **Baileys** (WhiskeySockets, 17k★) | Librería TS/JS de bajo nivel sobre WhatsApp Web | Alto — ban garantizado en frío |
+| **Evolution API** (6× en 2026) | API REST sobre Baileys, muy popular en LATAM (n8n + WhatsApp) | Alto — mismo riesgo + protocolo cambiante |
+| **whatsapp-web.js** (16k★) / **WPPConnect** (5k★) | Otras librerías sobre el protocolo WA Web | Alto — ídem |
+
+**Decisión WhatsApp**: producción = **Meta Cloud API oficial** (vertical Survey/Research). Experimentación local consentida = Evolution API en número descartable. Nunca Baileys con número productivo.
+
+### Forms / Encuestas open source
+
+| Proyecto | Licencia | Uso para nosotros |
+|---|---|---|
+| **SurveyJS** ⭐ (5k★) | MIT (core) | Librería JS embebible — ideal para renderizar la encuesta dentro de Next.js sin reinventar la rueda. JSON schema versionable. |
+| **Formbricks** (10k★) | AGPLv3 | Suite estilo Qualtrics open. Self-host con Docker, editor visual de encuestas. |
+| **LimeSurvey CE** | GPL | Veterano de encuestas científicas, 80+ idiomas, export SPSS/R/Stata. Heavy pero confiable para estudios formales. |
+| **Typebot** (10k★) / **Botpress** (14k★) | AGPLv3 / MIT | Flow builders conversacionales con WhatsApp + Telegram nativos. Alternativa a construir el flujo nosotros. |
+| **OpnForm** (5k★) | AGPLv3 | Form builder open source simple. |
+
+### Inbox omnicanal y orquestación
+
+| Proyecto | Resuelve |
+|---|---|
+| **Chatwoot** ⭐ (23k★) | Inbox compartido para que el equipo responda mensajes entrantes (WhatsApp, Telegram, email, SMS, IG) en un solo lugar. Integra con Evolution API y con LLM para sugerencias de respuesta. **Recomendado a partir de F4** si el volumen de respuestas libres lo justifica. |
+| **Erxes** (4k★) | CRM + inbox omnicanal, alternativa más completa pero más pesada. |
+| **n8n** (60k★) | Orquestador estilo Zapier auto-hosteable. Pegamento entre Sheets, Evolution API, Telegram, etc. sin código, para flujos ad-hoc. |
+| **VICIdial** | Predictive dialer para call centers serios. Sólo si crecemos a operación masiva de llamadas humanas. |
+
+### Referencia (no adoptar, sí mirar)
+
+- **CiviCRM** — CRM cívico maduro; útil como referencia de esquema de datos (para nosotros Sheets alcanza).
+- **MoveOn Spoke / Action Network** — mass-texting y plataforma cívica; framing electoral, valen como referencia de UX de envío masivo.
+
+---
+
+## 🚀 Tecnología innovadora a vigilar (2026)
+
+- **RCS (Rich Communication Services)** de Google: SMS evolucionado con imágenes, botones, sin app extra. Adopción AR aún baja pero crece; costo similar a SMS premium.
+- **WhatsApp Flows**: formularios nativos **dentro** de WhatsApp sin link externo — menos fricción para encuestas. Se configuran desde Meta Cloud API (encaja en el conector `meta-wa-cloud`).
+- **Voice cloning ético**: TTS personalizado con voz consentida para comunicación institucional, con disclosure. **No** usar para campañas.
+- **Análisis cualitativo con LLM**: pipeline de coding inductivo→deductivo + clustering por embeddings sobre respuestas abiertas. Detallado como conector `analysis` en [ARCHITECTURE.md §5b](./ARCHITECTURE.md).
+
+---
+
 ## 🎯 Stack recomendado por fase
 
 | Fase | Email | WhatsApp | SMS | Voz | Encuesta |
@@ -318,8 +392,8 @@ Para Severo Tronador en su forma actual (relevamiento territorial + encuestas), 
 | **F3 (primer canal real)** | **Resend** (3k free) | — | — | — | Built-in |
 | **F4 (WhatsApp)** | Resend | **Meta Cloud API directo** | — | — | Built-in |
 | **F5 (SMS)** | Resend | Meta Cloud | **Telnyx** o **360nrs** | — | Built-in |
-| **F6 (Voz)** | Resend | Meta Cloud | Telnyx | **Telnyx IVR** | Built-in |
-| **A escala** | Brevo o Listmonk+SES | 360dialog o Meta directo | Telnyx (volumen) o 360nrs (factura AR) | Telnyx | Built-in + Google Forms para ad-hoc |
+| **F6 (Voz)** | Resend | Meta Cloud | Telnyx | **Telnyx IVR** (menú) o **Bland AI** (conversacional) | Built-in |
+| **A escala** | Brevo o Listmonk+SES | 360dialog o Meta directo | Telnyx (volumen) o 360nrs (factura AR) | Telnyx + Bland AI / Vapi | Built-in + Google Forms para ad-hoc |
 
 ## ⚠️ Providers descartados (con razón)
 
