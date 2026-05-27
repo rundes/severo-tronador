@@ -42,6 +42,18 @@ Sin `.env.local`, la app usa el padrón mock (100 filas) y la auth queda
 deshabilitada para iterar local. Con credenciales reales (ver PLAN.md), el
 conector Google Sheets lee el padrón real y se activa el login.
 
+## Deploy
+
+- **La app → Vercel.** Es una app Next.js con render server-side (server
+  actions, API routes, webhooks); **no** corre en hosts estáticos como GitHub
+  Pages. Vercel la detecta sin configuración:
+  1. Importar el repo en [vercel.com/new](https://vercel.com/new).
+  2. Cargar las env vars (ver [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) y `.env.example`).
+  3. Deploy. (La cola con Vercel Cron queda pendiente — ver [docs/STABILIZATION.md](./docs/STABILIZATION.md).)
+- **La documentación → GitHub Pages.** Se publica sola: el workflow
+  `.github/workflows/docs.yml` renderiza los markdown a un sitio estático en
+  cada push a `main`. URL: `https://rundes.github.io/severo-tronador/`.
+
 ## Próximos pasos
 
 Roadmap F0→F8 completo (ver [PLAN.md](./PLAN.md#fases-de-entrega-roadmap-único)). Para llevar a producción: cargar credenciales reales, migrar la persistencia en memoria a Google Sheets, y agregar Vercel Cron para la cola de envíos.

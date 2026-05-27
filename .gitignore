@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# docs site build output (regenerado por CI)
+/site
+
 # next.js
 /.next/
 /out/
