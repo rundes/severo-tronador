@@ -1,5 +1,5 @@
 // Conector de listening: GDELT (prensa mundial geo-codificada, gratis).
-// F8: modo mock con prensa local de Maipú (BA). Real: GDELT DOC 2.0 API.
+// F8: modo mock con prensa local genérica. Real: GDELT DOC 2.0 API.
 import type {
   ConnectorStatus,
   ListenItem,
@@ -30,7 +30,7 @@ export const gdeltConnector: ListeningConnector = {
   configSchema: [],
 
   async test(): Promise<TestResult> {
-    return { ok: true, message: "Modo mock — prensa local de Maipú (BA)." };
+    return { ok: true, message: "Modo mock — prensa local simulada." };
   },
   async getStatus(): Promise<ConnectorStatus> {
     return "enabled";

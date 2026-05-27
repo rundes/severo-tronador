@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Severo Tronador",
   description:
-    "Contactación segmentada multicanal con propósito investigativo — Maipú, Buenos Aires.",
+    "Contactación segmentada multicanal con propósito investigativo.",
 };
 
 export default function RootLayout({

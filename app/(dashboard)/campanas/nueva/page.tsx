@@ -138,7 +138,7 @@ export default async function NuevaCampanaPage({
             <input
               name="nombre"
               required
-              placeholder="Sondeo transporte — Las Armas"
+              placeholder="Sondeo transporte — Centro"
               defaultValue={params.nombre ?? ""}
               className={inputCls}
             />

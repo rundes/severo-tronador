@@ -2,7 +2,7 @@
 
 > **Roadmap único y fuente de verdad de las fases.** Para el **por qué / el sentido** ver [VISION.md](./VISION.md); para el **cómo técnico** (modelo de conectores, fidelización, UI) ver [ARCHITECTURE.md](./ARCHITECTURE.md); para el **abanico de servicios** ver [PROVIDERS.md](./PROVIDERS.md).
 
-Plataforma web que toma el padrón enriquecido de Maipú, le da segmentación fina y una estrategia multicanal asistida sobre un **abanico de conectores activables (plugins)**, y registra todo en Google Sheets como capa de datos — con propósito **investigativo / encuestas**.
+Plataforma web que toma un padrón o lista de contactos enriquecida, le da segmentación fina y una estrategia multicanal asistida sobre un **abanico de conectores activables (plugins)**, y registra todo en Google Sheets como capa de datos — con propósito **investigativo / encuestas**. La herramienta es genérica: el territorio y la organización se configuran por entorno, no están hardcodeados.
 
 ## Alcance
 

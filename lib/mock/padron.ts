@@ -2,17 +2,17 @@
 // real cambiando 1 línea en la config del conector google-sheets (ver §13).
 import type { Contact } from "@/lib/connectors/types";
 
-// Localidades del partido de Maipú, provincia de Buenos Aires + barrios
-// ilustrativos de la cabecera. Datos de muestra (no padrón real).
+// Barrios/localidades genéricos de muestra (no es un padrón real). El padrón
+// real lo aporta cada despliegue vía el conector Google Sheets.
 const BARRIOS = [
-  "Maipú Centro",
-  "Las Armas",
-  "Santo Domingo",
+  "Centro",
   "Barrio Norte",
   "Barrio Sur",
-  "Estación",
-  "Villa Mitre",
-  "El Carmen",
+  "Barrio Este",
+  "Barrio Oeste",
+  "Villa Nueva",
+  "Las Lomas",
+  "El Parque",
 ];
 
 const NOMBRES_F = ["María", "Ana", "Lucía", "Sofía", "Valentina", "Camila", "Julia", "Carla"];
@@ -49,7 +49,7 @@ export const mockPadron: Contact[] = Array.from({ length: 100 }, (_, i) => {
   const dni = String(20_000_000 + Math.floor(rand() * 25_000_000));
   const circuito = String(1 + Math.floor(rand() * 20)).padStart(2, "0");
   const mesa = String(1000 + Math.floor(rand() * 800));
-  const tel = `+5492268${String(100000 + Math.floor(rand() * 899999))}`; // cód. área Maipú (BA): 2268
+  const tel = `+54911${String(10000000 + Math.floor(rand() * 89999999))}`; // móvil AR de ejemplo
 
   return {
     dni,

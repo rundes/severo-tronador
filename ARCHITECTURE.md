@@ -439,7 +439,7 @@ Espejo directo de la pantalla "Settings → Connectors" de Claude:
 │  Escucha y análisis                                               │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │  GDELT                                       ●—— activo     │ │
-│  │  Geo: Maipú, Buenos Aires · 47 artículos esta semana        │ │
+│  │  Geo: tu territorio · 47 artículos esta semana              │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │  Claude API (análisis cualitativo)           ●—— activo     │ │
@@ -458,10 +458,10 @@ Click sobre un conector → modal de configuración con: descripción, link a do
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  ←  Volver a segmento "30-50 años, Las Armas"                        │
+│  ←  Volver a segmento "30-50 años, Barrio Norte"                        │
 │                                                                   │
 │  María Elena Rodríguez                                            │
-│  DNI 22.345.678 · 47 años · Bo. Las Armas · Circuito 12          │
+│  DNI 22.345.678 · 47 años · Bo. Barrio Norte · Circuito 12          │
 │                                                                   │
 │  ─────────────────────                                            │
 │                                                                   │
@@ -470,7 +470,7 @@ Click sobre un conector → modal de configuración con: descripción, link a do
 │  Canal preferido inferido         WhatsApp (3/3 respondidos)     │
 │                                                                   │
 │  Historial                                                        │
-│  · 12 mar 2026  WhatsApp · Encuesta seguridad Las Armas · respondió  │
+│  · 12 mar 2026  WhatsApp · Encuesta seguridad Barrio Norte · respondió  │
 │  · 04 feb 2026  Email · Invitación foro vecinal · respondió      │
 │  · 18 ene 2026  WhatsApp · Sondeo transporte · respondió         │
 │                                                                   │
@@ -484,7 +484,7 @@ Click sobre un conector → modal de configuración con: descripción, link a do
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Segmentos · "Mujeres 30-50, Las Armas"                          │
+│  Segmentos · "Mujeres 30-50, Barrio Norte"                          │
 │                                                                   │
 │  287 personas                                                     │
 │                                                                   │
@@ -503,7 +503,7 @@ Click sobre un conector → modal de configuración con: descripción, link a do
 │  Filtros aplicados                                                │
 │  · sexo = femenino                                                │
 │  · edad ∈ [30, 50]                                                │
-│  · barrio = "Las Armas"                                           │
+│  · barrio = "Barrio Norte"                                           │
 │  · health_score ≥ 40                                              │
 │                                                                   │
 │  [Editar filtros]    [Iniciar campaña →]    [Exportar]            │
@@ -534,16 +534,16 @@ Una sola pantalla por paso, una sola decisión visible por pantalla, sin paneles
 
 ## 7. Flujo end-to-end de una campaña típica
 
-> **Caso**: "Quiero saber qué piensan mujeres de 30 a 50 años del barrio Las Armas sobre el transporte público."
+> **Caso**: "Quiero saber qué piensan mujeres de 30 a 50 años del barrio Barrio Norte sobre el transporte público."
 
 1. **Definir segmento**
-   - Crear filtros `sexo=F, edad∈[30,50], barrio="Las Armas", health_score≥40`
+   - Crear filtros `sexo=F, edad∈[30,50], barrio="Barrio Norte", health_score≥40`
    - Sistema devuelve: 287 personas, 198 sanas, 64 tibias, 25 deterioradas
    - Aplicar cooldowns por canal → 198 disponibles WhatsApp / 243 email / 287 SMS
 
 2. **Diseñar contacto**
    - Canal default sugerido por mayoría de preferencias: WhatsApp
-   - Template: "Hola {{nombre}}, soy del equipo de relevamiento de Maipú. ¿Tenés 2 min para una pregunta sobre transporte público en Las Armas? Tu respuesta nos ayuda a investigar, no es propaganda. Si no querés recibir más mensajes: respondé BAJA."
+   - Template: "Hola {{nombre}}, soy del equipo de relevamiento. ¿Tenés 2 min para una pregunta sobre transporte público en Barrio Norte? Tu respuesta nos ayuda a investigar, no es propaganda. Si no querés recibir más mensajes: respondé BAJA."
    - Link a encuesta tokenizada: `/encuesta/abc123`
    - Preview, validación de variables
 

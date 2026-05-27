@@ -3,9 +3,10 @@ import { getCampaign } from "@/lib/campaigns";
 import { hasResponded, resolveToken } from "@/lib/survey";
 import { isOptedOut } from "@/lib/optout";
 import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
+import { ORG_NAME } from "@/lib/config";
 
 export const metadata = {
-  title: "Encuesta · Maipú",
+  title: "Encuesta",
   robots: { index: false },
 };
 
@@ -16,8 +17,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <p className="mt-4 text-center text-xs text-zinc-400">
-        Relevamiento de opinión pública · Maipú, Buenos Aires. No es campaña
-        electoral. Tus datos no se comparten con terceros.
+        Relevamiento de opinión pública. No es campaña electoral. Tus datos no
+        se comparten con terceros.
       </p>
     </div>
   );
@@ -89,7 +90,7 @@ export default async function EncuestaPage({
         Hola{nombre ? ` ${nombre}` : ""} 👋
       </h1>
       <p className="mt-1 text-sm text-zinc-500">
-        Somos el equipo de relevamiento de Maipú. ¿Nos das un minuto?
+        Somos {ORG_NAME}. ¿Nos das un minuto?
       </p>
 
       <form action={responderEncuesta} className="mt-5 space-y-4">

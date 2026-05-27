@@ -13,7 +13,7 @@ Severo Tronador toma **tu base de contactos** y le da el poder de la **segmentac
 
 ## El problema que resuelve
 
-Tenés una base de contactos valiosa (el padrón enriquecido de Maipú) y querés **conversar** con la gente: preguntarles, escucharlos, medir opinión, invitarlos. Pero el panorama está roto en tres frentes:
+Tenés una base de contactos valiosa (tu padrón o lista enriquecida) y querés **conversar** con la gente: preguntarles, escucharlos, medir opinión, invitarlos. Pero el panorama está roto en tres frentes:
 
 1. **Las herramientas son monocanal o carísimas.** Email por un lado, WhatsApp por otro, SMS en una tercera, encuestas en una cuarta. Cada una con su login, su dashboard, su factura. Nada habla con nada.
 2. **Los free tiers son generosos pero invisibles.** Resend regala 3.000 emails/mes, Meta 1.000 conversaciones, Telegram es ilimitado. Pero ninguna herramienta te muestra cuánto te queda ni te ayuda a no quemarlo. Terminás pagando por no saber.
@@ -130,7 +130,7 @@ La herramienta no es solo "encuestas". Cubre un espectro de **intercambios**:
 
 | Tipo | Qué es | Ejemplo |
 |---|---|---|
-| **Comunicación** | Mensaje saliente informativo o de invitación | "Foro vecinal el sábado en Las Armas" |
+| **Comunicación** | Mensaje saliente informativo o de invitación | "Foro vecinal el sábado en el Barrio Norte" |
 | **Encuesta** | Preguntas estructuradas con respuestas registradas | "¿Cómo calificás el transporte público?" (1-5) |
 | **Intercambio** | Conversación bidireccional, respuesta abierta | "Contanos qué mejorarías de tu barrio" → análisis cualitativo con Claude |
 

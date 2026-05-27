@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth, authConfigured } from "@/lib/auth";
 import { connectors } from "@/lib/connectors/registry";
 import type { OutreachConnector } from "@/lib/connectors/types";
+import { APP_NAME } from "@/lib/config";
 
 const NAV = [
   { href: "/escucha", label: "Escucha" },
@@ -36,7 +37,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-full flex-1">
       <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 px-4 py-6 dark:border-zinc-800">
         <Link href="/" className="mb-8 font-mono text-sm tracking-tight">
-          severo·tronador
+          {APP_NAME}
         </Link>
         <nav className="flex flex-col gap-1 font-mono text-sm">
           {NAV.map((item) => (

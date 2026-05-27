@@ -1,6 +1,6 @@
-// Dataset mock de listening pasivo para F8. Items de prensa/redes geo-Maipú
-// (BA) repartidos en ~21 días, con "inseguridad" pegando un pico en los
-// últimos 7 días para demostrar la detección de tema emergente.
+// Dataset mock de listening pasivo. Items de prensa/redes (genéricos)
+// repartidos en ~21 días, con "inseguridad" pegando un pico en los últimos 7
+// días para demostrar la detección de tema emergente.
 // Se reemplaza por las APIs reales (GDELT/X/Reddit) cuando haya credenciales.
 import type { ListenItem } from "@/lib/connectors/types";
 
@@ -20,23 +20,23 @@ interface Raw {
 // inseguridad concentrado en los últimos 7 días.
 const RAW: Raw[] = [
   // baseline transporte
-  { source: "gdelt", daysAgo: 19, text: "Reclaman mejoras en el transporte público de Maipú" },
-  { source: "x-api", daysAgo: 17, text: "otra vez el colectivo de Maipú tardísimo, el transporte un desastre" },
-  { source: "reddit-api", daysAgo: 12, text: "Cómo está el transporte en Maipú para ir a estudiar?" },
-  { source: "gdelt", daysAgo: 6, text: "Anuncian nuevas frecuencias de transporte para Las Armas" },
+  { source: "gdelt", daysAgo: 19, text: "Reclaman mejoras en el transporte público de la ciudad" },
+  { source: "x-api", daysAgo: 17, text: "otra vez el colectivo tardísimo, el transporte un desastre" },
+  { source: "reddit-api", daysAgo: 12, text: "Cómo está el transporte para ir a estudiar?" },
+  { source: "gdelt", daysAgo: 6, text: "Anuncian nuevas frecuencias de transporte para el barrio" },
   // baseline alumbrado / obras
-  { source: "x-api", daysAgo: 18, text: "falta alumbrado en varias calles del centro de Maipú" },
-  { source: "reddit-api", daysAgo: 11, text: "Obras en la ruta a Santo Domingo, alguien sabe cuándo terminan?" },
+  { source: "x-api", daysAgo: 18, text: "falta alumbrado en varias calles del centro" },
+  { source: "reddit-api", daysAgo: 11, text: "Obras en la ruta, alguien sabe cuándo terminan?" },
   { source: "gdelt", daysAgo: 9, text: "El municipio licita obras de alumbrado público" },
   // baseline inseguridad (pocos, período viejo)
   { source: "x-api", daysAgo: 16, text: "robaron en el barrio, ojo con la inseguridad" },
   // pico reciente inseguridad (últimos 7 días)
-  { source: "x-api", daysAgo: 5, text: "otra entradera en Maipú, la inseguridad no para" },
-  { source: "reddit-api", daysAgo: 4, text: "Ola de robos en Maipú, mucha inseguridad esta semana" },
-  { source: "gdelt", daysAgo: 3, text: "Vecinos de Maipú marchan por la inseguridad creciente" },
-  { source: "x-api", daysAgo: 2, text: "la inseguridad en Maipú está peor que nunca, otro robo" },
-  { source: "reddit-api", daysAgo: 2, text: "Inseguridad en Las Armas: cámaras y más patrullaje ya" },
-  { source: "gdelt", daysAgo: 1, text: "Comerciantes de Maipú reclaman por la inseguridad" },
+  { source: "x-api", daysAgo: 5, text: "otra entradera en el barrio, la inseguridad no para" },
+  { source: "reddit-api", daysAgo: 4, text: "Ola de robos en la zona, mucha inseguridad esta semana" },
+  { source: "gdelt", daysAgo: 3, text: "Vecinos marchan por la inseguridad creciente" },
+  { source: "x-api", daysAgo: 2, text: "la inseguridad está peor que nunca, otro robo" },
+  { source: "reddit-api", daysAgo: 2, text: "Inseguridad en el barrio: cámaras y más patrullaje ya" },
+  { source: "gdelt", daysAgo: 1, text: "Comerciantes reclaman por la inseguridad" },
   { source: "x-api", daysAgo: 1, text: "no se puede salir de noche por la inseguridad" },
 ];
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { runListening } from "@/lib/listening";
+import { TERRITORY } from "@/lib/config";
 
 export const metadata = { title: "Escucha · Severo Tronador" };
 
@@ -20,8 +21,8 @@ export default async function EscuchaPage() {
           Escucha
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Canal pasivo: qué se dice de Maipú en prensa y redes. Descubre temas{" "}
-          <em>antes</em> de diseñar una encuesta.
+          Canal pasivo: qué se dice de {TERRITORY} en prensa y redes. Descubre
+          temas <em>antes</em> de diseñar una encuesta.
         </p>
       </div>
 
@@ -91,7 +92,7 @@ export default async function EscuchaPage() {
 
       <p className="text-xs text-zinc-400">
         Mock: GDELT/X/Reddit simulados. Con credenciales, los conectores de
-        listening traen menciones reales geo-filtradas a Maipú (BA).
+        listening traen menciones reales geo-filtradas a tu territorio.
       </p>
     </div>
   );

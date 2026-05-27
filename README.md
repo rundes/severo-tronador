@@ -1,6 +1,8 @@
 # severo-tronador
 
-Toma **tu base de contactos** y le da **segmentación fina** + una **estrategia multicanal asistida** para contactar a las personas correctas, por el medio correcto, y **obtener respuestas** — comunicación, encuestas e intercambios. Cada servicio (email, WhatsApp, SMS, voz, Telegram, listening…) es un **conector tipo plugin** que se activa desde la app, y el sistema está optimizado para **maximizar los recursos gratuitos** sin quemar la relación con cada contacto.
+Toma **tu base de contactos** (tu padrón o lista enriquecida) y le da **segmentación fina** + una **estrategia multicanal asistida** para contactar a las personas correctas, por el medio correcto, y **obtener respuestas** — comunicación, encuestas e intercambios. Cada servicio (email, WhatsApp, SMS, voz, Telegram, listening…) es un **conector tipo plugin** que se activa desde la app, y el sistema está optimizado para **maximizar los recursos gratuitos** sin quemar la relación con cada contacto.
+
+La herramienta es **genérica**: no está atada a ningún territorio ni organización. El nombre del equipo, el territorio y el branding se configuran por variables de entorno (`ORG_NAME`, `TERRITORY`, `APP_NAME`).
 
 > **Scope**: investigación social y opinión pública. **No** se usa para campañas electorales ni posicionamiento de candidatos.
 
@@ -16,7 +18,9 @@ Todos los conectores corren en **modo mock** sin credenciales; el envío/listeni
 - 📋 [PLAN.md](./PLAN.md) — Roadmap único (fases F0→F8), capa de datos, stack
 - 🏗️ [ARCHITECTURE.md](./ARCHITECTURE.md) — El cómo técnico: modelo de conectores, fidelización, UI
 - 📡 [PROVIDERS.md](./PROVIDERS.md) — El abanico de servicios: comparativa por canal (+ voz IA, open source, listening por tiers)
-- 📄 [docs/SEVERO_TRONADOR_Research.docx](./docs/SEVERO_TRONADOR_Research.docx) — Research técnico completo (fuente de la estrategia y arquitectura)
+- 🔌 [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) — Conectar cada herramienta paso a paso + cómo agregar conectores nuevos
+- 🧰 [docs/STABILIZATION.md](./docs/STABILIZATION.md) — Hallazgos de revisión + plan de mejoras para producción
+- 📄 [docs/SEVERO_TRONADOR_Research.docx](./docs/SEVERO_TRONADOR_Research.docx) — Research técnico original (artefacto histórico)
 
 ## Stack
 

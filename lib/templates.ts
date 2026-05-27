@@ -21,7 +21,7 @@ const seed: Template[] = [
     nombre: "Invitación a encuesta corta",
     asunto: "¿Nos das 2 minutos, {{nombre}}?",
     cuerpo:
-      "Hola {{nombre}}, somos el equipo de relevamiento de Maipú. " +
+      "Hola {{nombre}}, somos el equipo de relevamiento. " +
       "Estamos haciendo una encuesta de opinión sobre tu barrio ({{barrio}}). " +
       "No es campaña electoral ni vendemos nada. Respondé acá: {{encuesta_url}} " +
       "Para no recibir más mensajes, respondé BAJA.",
@@ -44,7 +44,7 @@ const seed: Template[] = [
     channel: "whatsapp",
     nombre: "WA · Invitación a encuesta",
     cuerpo:
-      "Hola {{nombre}}, somos el equipo de relevamiento de Maipú. ¿Tenés 2 " +
+      "Hola {{nombre}}, somos el equipo de relevamiento. ¿Tenés 2 " +
       "minutos para una pregunta sobre {{barrio}}? Es investigación, no es " +
       "campaña electoral. Respondé acá: {{encuesta_url}} " +
       "Si no querés recibir más mensajes, respondé BAJA.",
@@ -56,7 +56,7 @@ const seed: Template[] = [
     channel: "sms",
     nombre: "SMS · Recordatorio corto",
     cuerpo:
-      "Relevamiento Maipú: {{nombre}}, encuesta de {{barrio}}: {{encuesta_url}} " +
+      "Relevamiento: {{nombre}}, encuesta de {{barrio}}: {{encuesta_url}} " +
       "Responder BAJA para no recibir más.",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
@@ -66,7 +66,7 @@ const seed: Template[] = [
     channel: "voice",
     nombre: "Voz · Guion IVR",
     cuerpo:
-      "Hola {{nombre}}. Le habla el equipo de relevamiento de Maipú. " +
+      "Hola {{nombre}}. Le habla el equipo de relevamiento. " +
       "Estamos haciendo una breve encuesta de opinión sobre {{barrio}}. " +
       "Si desea participar, presione 1. Para no recibir más llamados, presione 9.",
     estado: "activo",
