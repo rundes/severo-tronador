@@ -6,9 +6,9 @@ Toma **tu base de contactos** (el padrón enriquecido de Maipú, prov. de Buenos
 
 ## Estado actual
 
-✅ **F1 — scaffold hecho** (branch `f1-scaffold`). App Next.js corriendo local con la infraestructura de conectores, panel de conectores, y conector Google Sheets contra un padrón mock de 100 filas. Auth NextAuth lista (se activa al setear credenciales).
+✅ **Roadmap F0→F8 completo** (scaffold + mock). App Next.js con: panel de conectores, lectura del padrón, segmentos + health score, plantillas, campañas multicanal (email/WhatsApp/SMS/voz) con cuotas y cooldowns, encuestas públicas tokenizadas + opt-out, análisis cualitativo + dashboard de cierre, y listening pasivo con alertas de tema emergente.
 
-Siguiente: **F2 — lectura del padrón + constructor de segmentos + ficha de contacto + health score**.
+Todos los conectores corren en **modo mock** sin credenciales; el envío/listening real se activa seteando las env vars (ver `.env.example`). Pendiente de producción: persistencia en Google Sheets (hoy en memoria), Vercel Cron para la cola de envíos, y plantillas WhatsApp aprobadas por Meta.
 
 ## Documentación
 
@@ -40,4 +40,4 @@ conector Google Sheets lee el padrón real y se activa el login.
 
 ## Próximos pasos
 
-Ver fases en [PLAN.md](./PLAN.md#fases-de-entrega-roadmap-único). El siguiente paso es **F2 — padrón + segmentos + ficha de contacto + health score**.
+Roadmap F0→F8 completo (ver [PLAN.md](./PLAN.md#fases-de-entrega-roadmap-único)). Para llevar a producción: cargar credenciales reales, migrar la persistencia en memoria a Google Sheets, y agregar Vercel Cron para la cola de envíos.

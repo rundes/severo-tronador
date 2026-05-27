@@ -89,14 +89,20 @@ Roadmap reconciliado alrededor del **modelo de conectores desde el inicio**: F1 
 | # | Entregable | Conectores que activa | Salida | Status |
 |---|---|---|---|---|
 | **F0** | Plan + research + arquitectura + visión | — | Este doc + VISION/ARCHITECTURE/PROVIDERS | ✅ Hecho |
-| **F1** | Scaffold Next.js + auth Google + **panel de conectores** + conector Google Sheets (mock padrón) | `google-oauth`, `google-sheets` | App local con infra de plugins | ⏳ Siguiente |
-| **F2** | Lectura del padrón + constructor de segmentos + ficha de contacto + health score básico | — | UI funcional sin envíos | |
-| **F3** | Templates + creación de campañas + **envío real email** + tracking de cuotas | `resend` | E2E primer canal + cuotas vivas | |
-| **F4** | WhatsApp Meta Cloud API + templates aprobados + webhooks de estado | `meta-wa-cloud` | 2 canales activos | |
-| **F5** | SMS + voz/IVR + registro de llamadas | `telnyx-sms`, `telnyx-voice` | Multi-canal saliente completo | |
-| **F6** | Encuestas/intercambios públicos `/encuesta/[token]` con tracking + opt-out cross-channel + dedupe | — | Captura de respuestas | |
-| **F7** | Análisis cualitativo de respuestas + dashboard de cierre | `claude-api` | Coding inductivo + clustering | |
-| **F8** | Listening pasivo (descubrir temas antes de encuestar) + alertas de tema emergente | `gdelt`, `x-api`, `reddit-api` | Pipeline listening → encuesta | |
+| **F1** | Scaffold Next.js + auth Google + **panel de conectores** + conector Google Sheets (mock padrón) | `google-oauth`, `google-sheets` | App local con infra de plugins | ✅ Hecho |
+| **F2** | Lectura del padrón + constructor de segmentos + ficha de contacto + health score básico | — | UI funcional sin envíos | ✅ Hecho |
+| **F3** | Templates + creación de campañas + **envío real email** + tracking de cuotas | `resend` | E2E primer canal + cuotas vivas | ✅ Hecho |
+| **F4** | WhatsApp Meta Cloud API + templates aprobados + webhooks de estado | `meta-wa-cloud` | 2 canales activos | ✅ Hecho |
+| **F5** | SMS + voz/IVR + registro de llamadas | `telnyx-sms`, `telnyx-voice` | Multi-canal saliente completo | ✅ Hecho |
+| **F6** | Encuestas/intercambios públicos `/encuesta/[token]` con tracking + opt-out cross-channel + dedupe | — | Captura de respuestas | ✅ Hecho |
+| **F7** | Análisis cualitativo de respuestas + dashboard de cierre | `claude-api` | Coding inductivo + clustering | ✅ Hecho |
+| **F8** | Listening pasivo (descubrir temas antes de encuestar) + alertas de tema emergente | `gdelt`, `x-api`, `reddit-api` | Pipeline listening → encuesta | ✅ Hecho |
+
+> **Roadmap F0→F8 completo** (scaffold + mock). Todos los conectores corren en
+> modo mock sin credenciales; activar el envío/listening real es setear las env
+> vars correspondientes. Pendiente de producción: persistencia en Sheets
+> (templates/campañas/cuotas/respuestas viven en memoria), Vercel Cron para la
+> cola, y plantillas WhatsApp aprobadas por Meta.
 
 > **Canal complementario** (`telegram-bot`, gratis e ilimitado) puede sumarse en cualquier punto a partir de F4 — es un archivo más en el registry.
 

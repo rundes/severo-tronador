@@ -5,6 +5,7 @@ import { connectors } from "@/lib/connectors/registry";
 import type { OutreachConnector } from "@/lib/connectors/types";
 
 const NAV = [
+  { href: "/escucha", label: "Escucha" },
   { href: "/segmentos", label: "Segmentos" },
   { href: "/campanas", label: "Campañas" },
   { href: "/respuestas", label: "Respuestas" },

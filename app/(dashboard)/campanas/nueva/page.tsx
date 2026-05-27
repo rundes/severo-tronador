@@ -169,6 +169,11 @@ export default async function NuevaCampanaPage({
               name="preguntas"
               rows={3}
               placeholder="¿Qué mejorarías de tu barrio?&#10;¿Cómo calificás el transporte? (1-5)"
+              defaultValue={
+                params.tema
+                  ? `¿Qué opinás sobre ${params.tema} en tu barrio?`
+                  : ""
+              }
               className={inputCls}
             />
             <span className="text-zinc-400">

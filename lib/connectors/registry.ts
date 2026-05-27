@@ -9,6 +9,9 @@ import { metaWaCloudConnector } from "./meta-wa-cloud";
 import { telnyxSmsConnector } from "./telnyx-sms";
 import { telnyxVoiceConnector } from "./telnyx-voice";
 import { claudeApiConnector } from "./claude-api";
+import { gdeltConnector } from "./gdelt";
+import { xApiConnector } from "./x-api";
+import { redditApiConnector } from "./reddit-api";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -18,7 +21,9 @@ export const connectors: Connector[] = [
   telnyxSmsConnector,
   telnyxVoiceConnector,
   claudeApiConnector,
-  // F8: gdelt, x-api, reddit-api (listening)
+  gdeltConnector,
+  xApiConnector,
+  redditApiConnector,
 ];
 
 export function getConnector(id: string): Connector | undefined {

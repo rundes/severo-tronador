@@ -40,7 +40,8 @@ const STOPWORDS = new Set([
   "esto", "esos", "esas", "muy", "más", "mas", "que", "los", "las", "del",
   "con", "una", "unos", "unas", "por", "sus", "nos", "les", "hay", "son",
   "está", "estan", "están", "ser", "fue", "han", "hace", "cada", "donde",
-  "cuando", "tener", "barrio", "nuestro", "nuestra",
+  "cuando", "tener", "barrio", "nuestro", "nuestra", "maipu", "vecinos",
+  "calles", "semana", "otra",
 ]);
 
 function tokenize(text: string): string[] {
