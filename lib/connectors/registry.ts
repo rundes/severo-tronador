@@ -8,6 +8,7 @@ import { resendConnector } from "./resend";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
 import { telnyxSmsConnector } from "./telnyx-sms";
 import { telnyxVoiceConnector } from "./telnyx-voice";
+import { claudeApiConnector } from "./claude-api";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -16,7 +17,7 @@ export const connectors: Connector[] = [
   metaWaCloudConnector,
   telnyxSmsConnector,
   telnyxVoiceConnector,
-  // F7: claude-api (analysis)
+  claudeApiConnector,
   // F8: gdelt, x-api, reddit-api (listening)
 ];
 

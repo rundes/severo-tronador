@@ -56,6 +56,12 @@ export default async function CampanaPage({
             {respuestas} respuestas
           </Link>
         </p>
+        <Link
+          href={`/campanas/${campaign.id}/cierre`}
+          className="mt-2 inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Ver dashboard de cierre →
+        </Link>
       </div>
 
       <div className="grid grid-cols-4 gap-3 text-center">
