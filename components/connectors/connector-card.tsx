@@ -1,4 +1,6 @@
 import type { Connector, ConnectorStatus, Quota } from "@/lib/connectors/types";
+import type { FieldStatus } from "@/lib/connectors/config";
+import { ConfigButton } from "@/components/connectors/config-modal";
 
 const STATUS_META: Record<
   ConnectorStatus,
@@ -33,11 +35,25 @@ export function ConnectorCard({
   status,
   quota,
   note,
+  fields,
+  enabled,
+  setupUrl,
+  guardar,
+  probar,
+  toggle,
+  borrar,
 }: {
   connector: Connector;
   status: ConnectorStatus;
   quota: Quota | null;
   note?: string;
+  fields: FieldStatus[];
+  enabled: boolean;
+  setupUrl: string;
+  guardar: (fd: FormData) => Promise<void>;
+  probar: (fd: FormData) => Promise<{ ok: boolean; message: string }>;
+  toggle: (enabled: boolean) => Promise<void>;
+  borrar: () => Promise<void>;
 }) {
   const meta = STATUS_META[status];
   return (
@@ -65,6 +81,16 @@ export function ConnectorCard({
             {quotaLabel(quota)}
           </span>
         )}
+        <ConfigButton
+          name={connector.name}
+          fields={fields}
+          enabled={enabled}
+          setupUrl={setupUrl}
+          guardar={guardar}
+          probar={probar}
+          toggle={toggle}
+          borrar={borrar}
+        />
       </div>
     </div>
   );

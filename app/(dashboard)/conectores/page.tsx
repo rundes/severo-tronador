@@ -5,17 +5,27 @@ import {
   connectors,
 } from "@/lib/connectors/registry";
 import type { Connector } from "@/lib/connectors/types";
+import { configFieldStatus, isEnabled } from "@/lib/connectors/config";
+import { setupLink } from "@/lib/connectors/setup-links";
+import {
+  guardarConfig,
+  probarConexion,
+  toggleConector,
+  borrarConfig,
+} from "./actions";
 
 export const metadata = { title: "Conectores · Severo Tronador" };
 
-// Resuelve estado + cuota + nota de test de cada conector (server-side).
+// Resuelve estado + cuota + nota de test + config de cada conector (server-side).
 async function resolve(connector: Connector) {
-  const [status, quota, test] = await Promise.all([
+  const [status, quota, test, fields, enabled] = await Promise.all([
     connector.getStatus(),
     connector.getQuota ? connector.getQuota() : Promise.resolve(null),
     connector.test(),
+    configFieldStatus(connector.id),
+    isEnabled(connector.id),
   ]);
-  return { connector, status, quota, note: test.message };
+  return { connector, status, quota, note: test.message, fields, enabled };
 }
 
 export default async function ConectoresPage() {
@@ -42,27 +52,25 @@ export default async function ConectoresPage() {
               {CATEGORY_LABELS[cat]}
             </h2>
             <div className="space-y-2">
-              {items.map(({ connector, status, quota, note }) => (
+              {items.map(({ connector, status, quota, note, fields, enabled }) => (
                 <ConnectorCard
                   key={connector.id}
                   connector={connector}
                   status={status}
                   quota={quota}
                   note={note}
+                  fields={fields}
+                  enabled={enabled}
+                  setupUrl={setupLink(connector.id)}
+                  guardar={guardarConfig.bind(null, connector.id)}
+                  probar={probarConexion.bind(null, connector.id)}
+                  toggle={toggleConector.bind(null, connector.id)}
+                  borrar={borrarConfig.bind(null, connector.id)}
                 />
               ))}
             </div>
           </section>
         ))}
-
-        <button
-          type="button"
-          disabled
-          className="w-full cursor-not-allowed rounded-lg border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-400 dark:border-zinc-700"
-          title="Disponible al sumar más conectores (F3+)"
-        >
-          + Agregar conector
-        </button>
       </div>
     </div>
   );
