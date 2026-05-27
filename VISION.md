@@ -130,7 +130,7 @@ La herramienta no es solo "encuestas". Cubre un espectro de **intercambios**:
 
 | Tipo | Qué es | Ejemplo |
 |---|---|---|
-| **Comunicación** | Mensaje saliente informativo o de invitación | "Foro vecinal el sábado en Luján Sur" |
+| **Comunicación** | Mensaje saliente informativo o de invitación | "Foro vecinal el sábado en Las Armas" |
 | **Encuesta** | Preguntas estructuradas con respuestas registradas | "¿Cómo calificás el transporte público?" (1-5) |
 | **Intercambio** | Conversación bidireccional, respuesta abierta | "Contanos qué mejorarías de tu barrio" → análisis cualitativo con Claude |
 

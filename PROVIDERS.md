@@ -193,11 +193,13 @@ Brandwatch tiene [guía específica para gobierno](https://www.brandwatch.com/gu
 
 ## 🗺️ Social listening con foco territorial (alternativas a Brandwatch)
 
-> El uso "escuchar un territorio" (Maipú, Mendoza) es **distinto** al uso clásico de social listening ("monitorear mi marca"). Cambia la pregunta de "¿qué dicen de mí?" a "¿qué dicen acá?". Esto desbloquea una familia de herramientas más adecuadas y un par de gemas open source.
+> El uso "escuchar un territorio" (Maipú, provincia de Buenos Aires) es **distinto** al uso clásico de social listening ("monitorear mi marca"). Cambia la pregunta de "¿qué dicen de mí?" a "¿qué dicen acá?". Esto desbloquea una familia de herramientas más adecuadas y un par de gemas open source.
 
-### El caso particular de un municipio chico (200k habitantes)
+### El caso particular de un partido chico y rural
 
-Vale aclarar la economía antes de elegir: una ciudad como Maipú **no genera el volumen de menciones** que justifica un Brandwatch / Talkwalker enterprise. Los mínimos de plan (típicamente miles de menciones/mes) no se llenan. Esto reordena la pirámide de costos:
+Vale aclarar la economía antes de elegir: el **partido de Maipú** (provincia de Buenos Aires) es un municipio chico y rural — cabecera Maipú, localidades Las Armas y Santo Domingo. **No genera el volumen de menciones** que justifica un Brandwatch / Talkwalker enterprise; los mínimos de plan (típicamente miles de menciones/mes) no se llenan ni de cerca. Esto **refuerza** la pirámide de costos hacia abajo (cuanto más chico el territorio, más conviene DIY):
+
+> ⚠️ **A confirmar**: la población exacta del partido. La cifra "~200k" que circulaba antes correspondía a *Maipú, Mendoza* (otro municipio homónimo) y se eliminó. Maipú (BA) es bastante más chico.
 
 - **Enterprise SaaS ($25k+/año)**: sobredimensionado salvo presupuesto generoso o ambición provincial
 - **Purpose-built municipal ($pricing custom, escalable)**: **Zencity** — diseñado para este tamaño
@@ -218,7 +220,7 @@ Vale aclarar la economía antes de elegir: una ciudad como Maipú **no genera el
 | **Encuestas integradas** | Vienen del NRC (mergeado con Polco), pueden lanzarse desde la misma plataforma — competiría con nuestra app |
 | **Benchmarking** | Compara métricas contra otros municipios similares |
 
-**Pricing**: no público, escala con tamaño del municipio. Para una ciudad de ~200k habitantes, el ticket histórico ronda **$15k–$40k/año**. Tiene un plan "Essentials" más liviano lanzado en 2024 para municipios chicos.
+**Pricing**: no público, escala con tamaño del municipio. El ticket histórico para municipios medianos ronda **$15k–$40k/año**; tiene un plan "Essentials" más liviano (2024) para municipios chicos. Para un partido del tamaño de Maipú (BA), es muy probablemente **sobredimensionado** salvo presupuesto provincial.
 
 **Decisión**: si Severo Tronador es para el **Municipio de Maipú** (no para un partido), Zencity es competencia directa **y** complemento posible. Sin Zencity = construimos nosotros más. Con Zencity = nos enfocamos en la pieza que ellos no cubren bien (segmentación fina del padrón).
 
@@ -269,20 +271,20 @@ Para territorio chico, **estas opciones combinadas reemplazan a Brand24/Awario p
 [GDELT](https://www.gdeltproject.org/) (Global Database of Events, Language, and Tone) es un proyecto académico que monitorea **toda la prensa mundial en 100+ idiomas, con geocoding automático, actualización cada 15 minutos**, archivo desde 1979 — **gratis y abierto via BigQuery o downloads**.
 
 - Cada artículo procesado tiene: ubicación geográfica detectada, personas, organizaciones, temas (CAMEO codes), tono/sentiment, imágenes
-- Query: `WHERE Locations LIKE '%Maipú, Mendoza%' AND DATEADDED > now() - 7 days`
+- Query: `WHERE Locations LIKE '%Maipú, Buenos Aires%' AND DATEADDED > now() - 7 days`
 - **Para periodismo y monitoreo de medios locales, es directamente lo mejor que existe** — y es gratis
 - Limitación: NO cubre redes sociales, sólo prensa online indexada por Google News y agregadores
 
 #### Mediacloud — análisis de cobertura mediática
 
-[Mediacloud](https://www.mediacloud.org/) — plataforma open source de MIT/Northeastern para análisis cuanti de cobertura mediática. Útil para "¿cuánto se habló de transporte público en medios de Mendoza el último mes?".
+[Mediacloud](https://www.mediacloud.org/) — plataforma open source de MIT/Northeastern para análisis cuanti de cobertura mediática. Útil para "¿cuánto se habló de transporte público en medios de la zona el último mes?".
 
 #### Scraping de redes (con cuidado)
 
 - **snscrape** (Python): scraper de X, Reddit, IG, FB, Telegram. **X cambió TOS en 2023**, scraping de Twitter ahora es legalmente borroso y técnicamente más difícil. Forks de la comunidad siguen funcionando intermitentemente.
 - **X API Basic Tier** (free): 1.500 tweets/mes, suficiente para queries puntuales geo-filtradas
 - **X API Pro Tier**: $200/mes, 1M tweets/mes — alcanza para un municipio con margen
-- **Reddit API**: gratis con límites razonables, no hay mucho contenido AR pero r/argentina y r/mendoza son monitorizables
+- **Reddit API**: gratis con límites razonables, no hay mucho contenido AR pero r/argentina (y subreddits regionales de la zona) son monitorizables
 - **Facebook/Instagram**: virtualmente cerrados a scraping; necesitan **CrowdTangle** (gratis para investigadores y ONG si aún lo dan) o aceptar que ese canal queda fuera
 
 #### Stack DIY recomendado para Maipú
@@ -291,8 +293,8 @@ Para territorio chico, **estas opciones combinadas reemplazan a Brand24/Awario p
 ┌─ Inputs ────────────────────────────────────────────┐
 │ GDELT (gratis)        → Medios online geo-filtrados │
 │ X API Basic ($0/mes)  → Tweets con location Maipú   │
-│ Reddit API (free)     → r/mendoza, r/argentina      │
-│ RSS feeds locales     → Los Andes, El Sol, Uno      │
+│ Reddit API (free)     → r/argentina + regionales    │
+│ RSS feeds locales     → portales de la zona         │
 └───────────────────┬─────────────────────────────────┘
                     ▼
 ┌─ Procesamiento ─────────────────────────────────────┐
