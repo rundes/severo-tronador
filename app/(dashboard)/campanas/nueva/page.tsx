@@ -163,6 +163,21 @@ export default async function NuevaCampanaPage({
             </select>
           </label>
 
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            Preguntas de la encuesta (una por línea)
+            <textarea
+              name="preguntas"
+              rows={3}
+              placeholder="¿Qué mejorarías de tu barrio?&#10;¿Cómo calificás el transporte? (1-5)"
+              className={inputCls}
+            />
+            <span className="text-zinc-400">
+              Si dejás esto vacío, se usa una pregunta por defecto. Incluí{" "}
+              <code>{"{{encuesta_url}}"}</code> en la plantilla para enlazar la
+              encuesta.
+            </span>
+          </label>
+
           <button
             type="submit"
             disabled={sendable.length === 0}

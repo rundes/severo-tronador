@@ -23,7 +23,7 @@ const seed: Template[] = [
     cuerpo:
       "Hola {{nombre}}, somos el equipo de relevamiento de Maipú. " +
       "Estamos haciendo una encuesta de opinión sobre tu barrio ({{barrio}}). " +
-      "No es campaña electoral ni vendemos nada. ¿Nos contás qué pensás? " +
+      "No es campaña electoral ni vendemos nada. Respondé acá: {{encuesta_url}} " +
       "Para no recibir más mensajes, respondé BAJA.",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
@@ -46,7 +46,8 @@ const seed: Template[] = [
     cuerpo:
       "Hola {{nombre}}, somos el equipo de relevamiento de Maipú. ¿Tenés 2 " +
       "minutos para una pregunta sobre {{barrio}}? Es investigación, no es " +
-      "campaña electoral. Si no querés recibir más mensajes, respondé BAJA.",
+      "campaña electoral. Respondé acá: {{encuesta_url}} " +
+      "Si no querés recibir más mensajes, respondé BAJA.",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -55,8 +56,8 @@ const seed: Template[] = [
     channel: "sms",
     nombre: "SMS · Recordatorio corto",
     cuerpo:
-      "Relevamiento Maipú: {{nombre}}, tu encuesta de {{barrio}} sigue " +
-      "abierta. Responder BAJA para no recibir más.",
+      "Relevamiento Maipú: {{nombre}}, encuesta de {{barrio}}: {{encuesta_url}} " +
+      "Responder BAJA para no recibir más.",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },

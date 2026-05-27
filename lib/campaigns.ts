@@ -11,6 +11,8 @@ import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
+import { createToken } from "@/lib/survey";
+import { isOptedOut } from "@/lib/optout";
 
 export interface Envio {
   dni: string;
@@ -19,8 +21,22 @@ export interface Envio {
   estado: "sent" | "failed" | "skipped";
   reason?: string;
   providerMessageId?: string;
+  // Token de encuesta (F6): abre /encuesta/[token].
+  token?: string;
   // Estado de entrega que llega por webhook del provider (F4+).
   delivery?: "delivered" | "read" | "failed";
+}
+
+function baseUrl(): string {
+  return process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+}
+
+// Pregunta por defecto si la campaña no define ninguna.
+const DEFAULT_PREGUNTAS = ["¿Qué es lo que más te preocupa hoy de tu barrio?"];
+
+// Cuerpo final: inyecta el link de encuesta y luego interpola variables.
+function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): string {
+  return interpolate(cuerpo.split("{{encuesta_url}}").join(encuestaUrl), contact);
 }
 
 // Dato de contacto que usa cada canal.
@@ -35,6 +51,7 @@ export interface Campaign {
   channel: Channel;
   templateId: string;
   segmentFilter: SegmentFilter;
+  preguntas: string[];
   createdAt: string;
   estado: "enviada";
   envios: Envio[];
@@ -90,6 +107,7 @@ export type ExecuteInput = {
   channel: Channel;
   templateId: string;
   segmentFilter: SegmentFilter;
+  preguntas?: string[];
 };
 
 export type ExecuteResult =
@@ -106,16 +124,17 @@ export async function executeCampaign(
   const template = getTemplate(input.templateId);
   if (!template) return { ok: false, reason: "no_template" };
 
+  const campaignId = `cmp-${Date.now().toString(36)}`;
   const all = await loadContacts();
   const matched = applySegment(all, input.segmentFilter);
 
-  // Destinatarios efectivos: disponibles en el canal (cooldown + opt-out).
-  const sendable = matched.filter((m) =>
-    channelAvailable(m.rel, input.channel),
-  );
-  const blocked = matched.filter(
-    (m) => !channelAvailable(m.rel, input.channel),
-  );
+  // Opt-out global cross-channel: regla dura, se consulta ANTES de enviar.
+  const optedOut = matched.filter((m) => isOptedOut(m.contact.dni));
+  const rest = matched.filter((m) => !isOptedOut(m.contact.dni));
+
+  // De los que quedan: disponibles en el canal (cooldown) vs. en cooldown.
+  const sendable = rest.filter((m) => channelAvailable(m.rel, input.channel));
+  const cooling = rest.filter((m) => !channelAvailable(m.rel, input.channel));
 
   // Chequeo de cuota ANTES de enviar. No hay "mandar igual".
   const { willFit, remaining } = connector.estimateQuotaImpact(sendable.length);
@@ -130,25 +149,35 @@ export async function executeCampaign(
 
   const envios: Envio[] = [];
 
-  // Cooldown / opt-out → skipped.
-  for (const m of blocked) {
+  for (const m of optedOut) {
     envios.push({
       dni: m.contact.dni,
       nombre: `${m.contact.nombre} ${m.contact.apellido}`,
       destino: destinoFor(input.channel, m.contact),
       estado: "skipped",
-      reason: "cooldown u opt-out",
+      reason: "opt-out global",
+    });
+  }
+  for (const m of cooling) {
+    envios.push({
+      dni: m.contact.dni,
+      nombre: `${m.contact.nombre} ${m.contact.apellido}`,
+      destino: destinoFor(input.channel, m.contact),
+      estado: "skipped",
+      reason: "cooldown",
     });
   }
 
-  // Envío real (o mock) a los disponibles.
+  // Envío real (o mock) a los disponibles, cada uno con su token de encuesta.
   for (const m of sendable) {
+    const token = createToken(campaignId, m.contact.dni);
+    const url = `${baseUrl()}/encuesta/${token}`;
     const result = await connector.send(
       {
         subject: template.asunto
           ? interpolate(template.asunto, m.contact)
           : undefined,
-        body: interpolate(template.cuerpo, m.contact),
+        body: buildBody(template.cuerpo, m.contact, url),
       },
       m.contact,
     );
@@ -159,15 +188,20 @@ export async function executeCampaign(
       estado: result.ok ? "sent" : "failed",
       reason: result.error,
       providerMessageId: result.providerMessageId,
+      token,
     });
   }
 
   const campaign: Campaign = {
-    id: `cmp-${Date.now().toString(36)}`,
+    id: campaignId,
     nombre: input.nombre,
     channel: input.channel,
     templateId: input.templateId,
     segmentFilter: input.segmentFilter,
+    preguntas:
+      input.preguntas && input.preguntas.length
+        ? input.preguntas
+        : DEFAULT_PREGUNTAS,
     createdAt: new Date().toISOString(),
     estado: "enviada",
     envios,

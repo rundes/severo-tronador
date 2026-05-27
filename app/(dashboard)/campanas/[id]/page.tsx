@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
 import { getTemplate } from "@/lib/templates";
+import { listResponses } from "@/lib/survey";
 
 export const metadata = { title: "Campaña · Severo Tronador" };
 
@@ -35,6 +36,7 @@ export default async function CampanaPage({
 
   const template = getTemplate(campaign.templateId);
   const { metrics } = campaign;
+  const respuestas = listResponses(campaign.id).length;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -49,7 +51,10 @@ export default async function CampanaPage({
         <p className="mt-1 text-sm text-zinc-500">
           {CHANNEL_LABEL[campaign.channel] ?? campaign.channel} · plantilla “
           {template?.nombre ?? campaign.templateId}” ·{" "}
-          {new Date(campaign.createdAt).toLocaleString("es-AR")}
+          {new Date(campaign.createdAt).toLocaleString("es-AR")} ·{" "}
+          <Link href="/respuestas" className="hover:underline">
+            {respuestas} respuestas
+          </Link>
         </p>
       </div>
 

@@ -7,9 +7,9 @@ import type { OutreachConnector } from "@/lib/connectors/types";
 const NAV = [
   { href: "/segmentos", label: "Segmentos" },
   { href: "/campanas", label: "Campañas" },
+  { href: "/respuestas", label: "Respuestas" },
   { href: "/templates", label: "Plantillas" },
   { href: "/conectores", label: "Conectores" },
-  // F4+: Respuestas
 ];
 
 export default async function DashboardLayout({

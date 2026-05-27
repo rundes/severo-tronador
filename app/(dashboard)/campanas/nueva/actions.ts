@@ -18,6 +18,10 @@ export async function crearCampana(formData: FormData) {
   const templateId = str(formData.get("templateId")) ?? "";
   const chParam = str(formData.get("channel")) as Channel | undefined;
   const channel: Channel = chParam && CHANNELS.includes(chParam) ? chParam : "email";
+  const preguntas = String(formData.get("preguntas") ?? "")
+    .split("\n")
+    .map((p) => p.trim())
+    .filter(Boolean);
   const segmentFilter = filterFromParams({
     sexo: str(formData.get("sexo")),
     edadMin: str(formData.get("edadMin")),
@@ -31,6 +35,7 @@ export async function crearCampana(formData: FormData) {
     channel,
     templateId,
     segmentFilter,
+    preguntas,
   });
 
   if (res.ok) redirect(`/campanas/${res.campaign.id}`);
