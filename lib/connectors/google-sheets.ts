@@ -12,17 +12,11 @@ import type {
   TestResult,
 } from "./types";
 import { mockPadron } from "@/lib/mock/padron";
+import { getConnectorConfig } from "./config";
 
 const PADRON_RANGE = "padron!A1:Z";
 
-function hasRealCreds(): boolean {
-  return Boolean(
-    process.env.GOOGLE_SERVICE_ACCOUNT_KEY && process.env.GOOGLE_SHEETS_SHEET_ID,
-  );
-}
-
-function getSheetsClient() {
-  const keyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!;
+function getSheetsClient(keyB64: string) {
   const credentials = JSON.parse(
     Buffer.from(keyB64, "base64").toString("utf8"),
   );
@@ -78,8 +72,10 @@ export const googleSheetsConnector: DataConnector = {
     },
   ],
 
-  async test(): Promise<TestResult> {
-    if (!hasRealCreds()) {
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig("google-sheets");
+    const hasRealCreds = Boolean(cfg.GOOGLE_SERVICE_ACCOUNT_KEY && cfg.GOOGLE_SHEETS_SHEET_ID);
+    if (!hasRealCreds) {
       return {
         ok: true,
         message: `Modo mock — ${mockPadron.length} filas de prueba (sin credenciales reales).`,
@@ -87,9 +83,9 @@ export const googleSheetsConnector: DataConnector = {
       };
     }
     try {
-      const sheets = getSheetsClient();
+      const sheets = getSheetsClient(cfg.GOOGLE_SERVICE_ACCOUNT_KEY);
       const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEETS_SHEET_ID!,
+        spreadsheetId: cfg.GOOGLE_SHEETS_SHEET_ID,
         range: "padron!A1:A1",
       });
       return {
@@ -118,12 +114,14 @@ export const googleSheetsConnector: DataConnector = {
 
   async readPadron(_config, opts): Promise<Contact[]> {
     const limit = opts?.limit;
-    if (!hasRealCreds()) {
+    const cfg = await getConnectorConfig("google-sheets");
+    const hasRealCreds = Boolean(cfg.GOOGLE_SERVICE_ACCOUNT_KEY && cfg.GOOGLE_SHEETS_SHEET_ID);
+    if (!hasRealCreds) {
       return limit ? mockPadron.slice(0, limit) : mockPadron;
     }
-    const sheets = getSheetsClient();
+    const sheets = getSheetsClient(cfg.GOOGLE_SERVICE_ACCOUNT_KEY);
     const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.GOOGLE_SHEETS_SHEET_ID!,
+      spreadsheetId: cfg.GOOGLE_SHEETS_SHEET_ID,
       range: PADRON_RANGE,
     });
     const contacts = rowsToContacts((res.data.values as string[][]) ?? []);
