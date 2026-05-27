@@ -7,6 +7,7 @@
 // tengamos templates aprobados, el envío real usa type=text (válido solo
 // dentro de la ventana de 24h); el mock simula sin restricción.
 import type {
+  Config,
   ConnectorStatus,
   Contact,
   OutreachConnector,
@@ -16,15 +17,10 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { getConnectorConfig } from "./config";
 
 const FREE_LIMIT = 1000; // conversaciones service-initiated/mes
 const ID = "meta-wa-cloud";
-
-function hasCreds(): boolean {
-  return Boolean(
-    process.env.META_WA_PHONE_NUMBER_ID && process.env.META_WA_ACCESS_TOKEN,
-  );
-}
 
 export const metaWaCloudConnector: OutreachConnector = {
   id: ID,
@@ -62,8 +58,9 @@ export const metaWaCloudConnector: OutreachConnector = {
     },
   ],
 
-  async test(): Promise<TestResult> {
-    return hasCreds()
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig(ID);
+    return (cfg.META_WA_PHONE_NUMBER_ID && cfg.META_WA_ACCESS_TOKEN)
       ? { ok: true, message: "Credenciales presentes — envío real activo." }
       : { ok: true, message: "Modo mock — simula envíos y consume cuota." };
   },
@@ -95,7 +92,9 @@ export const metaWaCloudConnector: OutreachConnector = {
       return { ok: false, error: "Contacto sin teléfono" };
     }
 
-    if (!hasCreds()) {
+    const cfg = await getConnectorConfig(ID);
+
+    if (!(cfg.META_WA_PHONE_NUMBER_ID && cfg.META_WA_ACCESS_TOKEN)) {
       await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-wa-${recipient.dni}-${Date.now()}` };
     }
@@ -103,11 +102,11 @@ export const metaWaCloudConnector: OutreachConnector = {
     try {
       const to = recipient.telefono.replace(/[^0-9]/g, "");
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${process.env.META_WA_PHONE_NUMBER_ID}/messages`,
+        `https://graph.facebook.com/v21.0/${cfg.META_WA_PHONE_NUMBER_ID}/messages`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${process.env.META_WA_ACCESS_TOKEN}`,
+            Authorization: `Bearer ${cfg.META_WA_ACCESS_TOKEN}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
