@@ -1,5 +1,7 @@
 # severo-tronador
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/rundes/severo-tronador&project-name=severo-tronador&repository-name=severo-tronador&env=NEXTAUTH_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ALLOWED_EMAILS,GOOGLE_SHEETS_SHEET_ID,GOOGLE_SERVICE_ACCOUNT_KEY,RESEND_API_KEY,RESEND_FROM&envDescription=Todas%20opcionales:%20sin%20ellas%20la%20app%20corre%20en%20modo%20mock&envLink=https://github.com/rundes/severo-tronador/blob/main/docs/INTEGRATIONS.md) · 📖 [Documentación](https://rundes.github.io/severo-tronador/)
+
 Toma **tu base de contactos** (tu padrón o lista enriquecida) y le da **segmentación fina** + una **estrategia multicanal asistida** para contactar a las personas correctas, por el medio correcto, y **obtener respuestas** — comunicación, encuestas e intercambios. Cada servicio (email, WhatsApp, SMS, voz, Telegram, listening…) es un **conector tipo plugin** que se activa desde la app, y el sistema está optimizado para **maximizar los recursos gratuitos** sin quemar la relación con cada contacto.
 
 La herramienta es **genérica**: no está atada a ningún territorio ni organización. El nombre del equipo, el territorio y el branding se configuran por variables de entorno (`ORG_NAME`, `TERRITORY`, `APP_NAME`).
@@ -46,10 +48,14 @@ conector Google Sheets lee el padrón real y se activa el login.
 
 - **La app → Vercel.** Es una app Next.js con render server-side (server
   actions, API routes, webhooks); **no** corre en hosts estáticos como GitHub
-  Pages. Vercel la detecta sin configuración:
-  1. Importar el repo en [vercel.com/new](https://vercel.com/new).
-  2. Cargar las env vars (ver [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) y `.env.example`).
-  3. Deploy. (La cola con Vercel Cron queda pendiente — ver [docs/STABILIZATION.md](./docs/STABILIZATION.md).)
+  Pages. Hay `vercel.json` y botón de deploy:
+
+  [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/rundes/severo-tronador&project-name=severo-tronador&repository-name=severo-tronador&env=NEXTAUTH_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ALLOWED_EMAILS,GOOGLE_SHEETS_SHEET_ID,GOOGLE_SERVICE_ACCOUNT_KEY,RESEND_API_KEY,RESEND_FROM&envDescription=Todas%20opcionales:%20sin%20ellas%20la%20app%20corre%20en%20modo%20mock&envLink=https://github.com/rundes/severo-tronador/blob/main/docs/INTEGRATIONS.md)
+
+  El botón clona el repo y pide (opcionalmente) las env vars. Sin cargar
+  ninguna, la app despliega y corre en **modo mock**. Detalle de cada
+  credencial en [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md). La cola con
+  Vercel Cron queda pendiente — ver [docs/STABILIZATION.md](./docs/STABILIZATION.md).
 - **La documentación → GitHub Pages.** Se publica sola: el workflow
   `.github/workflows/docs.yml` renderiza los markdown a un sitio estático en
   cada push a `main`. URL: `https://rundes.github.io/severo-tronador/`.
