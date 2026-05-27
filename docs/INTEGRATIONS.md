@@ -27,6 +27,35 @@ TERRITORY=la ciudad de XYZ        # textos de listening
 
 ---
 
+## Persistencia — Supabase (base operativa)
+
+La app usa **Supabase (Postgres)** como base de datos operativa. Sin estas env
+vars cae a stores en memoria (dev/mock); con ellas persiste de verdad.
+
+**Pasos**
+1. Crear proyecto en [supabase.com/dashboard](https://supabase.com/dashboard).
+2. *Settings → API*: copiar **Project URL** (`SUPABASE_URL`) y la **`service_role` key** (`SUPABASE_SERVICE_ROLE_KEY`). La service_role es secreta — solo server-side.
+3. *SQL Editor*: pegar y correr `supabase/migrations/0001_init.sql` (crea todas las tablas).
+4. Generar la master key de encriptación de credenciales: `openssl rand -base64 32` → `CONFIG_MASTER_KEY`.
+5. (Para el espejo a Sheets) crear un Google Sheet de preservación con las 8 hojas (`padron, segmentos, templates, campañas, envios, respuestas, opt_outs, llamadas`), compartirlo con la service account de Google, y poner su ID en `SHEETS_PRESERVATION_SHEET_ID`. Definir `CRON_SECRET` para proteger el cron.
+
+```env
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=
+CONFIG_MASTER_KEY=               # openssl rand -base64 32
+SHEETS_PRESERVATION_SHEET_ID=
+CRON_SECRET=
+```
+
+**Cómo funciona el espejo**: cada escritura preservable encola una fila en
+`sheets_sync_queue`; el Vercel Cron `/api/cron/sheets-sync` la drena a Sheets
+(batching + backoff). Supabase = operativo; Sheets = preservación / consulta
+externa.
+
+Ref: [Supabase Docs](https://supabase.com/docs) · [JS client](https://supabase.com/docs/reference/javascript)
+
+---
+
 ## 1. Google OAuth (`auth`)
 
 Login de operadores con cuenta Google + allowlist por email.

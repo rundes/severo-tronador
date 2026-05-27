@@ -22,13 +22,12 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 ## P0 — Bloqueantes de producción
 
-1. **Persistencia real.** Hoy todo vive en memoria (`globalThis`): campañas,
-   plantillas, cuotas, respuestas, opt-outs, tokens, llamadas. Se pierde al
-   reiniciar y no escala horizontalmente.
-   → Implementar el conector de **escritura** a Google Sheets (hojas
-   `campañas, envios, respuestas, opt_outs, conectores, cuotas,
-   relacion_contactos`) o migrar a Postgres/Supabase. Definir una interfaz
-   `Store` y reemplazar los `globalThis.Map/Array` por su implementación.
+1. ~~**Persistencia real.**~~ ✅ **Resuelto** (branch `supabase-persistence`,
+   spec/plan 2026-05-27). Supabase (Postgres) es la base operativa vía la
+   interfaz `Repository` (`lib/db/`); los stores `globalThis` quedan solo como
+   fallback de dev. Google Sheets se espeja write-behind (`sheets_sync_queue` +
+   cron `/api/cron/sheets-sync`). El padrón lo carga el usuario en `/padron`.
+   Pendiente menor: dedupe fina al consolidar en Sheets (hoy append).
 2. **Webhook seguro** (hallazgo #1, #2): firma + timing-safe.
 3. **Auth obligatoria en producción** (hallazgo #8): si `NODE_ENV=production` y
    falta OAuth, abortar el arranque en vez de servir sin login.
