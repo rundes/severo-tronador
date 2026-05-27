@@ -4,6 +4,7 @@
 // Sin TELNYX_API_KEY → mock. (Para encuestas conversacionales con IA ver el
 // conector bland-ai, F5+.)
 import type {
+  Config,
   ConnectorStatus,
   Contact,
   OutreachConnector,
@@ -13,17 +14,9 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { getConnectorConfig } from "./config";
 
 const ID = "telnyx-voice";
-
-function monthlyCap(): number {
-  const v = Number(process.env.TELNYX_VOICE_MONTHLY_CAP);
-  return Number.isFinite(v) && v > 0 ? v : 500;
-}
-
-function hasCreds(): boolean {
-  return Boolean(process.env.TELNYX_API_KEY && process.env.TELNYX_VOICE_CONNECTION_ID);
-}
 
 export const telnyxVoiceConnector: OutreachConnector = {
   id: ID,
@@ -56,20 +49,25 @@ export const telnyxVoiceConnector: OutreachConnector = {
     },
   ],
 
-  async test(): Promise<TestResult> {
-    return hasCreds()
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig(ID);
+    return (cfg.TELNYX_API_KEY && cfg.TELNYX_VOICE_CONNECTION_ID)
       ? { ok: true, message: "Credenciales presentes — llamadas reales activas." }
       : { ok: true, message: "Modo mock — simula llamadas y consume tope." };
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return (await getUsage(ID)) >= monthlyCap() ? "quota_exhausted" : "enabled";
+    const cfg = await getConnectorConfig(ID);
+    const cap = Number(cfg.TELNYX_VOICE_MONTHLY_CAP) || 500;
+    return (await getUsage(ID)) >= cap ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
+    const cfg = await getConnectorConfig(ID);
+    const cap = Number(cfg.TELNYX_VOICE_MONTHLY_CAP) || 500;
     return {
       used: await getUsage(ID),
-      limit: monthlyCap(),
+      limit: cap,
       unit: "api_calls",
       period: "month",
       resetAt: nextMonthlyReset(),
@@ -77,7 +75,9 @@ export const telnyxVoiceConnector: OutreachConnector = {
   },
 
   async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
-    const remaining = monthlyCap() - (await getUsage(ID));
+    const cfg = await getConnectorConfig(ID);
+    const cap = Number(cfg.TELNYX_VOICE_MONTHLY_CAP) || 500;
+    const remaining = cap - (await getUsage(ID));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -87,7 +87,9 @@ export const telnyxVoiceConnector: OutreachConnector = {
   ): Promise<SendResult> {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
 
-    if (!hasCreds()) {
+    const cfg = await getConnectorConfig(ID);
+
+    if (!(cfg.TELNYX_API_KEY && cfg.TELNYX_VOICE_CONNECTION_ID)) {
       await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-call-${recipient.dni}-${Date.now()}` };
     }
@@ -96,13 +98,13 @@ export const telnyxVoiceConnector: OutreachConnector = {
       const res = await fetch("https://api.telnyx.com/v2/calls", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+          Authorization: `Bearer ${cfg.TELNYX_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          connection_id: process.env.TELNYX_VOICE_CONNECTION_ID,
+          connection_id: cfg.TELNYX_VOICE_CONNECTION_ID,
           to: recipient.telefono.replace(/[^0-9+]/g, ""),
-          from: process.env.TELNYX_VOICE_FROM ?? "",
+          from: cfg.TELNYX_VOICE_FROM ?? "",
         }),
       });
       if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
