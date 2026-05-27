@@ -1,8 +1,8 @@
 // Plantillas de mensaje por canal. Variables tipo {{nombre}}, {{barrio}}.
-// F3: store en memoria (globalThis) sembrado con un par de plantillas. La
-// persistencia real es la hoja `templates` (refinamiento posterior).
+// F3 → repo: persistencia via repo<Template>("templates", true).
 import type { Channel } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
+import { repo } from "@/lib/db";
 
 export interface Template {
   id: string;
@@ -14,7 +14,7 @@ export interface Template {
   createdAt: string;
 }
 
-const seed: Template[] = [
+const SEED: Template[] = [
   {
     id: "tpl-invitacion",
     channel: "email",
@@ -74,26 +74,36 @@ const seed: Template[] = [
   },
 ];
 
-type Store = Template[];
-const g = globalThis as unknown as { __templates?: Store };
-const store: Store = (g.__templates ??= seed);
+const r = () => repo<Template>("templates", true);
 
-export function listTemplates(channel?: Channel): Template[] {
-  return channel ? store.filter((t) => t.channel === channel) : store;
+let seeded = false;
+async function ensureSeed() {
+  if (seeded) return;
+  const existing = await r().list();
+  if (existing.length === 0) for (const t of SEED) await r().upsert(t);
+  seeded = true;
 }
 
-export function getTemplate(id: string): Template | undefined {
-  return store.find((t) => t.id === id);
+export async function listTemplates(channel?: Channel): Promise<Template[]> {
+  await ensureSeed();
+  const all = await r().list();
+  return channel ? all.filter((t) => t.channel === channel) : all;
 }
 
-export function createTemplate(input: Omit<Template, "id" | "createdAt">): Template {
+export async function getTemplate(id: string): Promise<Template | undefined> {
+  await ensureSeed();
+  return r().get(id);
+}
+
+export async function createTemplate(
+  input: Omit<Template, "id" | "createdAt">,
+): Promise<Template> {
   const tpl: Template = {
     ...input,
     id: `tpl-${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
   };
-  store.push(tpl);
-  return tpl;
+  return r().upsert(tpl);
 }
 
 // Sustituye {{var}} por el campo del contacto (vacío si no existe).

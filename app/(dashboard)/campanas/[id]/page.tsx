@@ -34,7 +34,7 @@ export default async function CampanaPage({
   const campaign = getCampaign(id);
   if (!campaign) notFound();
 
-  const template = getTemplate(campaign.templateId);
+  const template = await getTemplate(campaign.templateId);
   const { metrics } = campaign;
   const respuestas = listResponses(campaign.id).length;
 

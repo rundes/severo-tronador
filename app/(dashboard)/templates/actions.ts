@@ -14,7 +14,7 @@ export async function nuevaPlantilla(formData: FormData) {
   const channel: Channel = CHANNELS.includes(chRaw) ? chRaw : "email";
   if (!nombre || !cuerpo) redirect("/templates?error=campos");
 
-  createTemplate({
+  await createTemplate({
     channel,
     nombre,
     asunto: channel === "email" ? asunto || undefined : undefined,

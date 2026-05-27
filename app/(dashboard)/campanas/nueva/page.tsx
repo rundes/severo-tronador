@@ -39,7 +39,7 @@ export default async function NuevaCampanaPage({
 
   const connector = outreachConnectorFor(channel)!;
   const quota = await connector.getQuota();
-  const templates = listTemplates(channel);
+  const templates = await listTemplates(channel);
 
   const filterEntries = Object.entries(filter).filter(
     ([, v]) => v !== undefined,

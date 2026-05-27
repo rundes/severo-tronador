@@ -13,8 +13,8 @@ const CHANNEL_ICON: Record<string, string> = {
   voice: "☎️",
 };
 
-export default function TemplatesPage() {
-  const templates = listTemplates();
+export default async function TemplatesPage() {
+  const templates = await listTemplates();
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">

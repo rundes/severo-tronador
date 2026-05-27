@@ -121,7 +121,7 @@ export async function executeCampaign(
   const connector = CONNECTOR_BY_CHANNEL[input.channel];
   if (!connector) return { ok: false, reason: "no_connector" };
 
-  const template = getTemplate(input.templateId);
+  const template = await getTemplate(input.templateId);
   if (!template) return { ok: false, reason: "no_template" };
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
