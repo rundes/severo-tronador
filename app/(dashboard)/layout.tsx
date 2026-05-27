@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { auth, authConfigured } from "@/lib/auth";
 
 const NAV = [
+  { href: "/segmentos", label: "Segmentos" },
   { href: "/conectores", label: "Conectores" },
-  // F2+: Segmentos, Contactos · F3+: Campañas, Respuestas
+  // F3+: Campañas, Respuestas
 ];
 
 export default async function DashboardLayout({
