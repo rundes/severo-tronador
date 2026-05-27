@@ -6,18 +6,16 @@ import type {
   AnalysisConnector,
   AnalysisResult,
   AnalysisTask,
+  Config,
   ConnectorStatus,
   Quota,
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { getConnectorConfig } from "./config";
 
 const ID = "claude-api";
 const TOKEN_CAP = 1_000_000; // guardarraíl de gasto mensual (tokens)
-
-function hasKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
 
 export interface Theme {
   label: string;
@@ -115,8 +113,9 @@ export const claudeApiConnector: AnalysisConnector = {
     },
   ],
 
-  async test(): Promise<TestResult> {
-    return hasKey()
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig(ID);
+    return cfg.ANTHROPIC_API_KEY
       ? { ok: true, message: "API key presente — análisis con Claude." }
       : { ok: true, message: "Modo mock — heurística local (frecuencia + léxico)." };
   },
