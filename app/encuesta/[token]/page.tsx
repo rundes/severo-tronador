@@ -33,7 +33,7 @@ export default async function EncuestaPage({
 }) {
   const { token } = await params;
   const sp = await searchParams;
-  const ref = resolveToken(token);
+  const ref = await resolveToken(token);
 
   if (!ref || sp.error) {
     return (
@@ -57,7 +57,7 @@ export default async function EncuestaPage({
     );
   }
 
-  if (sp.gracias || hasResponded(token)) {
+  if (sp.gracias || await hasResponded(token)) {
     return (
       <Shell>
         <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>

@@ -1,19 +1,26 @@
 // Encuestas tokenizadas (F6). Cada envío lleva un token único que abre la
 // landing pública /encuesta/[token]. El token resuelve a {campaña, dni} sin
 // exponer datos personales en la URL. Dedupe: una respuesta por token.
-// F6: stores en memoria; en producción son hojas + columna token en `envios`.
+//
+// Persistencia:
+// - survey_tokens: Supabase directo (PK = token, no id) con fallback globalThis Map.
+// - respuestas: Supabase directo (snake_case cols) + enqueueSheetSync mirror,
+//   con fallback memoryRepo("respuestas"). Se eligió direct Supabase en vez de
+//   generic repo() para evitar el mismatch camelCase↔snake_case de las columnas
+//   (campaign_id, created_at). La API pública siempre devuelve SurveyResponse
+//   con campaignId (camelCase).
 import { randomUUID } from "crypto";
+import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { memoryRepo } from "@/lib/db/memory";
+import { enqueueSheetSync } from "@/lib/db/mirror";
 
 interface TokenRef {
   campaignId: string;
   dni: string;
 }
 
-interface TokenStore {
-  byToken: Map<string, TokenRef>;
-}
-
 export interface SurveyResponse {
+  id?: string;
   token: string;
   campaignId: string;
   dni: string;
@@ -21,48 +28,134 @@ export interface SurveyResponse {
   at: string;
 }
 
-const g = globalThis as unknown as {
-  __surveyTokens?: TokenStore;
-  __surveyResponses?: SurveyResponse[];
-};
-const tokens: TokenStore = (g.__surveyTokens ??= { byToken: new Map() });
-const responses: SurveyResponse[] = (g.__surveyResponses ??= []);
+// --- Token store (fallback) ---
+const g = globalThis as unknown as { __tokensMem?: Map<string, TokenRef> };
+const tokMem = (g.__tokensMem ??= new Map<string, TokenRef>());
 
-export function createToken(campaignId: string, dni: string): string {
+// --- Response store (fallback) ---
+// memoryRepo keyed by uuid id; we keep a typed reference.
+const respMem = memoryRepo<SurveyResponse & { id?: string }>("respuestas");
+
+// --- Row shape stored in Supabase (snake_case) ---
+interface RespRow {
+  id: string;
+  token: string;
+  campaign_id: string;
+  dni: string;
+  answers: { pregunta: string; respuesta: string }[];
+  created_at: string;
+}
+
+function rowToResponse(row: RespRow): SurveyResponse {
+  return {
+    id: row.id,
+    token: row.token,
+    campaignId: row.campaign_id,
+    dni: row.dni,
+    answers: row.answers,
+    at: row.created_at,
+  };
+}
+
+// ---- Public API ----
+
+export async function createToken(
+  campaignId: string,
+  dni: string,
+): Promise<string> {
   const token = randomUUID();
-  tokens.byToken.set(token, { campaignId, dni });
+  if (!dbConfigured()) {
+    tokMem.set(token, { campaignId, dni });
+    return token;
+  }
+  await getSupabase()
+    .from("survey_tokens")
+    .insert({ token, campaign_id: campaignId, dni });
   return token;
 }
 
-export function resolveToken(token: string): TokenRef | undefined {
-  return tokens.byToken.get(token);
-}
-
-export function hasResponded(token: string): boolean {
-  return responses.some((r) => r.token === token);
-}
-
-export function addResponse(
+export async function resolveToken(
   token: string,
-  answers: { pregunta: string; respuesta: string }[],
-): SurveyResponse | null {
-  const ref = resolveToken(token);
+): Promise<TokenRef | undefined> {
+  if (!dbConfigured()) return tokMem.get(token);
+  const { data } = await getSupabase()
+    .from("survey_tokens")
+    .select("campaign_id,dni")
+    .eq("token", token)
+    .maybeSingle();
+  if (!data) return undefined;
+  return { campaignId: data.campaign_id as string, dni: data.dni as string };
+}
+
+export async function hasResponded(token: string): Promise<boolean> {
+  if (!dbConfigured()) {
+    const all = await respMem.list();
+    return all.some((r) => r.token === token);
+  }
+  const { data } = await getSupabase()
+    .from("respuestas")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+export async function addResponse(
+  token: string,
+  answers: SurveyResponse["answers"],
+): Promise<SurveyResponse | null> {
+  const ref = await resolveToken(token);
   if (!ref) return null;
-  if (hasResponded(token)) return null; // dedupe: una respuesta por token
-  const r: SurveyResponse = {
+  if (await hasResponded(token)) return null; // dedupe: una respuesta por token
+
+  if (!dbConfigured()) {
+    const saved = await respMem.upsert({
+      token,
+      campaignId: ref.campaignId,
+      dni: ref.dni,
+      answers,
+      at: new Date().toISOString(),
+    });
+    return saved;
+  }
+
+  const row: Omit<RespRow, "id"> = {
     token,
-    campaignId: ref.campaignId,
+    campaign_id: ref.campaignId,
     dni: ref.dni,
     answers,
-    at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
-  responses.push(r);
-  return r;
+  const { data, error } = await getSupabase()
+    .from("respuestas")
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  const response = rowToResponse(data as RespRow);
+  await enqueueSheetSync("respuestas", "upsert", data);
+  return response;
 }
 
-export function listResponses(campaignId?: string): SurveyResponse[] {
-  const all = campaignId
-    ? responses.filter((r) => r.campaignId === campaignId)
-    : responses;
-  return [...all].sort((a, b) => b.at.localeCompare(a.at));
+export async function listResponses(
+  campaignId?: string,
+): Promise<SurveyResponse[]> {
+  if (!dbConfigured()) {
+    const all = await respMem.list();
+    const filtered = campaignId
+      ? all.filter((r) => r.campaignId === campaignId)
+      : all;
+    return [...filtered].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+  }
+
+  let query = getSupabase()
+    .from("respuestas")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (campaignId) {
+    query = query.eq("campaign_id", campaignId);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data as RespRow[]).map(rowToResponse);
 }

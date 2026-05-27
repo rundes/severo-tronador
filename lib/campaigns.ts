@@ -171,7 +171,7 @@ export async function executeCampaign(
 
   // Envío real (o mock) a los disponibles, cada uno con su token de encuesta.
   for (const m of sendable) {
-    const token = createToken(campaignId, m.contact.dni);
+    const token = await createToken(campaignId, m.contact.dni);
     const url = `${baseUrl()}/encuesta/${token}`;
     const result = await connector.send(
       {

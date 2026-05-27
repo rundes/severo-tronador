@@ -4,8 +4,8 @@ import { listResponses } from "@/lib/survey";
 
 export const metadata = { title: "Respuestas · Severo Tronador" };
 
-export default function RespuestasPage() {
-  const responses = listResponses();
+export default async function RespuestasPage() {
+  const responses = await listResponses();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

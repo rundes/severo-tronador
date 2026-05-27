@@ -36,7 +36,7 @@ export default async function CampanaPage({
 
   const template = await getTemplate(campaign.templateId);
   const { metrics } = campaign;
-  const respuestas = listResponses(campaign.id).length;
+  const respuestas = (await listResponses(campaign.id)).length;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

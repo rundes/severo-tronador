@@ -25,7 +25,7 @@ export async function analyzeCampaign(
   const campaign = getCampaign(campaignId);
   if (!campaign) return null;
 
-  const responses = listResponses(campaignId);
+  const responses = await listResponses(campaignId);
   const answers = responses
     .flatMap((r) => r.answers.map((a) => a.respuesta))
     .filter(Boolean);

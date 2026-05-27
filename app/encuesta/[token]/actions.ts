@@ -7,7 +7,7 @@ import { optOut } from "@/lib/optout";
 
 export async function responderEncuesta(formData: FormData) {
   const token = String(formData.get("token") ?? "");
-  const ref = resolveToken(token);
+  const ref = await resolveToken(token);
   if (!ref) redirect(`/encuesta/${token}?error=1`);
 
   const campaign = getCampaign(ref.campaignId);
@@ -19,13 +19,13 @@ export async function responderEncuesta(formData: FormData) {
     }))
     .filter((a) => a.respuesta !== "");
 
-  addResponse(token, answers); // dedupe interno: una respuesta por token
+  await addResponse(token, answers); // dedupe interno: una respuesta por token
   redirect(`/encuesta/${token}?gracias=1`);
 }
 
 export async function optarBaja(formData: FormData) {
   const token = String(formData.get("token") ?? "");
-  const ref = resolveToken(token);
+  const ref = await resolveToken(token);
   if (ref) await optOut(ref.dni, "baja desde encuesta");
   redirect(`/encuesta/${token}?baja=1`);
 }
