@@ -1,0 +1,153 @@
+// Modelo de conectores — ver ARCHITECTURE.md §2.
+// La app no sabe de "email" o "whatsapp" en abstracto: consume conectores
+// que implementan ciertas capabilities. Agregar un provider = un módulo que
+// implementa `Connector` + una línea en el registry.
+
+export type ConnectorCategory =
+  | "data" // fuente de contactos (Google Sheets)
+  | "outreach" // canal saliente (Email, WhatsApp, SMS, Voz, Telegram)
+  | "listening" // canal entrante (GDELT, X API, Reddit…)
+  | "analysis" // procesamiento (Claude API, embeddings)
+  | "auth"; // autenticación (Google OAuth)
+
+export type ConnectorStatus =
+  | "not_installed" // no agregado al sistema
+  | "configuring" // agregado, faltan credenciales o test
+  | "enabled" // listo y activo
+  | "paused" // credenciales OK pero toggle off
+  | "error" // creds expiradas / API caída
+  | "quota_exhausted"; // free tier mensual agotado
+
+export type QuotaUnit =
+  | "messages"
+  | "conversations"
+  | "minutes"
+  | "tokens"
+  | "api_calls"
+  | "rows";
+
+export interface Quota {
+  used: number;
+  limit: number;
+  unit: QuotaUnit;
+  period: "day" | "month" | "rolling-30d" | "none";
+  resetAt: string | null; // ISO; null = sin reset (créditos consumibles)
+}
+
+export interface Capability {
+  id: string; // 'email.send', 'padron.read', 'voice.conversational_survey'
+  label: string;
+  costPerUnit?: number; // USD (tier pago) o 0 (free tier)
+  rateLimit?: { perSecond?: number; perMinute?: number };
+}
+
+// Descriptor de un campo del formulario de configuración (modal del conector).
+export type ConfigFieldType = "text" | "secret" | "email" | "url" | "textarea";
+
+export interface ConfigField {
+  key: string;
+  label: string;
+  type: ConfigFieldType;
+  required: boolean;
+  placeholder?: string;
+  help?: string;
+}
+
+export type ConfigSchema = ConfigField[];
+export type Config = Record<string, string>;
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+// Interfaz base que todo conector implementa.
+export interface Connector {
+  id: string; // 'google-sheets', 'resend', 'meta-wa-cloud'
+  name: string; // 'Google Sheets'
+  vendor: string; // 'Google LLC'
+  category: ConnectorCategory;
+  description: string; // una línea
+  docsUrl: string;
+  iconEmoji: string; // ícono simple para F1 (sin pipeline de assets todavía)
+
+  capabilities: Capability[];
+  configSchema: ConfigSchema;
+
+  // lifecycle
+  test(config?: Config): Promise<TestResult>;
+  getStatus(config?: Config): Promise<ConnectorStatus>;
+  getQuota?(config?: Config): Promise<Quota | null>;
+}
+
+// ── Refinamientos por categoría ───────────────────────────────────────────
+// Cada categoría suma los métodos propios. F1 implementa data + auth; las
+// demás quedan declaradas como contrato para las fases siguientes.
+
+export interface Contact {
+  dni: string;
+  nombre: string;
+  apellido: string;
+  fecha_nac?: string;
+  sexo?: string;
+  domicilio?: string;
+  barrio?: string;
+  circuito?: string;
+  mesa?: string;
+  telefono?: string;
+  email?: string;
+}
+
+export interface DataConnector extends Connector {
+  category: "data";
+  readPadron(config?: Config, opts?: { limit?: number }): Promise<Contact[]>;
+}
+
+// Contratos declarados para fases futuras (F3+). No se implementan en F1.
+export interface OutreachMessage {
+  subject?: string;
+  body: string;
+}
+
+export interface SendResult {
+  ok: boolean;
+  providerMessageId?: string;
+  error?: string;
+}
+
+export interface OutreachConnector extends Connector {
+  category: "outreach";
+  send(message: OutreachMessage, recipient: Contact): Promise<SendResult>;
+  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number };
+}
+
+export interface ListenQuery {
+  keywords: string[];
+  geo?: string;
+  since?: string;
+}
+
+export interface ListenItem {
+  source: string;
+  text: string;
+  url?: string;
+  publishedAt?: string;
+}
+
+export interface ListeningConnector extends Connector {
+  category: "listening";
+  fetch(query: ListenQuery): Promise<ListenItem[]>;
+}
+
+export type AnalysisTask = "sentiment" | "coding_qualitative" | "cluster";
+
+export interface AnalysisResult {
+  task: AnalysisTask;
+  output: unknown;
+}
+
+export interface AnalysisConnector extends Connector {
+  category: "analysis";
+  analyze(input: string | string[], task: AnalysisTask): Promise<AnalysisResult>;
+}

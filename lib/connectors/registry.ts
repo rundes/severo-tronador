@@ -1,0 +1,37 @@
+// Registry de conectores — discovery (ver ARCHITECTURE.md §2.3).
+// F1: solo viven `data` (Google Sheets) y `auth` (Google OAuth). Cada fase
+// siguiente suma un conector con un import + una línea acá, sin tocar el core.
+import type { Connector } from "./types";
+import { googleSheetsConnector } from "./google-sheets";
+import { googleOAuthConnector } from "./google-oauth";
+
+export const connectors: Connector[] = [
+  googleSheetsConnector,
+  googleOAuthConnector,
+  // F3: resend (outreach)
+  // F4: meta-wa-cloud (outreach)
+  // F5: telnyx-sms, telnyx-voice, bland-ai (outreach)
+  // F7: claude-api (analysis)
+  // F8: gdelt, x-api, reddit-api (listening)
+];
+
+export function getConnector(id: string): Connector | undefined {
+  return connectors.find((c) => c.id === id);
+}
+
+// Etiquetas legibles por categoría para agrupar en el panel.
+export const CATEGORY_LABELS: Record<Connector["category"], string> = {
+  data: "Datos",
+  auth: "Autenticación",
+  outreach: "Canales de contactación",
+  listening: "Escucha",
+  analysis: "Análisis",
+};
+
+export const CATEGORY_ORDER: Connector["category"][] = [
+  "data",
+  "outreach",
+  "listening",
+  "analysis",
+  "auth",
+];
