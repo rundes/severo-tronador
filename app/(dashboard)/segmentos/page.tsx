@@ -58,6 +58,12 @@ export default async function SegmentosPage({
       if (channelAvailable(m.rel, ch)) available[ch]++;
 
   const total = matched.length;
+  const qs = new URLSearchParams(
+    Object.entries(filter).filter(([, v]) => v !== undefined) as [
+      string,
+      string,
+    ][],
+  ).toString();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -114,6 +120,17 @@ export default async function SegmentosPage({
             ))}
           </div>
         </div>
+
+        {total > 0 && (
+          <div className="mt-4 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            <Link
+              href={qs ? `/campanas/nueva?${qs}` : "/campanas/nueva"}
+              className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              Iniciar campaña →
+            </Link>
+          </div>
+        )}
       </div>
 
       <div>

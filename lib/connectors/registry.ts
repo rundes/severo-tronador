@@ -4,11 +4,12 @@
 import type { Connector } from "./types";
 import { googleSheetsConnector } from "./google-sheets";
 import { googleOAuthConnector } from "./google-oauth";
+import { resendConnector } from "./resend";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
   googleOAuthConnector,
-  // F3: resend (outreach)
+  resendConnector,
   // F4: meta-wa-cloud (outreach)
   // F5: telnyx-sms, telnyx-voice, bland-ai (outreach)
   // F7: claude-api (analysis)

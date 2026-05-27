@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, authConfigured } from "@/lib/auth";
+import { resendConnector } from "@/lib/connectors/resend";
 
 const NAV = [
   { href: "/segmentos", label: "Segmentos" },
+  { href: "/campanas", label: "Campañas" },
+  { href: "/templates", label: "Plantillas" },
   { href: "/conectores", label: "Conectores" },
-  // F3+: Campañas, Respuestas
+  // F4+: Respuestas
 ];
 
 export default async function DashboardLayout({
@@ -19,6 +22,8 @@ export default async function DashboardLayout({
     const session = await auth();
     if (!session) redirect("/api/auth/signin");
   }
+
+  const emailQuota = await resendConnector.getQuota();
 
   return (
     <div className="flex min-h-full flex-1">
@@ -43,9 +48,9 @@ export default async function DashboardLayout({
       </aside>
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-zinc-200 px-8 py-4 dark:border-zinc-800">
-          <span className="font-mono text-sm text-zinc-500">F1 · scaffold</span>
+          <span className="font-mono text-sm text-zinc-500">F3 · campañas</span>
           <span className="font-mono text-xs text-zinc-400">
-            🔋 cuotas: — (sin canales activos)
+            🔋 📧 {emailQuota.used}/{emailQuota.limit} mes
           </span>
         </header>
         <main className="flex-1 px-8 py-8">{children}</main>
