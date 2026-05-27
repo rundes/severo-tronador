@@ -6,6 +6,13 @@ export const metadata = { title: "Plantillas · Severo Tronador" };
 const inputCls =
   "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
+const CHANNEL_ICON: Record<string, string> = {
+  email: "📧",
+  whatsapp: "💬",
+  sms: "📱",
+  voice: "☎️",
+};
+
 export default function TemplatesPage() {
   const templates = listTemplates();
 
@@ -32,7 +39,7 @@ export default function TemplatesPage() {
                 {t.nombre}
               </span>
               <span className="font-mono text-xs text-zinc-400">
-                📧 {t.estado}
+                {CHANNEL_ICON[t.channel]} {t.channel} · {t.estado}
               </span>
             </div>
             {t.asunto && (
@@ -62,12 +69,16 @@ export default function TemplatesPage() {
         className="space-y-3 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700"
       >
         <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-          Nueva plantilla (email)
+          Nueva plantilla
         </div>
+        <select name="channel" defaultValue="email" className={`w-full ${inputCls}`}>
+          <option value="email">📧 Email</option>
+          <option value="whatsapp">💬 WhatsApp</option>
+        </select>
         <input name="nombre" required placeholder="Nombre interno" className={`w-full ${inputCls}`} />
         <input
           name="asunto"
-          placeholder="Asunto (admite variables)"
+          placeholder="Asunto (solo email; admite variables)"
           className={`w-full ${inputCls}`}
         />
         <textarea

@@ -4,7 +4,8 @@
 //
 // F3: ejecución síncrona (sin Vercel Cron todavía) y store en memoria.
 import { resendConnector } from "@/lib/connectors/resend";
-import type { OutreachConnector } from "@/lib/connectors/types";
+import { metaWaCloudConnector } from "@/lib/connectors/meta-wa-cloud";
+import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
@@ -16,6 +17,14 @@ export interface Envio {
   estado: "sent" | "failed" | "skipped";
   reason?: string;
   providerMessageId?: string;
+  // Estado de entrega que llega por webhook del provider (F4+).
+  delivery?: "delivered" | "read" | "failed";
+}
+
+// Dato de contacto que usa cada canal.
+function destinoFor(channel: Channel, c: Contact): string {
+  if (channel === "email") return c.email ?? "—";
+  return c.telefono ?? "—"; // whatsapp, sms, voice
 }
 
 export interface Campaign {
@@ -42,10 +51,35 @@ export function getCampaign(id: string): Campaign | undefined {
   return store.find((c) => c.id === id);
 }
 
-// Solo email (Resend) en F3. Cada canal nuevo suma su conector acá.
+// Actualiza el estado de entrega de un envío por providerMessageId. La invoca
+// el webhook del provider (/api/webhooks/meta) al recibir delivered/read/failed.
+export function updateEnvioStatus(
+  providerMessageId: string,
+  delivery: NonNullable<Envio["delivery"]>,
+): boolean {
+  for (const c of store) {
+    const envio = c.envios.find((e) => e.providerMessageId === providerMessageId);
+    if (envio) {
+      envio.delivery = delivery;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Mapeo canal → conector. Cada canal nuevo suma su conector acá.
 const CONNECTOR_BY_CHANNEL: Partial<Record<Channel, OutreachConnector>> = {
   email: resendConnector,
+  whatsapp: metaWaCloudConnector,
 };
+
+export function outreachConnectorFor(
+  channel: Channel,
+): OutreachConnector | undefined {
+  return CONNECTOR_BY_CHANNEL[channel];
+}
+
+export const OUTREACH_CHANNELS = Object.keys(CONNECTOR_BY_CHANNEL) as Channel[];
 
 export type ExecuteInput = {
   nombre: string;
@@ -97,7 +131,7 @@ export async function executeCampaign(
     envios.push({
       dni: m.contact.dni,
       nombre: `${m.contact.nombre} ${m.contact.apellido}`,
-      destino: m.contact.email ?? "—",
+      destino: destinoFor(input.channel, m.contact),
       estado: "skipped",
       reason: "cooldown u opt-out",
     });
@@ -117,7 +151,7 @@ export async function executeCampaign(
     envios.push({
       dni: m.contact.dni,
       nombre: `${m.contact.nombre} ${m.contact.apellido}`,
-      destino: m.contact.email ?? "—",
+      destino: destinoFor(input.channel, m.contact),
       estado: result.ok ? "sent" : "failed",
       reason: result.error,
       providerMessageId: result.providerMessageId,

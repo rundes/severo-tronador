@@ -11,6 +11,19 @@ const ESTADO_META = {
   skipped: { label: "omitido", cls: "text-zinc-400" },
 } as const;
 
+const CHANNEL_LABEL: Record<string, string> = {
+  email: "📧 Email",
+  whatsapp: "💬 WhatsApp",
+  sms: "📱 SMS",
+  voice: "☎️ Voz",
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  delivered: "entregado",
+  read: "leído",
+  failed: "rebotó",
+};
+
 export default async function CampanaPage({
   params,
 }: {
@@ -34,7 +47,8 @@ export default async function CampanaPage({
           {campaign.nombre}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          📧 Email · plantilla “{template?.nombre ?? campaign.templateId}” ·{" "}
+          {CHANNEL_LABEL[campaign.channel] ?? campaign.channel} · plantilla “
+          {template?.nombre ?? campaign.templateId}” ·{" "}
           {new Date(campaign.createdAt).toLocaleString("es-AR")}
         </p>
       </div>
@@ -77,6 +91,11 @@ export default async function CampanaPage({
                 </Link>
                 <span className={meta.cls}>
                   {meta.label}
+                  {e.delivery && (
+                    <span className="ml-1 text-xs text-zinc-500">
+                      · {DELIVERY_LABEL[e.delivery] ?? e.delivery}
+                    </span>
+                  )}
                   {e.reason && (
                     <span className="ml-1 text-xs text-zinc-400">
                       ({e.reason})

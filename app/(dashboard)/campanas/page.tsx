@@ -3,6 +3,13 @@ import { listCampaigns } from "@/lib/campaigns";
 
 export const metadata = { title: "Campañas · Severo Tronador" };
 
+const CHANNEL_ICON: Record<string, string> = {
+  email: "📧",
+  whatsapp: "💬",
+  sms: "📱",
+  voice: "☎️",
+};
+
 export default function CampanasPage() {
   const campaigns = listCampaigns();
   return (
@@ -34,7 +41,8 @@ export default function CampanasPage() {
               <span className="text-sm">
                 {c.nombre}
                 <span className="ml-2 text-zinc-400">
-                  📧 {new Date(c.createdAt).toLocaleString("es-AR")}
+                  {CHANNEL_ICON[c.channel]}{" "}
+                  {new Date(c.createdAt).toLocaleString("es-AR")}
                 </span>
               </span>
               <span className="font-mono text-xs text-zinc-500">

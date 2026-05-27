@@ -39,6 +39,17 @@ const seed: Template[] = [
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
+  {
+    id: "tpl-wa-invitacion",
+    channel: "whatsapp",
+    nombre: "WA · Invitación a encuesta",
+    cuerpo:
+      "Hola {{nombre}}, somos el equipo de relevamiento de Maipú. ¿Tenés 2 " +
+      "minutos para una pregunta sobre {{barrio}}? Es investigación, no es " +
+      "campaña electoral. Si no querés recibir más mensajes, respondé BAJA.",
+    estado: "activo",
+    createdAt: "2026-05-01T00:00:00.000Z",
+  },
 ];
 
 type Store = Template[];

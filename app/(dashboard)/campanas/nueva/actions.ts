@@ -13,6 +13,7 @@ function str(v: FormDataEntryValue | null): string | undefined {
 export async function crearCampana(formData: FormData) {
   const nombre = str(formData.get("nombre")) ?? "Campaña sin nombre";
   const templateId = str(formData.get("templateId")) ?? "";
+  const channel = str(formData.get("channel")) === "whatsapp" ? "whatsapp" : "email";
   const segmentFilter = filterFromParams({
     sexo: str(formData.get("sexo")),
     edadMin: str(formData.get("edadMin")),
@@ -23,7 +24,7 @@ export async function crearCampana(formData: FormData) {
 
   const res = await executeCampaign({
     nombre,
-    channel: "email",
+    channel,
     templateId,
     segmentFilter,
   });

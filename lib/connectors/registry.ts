@@ -5,12 +5,13 @@ import type { Connector } from "./types";
 import { googleSheetsConnector } from "./google-sheets";
 import { googleOAuthConnector } from "./google-oauth";
 import { resendConnector } from "./resend";
+import { metaWaCloudConnector } from "./meta-wa-cloud";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
   googleOAuthConnector,
   resendConnector,
-  // F4: meta-wa-cloud (outreach)
+  metaWaCloudConnector,
   // F5: telnyx-sms, telnyx-voice, bland-ai (outreach)
   // F7: claude-api (analysis)
   // F8: gdelt, x-api, reddit-api (listening)

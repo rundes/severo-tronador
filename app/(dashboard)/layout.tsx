@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, authConfigured } from "@/lib/auth";
 import { resendConnector } from "@/lib/connectors/resend";
+import { metaWaCloudConnector } from "@/lib/connectors/meta-wa-cloud";
 
 const NAV = [
   { href: "/segmentos", label: "Segmentos" },
@@ -23,7 +24,10 @@ export default async function DashboardLayout({
     if (!session) redirect("/api/auth/signin");
   }
 
-  const emailQuota = await resendConnector.getQuota();
+  const [emailQuota, waQuota] = await Promise.all([
+    resendConnector.getQuota(),
+    metaWaCloudConnector.getQuota(),
+  ]);
 
   return (
     <div className="flex min-h-full flex-1">
@@ -48,9 +52,10 @@ export default async function DashboardLayout({
       </aside>
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-zinc-200 px-8 py-4 dark:border-zinc-800">
-          <span className="font-mono text-sm text-zinc-500">F3 · campañas</span>
+          <span className="font-mono text-sm text-zinc-500">F4 · whatsapp</span>
           <span className="font-mono text-xs text-zinc-400">
-            🔋 📧 {emailQuota.used}/{emailQuota.limit} mes
+            🔋 📧 {emailQuota.used}/{emailQuota.limit} · 💬 {waQuota.used}/
+            {waQuota.limit}
           </span>
         </header>
         <main className="flex-1 px-8 py-8">{children}</main>
