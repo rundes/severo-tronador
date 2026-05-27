@@ -6,8 +6,12 @@ const BATCH = 50;
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response("Forbidden", { status: 403 });
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    if (auth !== `Bearer ${secret}`) return new Response("Forbidden", { status: 403 });
+  } else if (process.env.NODE_ENV === "production") {
+    // En producción nunca dejamos el endpoint abierto sin secret.
+    return new Response("CRON_SECRET no configurado", { status: 403 });
   }
   if (!dbConfigured() || !canExportSheets()) {
     return NextResponse.json({ skipped: "no db o no sheets" });

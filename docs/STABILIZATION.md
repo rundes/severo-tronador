@@ -51,20 +51,31 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 9. **Feedback de la relación.** Hoy `deriveRelationship` solo usa el historial
    mock; los envíos reales no actualizan cooldowns ni health score. Conectar
    los `envios`/`respuestas` reales a la ficha de relación.
+10. **Atomicidad de cuota** (review post-migración): `incrementUsage` hace
+    read-then-write → carrera con envíos concurrentes (podría sub-contar y
+    pasarse del free tier). Usar un `UPDATE … RETURNING` atómico (RPC de
+    Postgres) en vez de leer y reescribir.
+11. **Dedupe de respuesta a nivel DB**: agregar `unique` en `respuestas(token)`
+    y manejar el conflicto en `addResponse` (hoy el check-then-insert puede
+    correr en concurrencia). El check app-level cubre el caso común.
 
 ## P2 — Madurez
 
-10. **Plantillas WhatsApp aprobadas**: mapear `template` con componentes Meta
+12. **Plantillas WhatsApp aprobadas**: mapear `template` con componentes Meta
     (hoy se manda `type=text`, válido solo en ventana 24h).
-11. **Listening real**: implementar `fetch` de GDELT/X/Reddit (hoy mock) y
+13. **Listening real**: implementar `fetch` de GDELT/X/Reddit (hoy mock) y
     persistir series temporales para el baseline de temas emergentes.
-12. **Validación de emails/teléfonos** antes de enviar (regex + verifier
+14. **Validación de emails/teléfonos** antes de enviar (regex + verifier
     opcional) y warm-up de dominio para deliverabilidad.
-13. **Observabilidad**: logging estructurado, métricas de cuota/envío, y
+15. **Observabilidad**: logging estructurado, métricas de cuota/envío, y
     auditoría (quién creó cada campaña) persistida.
-14. **Lint/CI**: correr `next lint` + `tsc --noEmit` + tests en CI por PR.
-15. **Encriptación de credenciales** de conectores antes de persistir config
-    (master key en env), como dice ARCHITECTURE §10.
+16. **Lint/CI**: correr `next lint` + `tsc --noEmit` + tests en CI por PR.
+17. **Idempotencia del espejo a Sheets**: si el cron cae entre `appendRow` y
+    marcar `done`, reintenta y duplica la fila. Consolidar por clave (upsert por
+    id en la hoja) en vez de append, o marcar `done` antes del append con
+    compensación.
+18. **Encriptación de credenciales ya disponible** (`lib/crypto.ts`): aplicarla
+    al persistir `conector_config` cuando se implemente la feature #1.
 
 ## Orden sugerido
 

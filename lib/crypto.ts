@@ -2,7 +2,11 @@
 function keyBytes(): Uint8Array {
   const b64 = process.env.CONFIG_MASTER_KEY;
   if (!b64) throw new Error("CONFIG_MASTER_KEY ausente");
-  return new Uint8Array(Buffer.from(b64, "base64"));
+  const bytes = new Uint8Array(Buffer.from(b64, "base64"));
+  if (bytes.length !== 32) {
+    throw new Error("CONFIG_MASTER_KEY debe ser 32 bytes en base64 (openssl rand -base64 32)");
+  }
+  return bytes;
 }
 
 async function importKey() {
