@@ -10,8 +10,8 @@ const CHANNEL_ICON: Record<string, string> = {
   voice: "☎️",
 };
 
-export default function CampanasPage() {
-  const campaigns = listCampaigns();
+export default async function CampanasPage() {
+  const campaigns = await listCampaigns();
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">

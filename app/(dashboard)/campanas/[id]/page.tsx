@@ -31,7 +31,7 @@ export default async function CampanaPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign) notFound();
 
   const template = await getTemplate(campaign.templateId);

@@ -10,7 +10,7 @@ export async function responderEncuesta(formData: FormData) {
   const ref = await resolveToken(token);
   if (!ref) redirect(`/encuesta/${token}?error=1`);
 
-  const campaign = getCampaign(ref.campaignId);
+  const campaign = await getCampaign(ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
   const answers = preguntas
     .map((pregunta, i) => ({

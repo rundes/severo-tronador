@@ -15,7 +15,7 @@ export default async function CierrePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign) notFound();
   const cierre = await analyzeCampaign(id);
   if (!cierre) notFound();

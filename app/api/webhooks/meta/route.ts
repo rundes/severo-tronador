@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     for (const change of entry.changes ?? []) {
       for (const s of change.value?.statuses ?? []) {
         const mapped = s.status ? STATUS_MAP[s.status] : undefined;
-        if (s.id && mapped && updateEnvioStatus(s.id, mapped)) updated++;
+        if (s.id && mapped && (await updateEnvioStatus(s.id, mapped))) updated++;
       }
     }
   }

@@ -7,6 +7,18 @@ export const metadata = { title: "Respuestas · Severo Tronador" };
 export default async function RespuestasPage() {
   const responses = await listResponses();
 
+  // Pre-resolvemos el nombre de cada campaña (getCampaign ahora es async y no
+  // puede llamarse dentro del .map de render). Dedup por campaignId.
+  const campaignIds = [...new Set(responses.map((r) => r.campaignId))];
+  const campaignNames = new Map<string, string | undefined>(
+    await Promise.all(
+      campaignIds.map(
+        async (id) =>
+          [id, (await getCampaign(id))?.nombre] as [string, string | undefined],
+      ),
+    ),
+  );
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -26,7 +38,7 @@ export default async function RespuestasPage() {
       ) : (
         <div className="space-y-3">
           {responses.map((r) => {
-            const campaign = getCampaign(r.campaignId);
+            const campaignNombre = campaignNames.get(r.campaignId);
             return (
               <div
                 key={r.token}
@@ -40,7 +52,7 @@ export default async function RespuestasPage() {
                     DNI {r.dni}
                   </Link>
                   <span className="text-zinc-400">
-                    {campaign?.nombre ?? r.campaignId} ·{" "}
+                    {campaignNombre ?? r.campaignId} ·{" "}
                     {new Date(r.at).toLocaleString("es-AR")}
                   </span>
                 </div>

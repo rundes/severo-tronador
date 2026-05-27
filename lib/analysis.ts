@@ -22,7 +22,7 @@ export interface Cierre {
 export async function analyzeCampaign(
   campaignId: string,
 ): Promise<Cierre | null> {
-  const campaign = getCampaign(campaignId);
+  const campaign = await getCampaign(campaignId);
   if (!campaign) return null;
 
   const responses = await listResponses(campaignId);

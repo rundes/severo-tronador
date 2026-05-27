@@ -79,7 +79,7 @@ export default async function EncuestaPage({
     );
   }
 
-  const campaign = getCampaign(ref.campaignId);
+  const campaign = await getCampaign(ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
   const contacts = await googleSheetsConnector.readPadron();
   const nombre = contacts.find((c) => c.dni === ref.dni)?.nombre ?? "";
