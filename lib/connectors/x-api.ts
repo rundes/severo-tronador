@@ -1,6 +1,7 @@
 // Conector de listening: X API (Basic Tier, 1.500 tweets/mes free).
 // F8: modo mock. Real: X API v2 recent search con bearer token.
 import type {
+  Config,
   ConnectorStatus,
   ListenItem,
   ListenQuery,
@@ -10,6 +11,7 @@ import type {
 } from "./types";
 import { getUsage, nextMonthlyReset } from "@/lib/quota";
 import { mockListenItems } from "@/lib/mock/listening";
+import { getConnectorConfig } from "./config";
 
 const ID = "x-api";
 const FREE_LIMIT = 1500;
@@ -36,8 +38,9 @@ export const xApiConnector: ListeningConnector = {
     { key: "X_API_BEARER_TOKEN", label: "Bearer Token", type: "secret", required: true },
   ],
 
-  async test(): Promise<TestResult> {
-    return process.env.X_API_BEARER_TOKEN
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig(ID);
+    return cfg.X_API_BEARER_TOKEN
       ? { ok: true, message: "Token presente — búsqueda real activa." }
       : { ok: true, message: "Modo mock — tweets simulados." };
   },
