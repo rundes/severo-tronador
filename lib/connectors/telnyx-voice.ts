@@ -63,12 +63,12 @@ export const telnyxVoiceConnector: OutreachConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= monthlyCap() ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= monthlyCap() ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: monthlyCap(),
       unit: "api_calls",
       period: "month",
@@ -76,8 +76,8 @@ export const telnyxVoiceConnector: OutreachConnector = {
     };
   },
 
-  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number } {
-    const remaining = monthlyCap() - getUsage(ID);
+  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+    const remaining = monthlyCap() - (await getUsage(ID));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -88,7 +88,7 @@ export const telnyxVoiceConnector: OutreachConnector = {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
 
     if (!hasCreds()) {
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-call-${recipient.dni}-${Date.now()}` };
     }
 
@@ -107,7 +107,7 @@ export const telnyxVoiceConnector: OutreachConnector = {
       });
       if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
       const data = (await res.json()) as { data?: { call_control_id?: string } };
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: data.data?.call_control_id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

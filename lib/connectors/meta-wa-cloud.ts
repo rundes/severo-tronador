@@ -69,12 +69,12 @@ export const metaWaCloudConnector: OutreachConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: FREE_LIMIT,
       unit: "conversations",
       period: "month",
@@ -82,8 +82,8 @@ export const metaWaCloudConnector: OutreachConnector = {
     };
   },
 
-  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number } {
-    const remaining = FREE_LIMIT - getUsage(ID);
+  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+    const remaining = FREE_LIMIT - (await getUsage(ID));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -96,7 +96,7 @@ export const metaWaCloudConnector: OutreachConnector = {
     }
 
     if (!hasCreds()) {
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-wa-${recipient.dni}-${Date.now()}` };
     }
 
@@ -124,7 +124,7 @@ export const metaWaCloudConnector: OutreachConnector = {
       const data = (await res.json()) as {
         messages?: { id?: string }[];
       };
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: data.messages?.[0]?.id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

@@ -62,12 +62,12 @@ export const telnyxSmsConnector: OutreachConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= monthlyCap() ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= monthlyCap() ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: monthlyCap(),
       unit: "messages",
       period: "month",
@@ -75,8 +75,8 @@ export const telnyxSmsConnector: OutreachConnector = {
     };
   },
 
-  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number } {
-    const remaining = monthlyCap() - getUsage(ID);
+  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+    const remaining = monthlyCap() - (await getUsage(ID));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -87,7 +87,7 @@ export const telnyxSmsConnector: OutreachConnector = {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
 
     if (!hasCreds()) {
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-sms-${recipient.dni}-${Date.now()}` };
     }
 
@@ -106,7 +106,7 @@ export const telnyxSmsConnector: OutreachConnector = {
       });
       if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
       const data = (await res.json()) as { data?: { id?: string } };
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: data.data?.id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

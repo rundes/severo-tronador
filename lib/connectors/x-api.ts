@@ -42,11 +42,11 @@ export const xApiConnector: ListeningConnector = {
       : { ok: true, message: "Modo mock — tweets simulados." };
   },
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
   },
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: FREE_LIMIT,
       unit: "api_calls",
       period: "month",

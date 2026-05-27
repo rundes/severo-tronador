@@ -122,12 +122,12 @@ export const claudeApiConnector: AnalysisConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= TOKEN_CAP ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= TOKEN_CAP ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: TOKEN_CAP,
       unit: "tokens",
       period: "month",
@@ -141,7 +141,7 @@ export const claudeApiConnector: AnalysisConnector = {
   ): Promise<AnalysisResult> {
     const answers = Array.isArray(input) ? input : [input];
     // Estimación grosera de tokens consumidos (guardarraíl).
-    incrementUsage(ID, Math.ceil(answers.join(" ").length / 4));
+    await incrementUsage(ID, Math.ceil(answers.join(" ").length / 4));
 
     // F7: incluso con key, el coding/sentiment usa la heurística local salvo
     // que se implemente la llamada real. La key habilita el modo "claude".

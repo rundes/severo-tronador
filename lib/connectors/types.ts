@@ -120,7 +120,7 @@ export interface OutreachConnector extends Connector {
   category: "outreach";
   getQuota(config?: Config): Promise<Quota>; // los canales siempre tienen cuota
   send(message: OutreachMessage, recipient: Contact): Promise<SendResult>;
-  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number };
+  estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }>;
 }
 
 export interface ListenQuery {

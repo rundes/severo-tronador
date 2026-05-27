@@ -61,12 +61,12 @@ export const resendConnector: OutreachConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return getUsage(ID) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
+    return (await getUsage(ID)) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(): Promise<Quota> {
     return {
-      used: getUsage(ID),
+      used: await getUsage(ID),
       limit: FREE_LIMIT,
       unit: "messages",
       period: "month",
@@ -74,8 +74,8 @@ export const resendConnector: OutreachConnector = {
     };
   },
 
-  estimateQuotaImpact(count: number): { willFit: boolean; remaining: number } {
-    const remaining = FREE_LIMIT - getUsage(ID);
+  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+    const remaining = FREE_LIMIT - (await getUsage(ID));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -89,7 +89,7 @@ export const resendConnector: OutreachConnector = {
 
     if (!hasKey()) {
       // Mock: simula un envío exitoso y consume cuota igual.
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-${recipient.dni}-${Date.now()}` };
     }
 
@@ -111,7 +111,7 @@ export const resendConnector: OutreachConnector = {
         return { ok: false, error: `Resend HTTP ${res.status}` };
       }
       const data = (await res.json()) as { id?: string };
-      incrementUsage(ID, 1);
+      await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: data.id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
