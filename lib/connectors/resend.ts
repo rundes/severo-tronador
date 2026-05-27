@@ -3,6 +3,7 @@
 // envío y consume cuota igual, para poder probar el flujo de campaña end-to-end
 // sin credenciales). Con la key, envía de verdad.
 import type {
+  Config,
   Contact,
   ConnectorStatus,
   OutreachConnector,
@@ -12,13 +13,10 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { getConnectorConfig } from "./config";
 
 const FREE_LIMIT = 3000;
 const ID = "resend";
-
-function hasKey(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
-}
 
 export const resendConnector: OutreachConnector = {
   id: ID,
@@ -51,8 +49,9 @@ export const resendConnector: OutreachConnector = {
     },
   ],
 
-  async test(): Promise<TestResult> {
-    return hasKey()
+  async test(config?: Config): Promise<TestResult> {
+    const cfg = config ?? await getConnectorConfig(ID);
+    return cfg.RESEND_API_KEY
       ? { ok: true, message: "API key presente — envío real activo." }
       : {
           ok: true,
@@ -87,7 +86,9 @@ export const resendConnector: OutreachConnector = {
       return { ok: false, error: "Contacto sin email" };
     }
 
-    if (!hasKey()) {
+    const cfg = await getConnectorConfig(ID);
+
+    if (!cfg.RESEND_API_KEY) {
       // Mock: simula un envío exitoso y consume cuota igual.
       await incrementUsage(ID, 1);
       return { ok: true, providerMessageId: `mock-${recipient.dni}-${Date.now()}` };
@@ -97,11 +98,11 @@ export const resendConnector: OutreachConnector = {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${cfg.RESEND_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.RESEND_FROM,
+          from: cfg.RESEND_FROM,
           to: recipient.email,
           subject: message.subject ?? "",
           html: message.body,
