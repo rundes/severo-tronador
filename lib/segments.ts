@@ -1,7 +1,9 @@
 // Constructor de segmentos — query builder sobre el padrón (ARCHITECTURE §6.4).
 // Combina cada contacto con su ficha de relación derivada para poder filtrar
 // también por salud y disponibilidad.
-import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
+import { dbConfigured } from "@/lib/db/supabase";
+import { readPadronFromDb } from "@/lib/db/padron";
+import { mockPadron } from "@/lib/mock/padron";
 import { getRawRelationship } from "@/lib/mock/relaciones";
 import { deriveRelationship, type ContactRelationship } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
@@ -32,7 +34,7 @@ export function edadDe(fechaNac?: string, now = Date.now()): number | null {
 }
 
 export async function loadContacts(): Promise<ContactWithRelationship[]> {
-  const contacts = await googleSheetsConnector.readPadron();
+  const contacts = dbConfigured() ? await readPadronFromDb() : mockPadron;
   return contacts.map((contact) => ({
     contact,
     rel: deriveRelationship(contact.dni, getRawRelationship(contact.dni)),
