@@ -1,19 +1,22 @@
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { encryptJson, decryptJson } from "@/lib/crypto";
-import { getConnector } from "./registry";
 import type { ConfigField } from "./types";
 
 export type ConnectorConfigValues = Record<string, string>;
 
-function schemaFields(connectorId: string): ConfigField[] {
+// Lazy dynamic import to break the circular dependency:
+// registry → connector → config → registry.
+// All callers are already async so awaiting here is fine.
+async function schemaFields(connectorId: string): Promise<ConfigField[]> {
+  const { getConnector } = await import("./registry");
   return getConnector(connectorId)?.configSchema ?? [];
 }
-function isSecret(connectorId: string, key: string): boolean {
-  return schemaFields(connectorId).some((f) => f.key === key && f.type === "secret");
+async function isSecret(connectorId: string, key: string): Promise<boolean> {
+  return (await schemaFields(connectorId)).some((f) => f.key === key && f.type === "secret");
 }
-function envDefaults(connectorId: string): ConnectorConfigValues {
+async function envDefaults(connectorId: string): Promise<ConnectorConfigValues> {
   const out: ConnectorConfigValues = {};
-  for (const f of schemaFields(connectorId)) {
+  for (const f of await schemaFields(connectorId)) {
     const v = process.env[f.key];
     if (v) out[f.key] = v;
   }
@@ -35,20 +38,20 @@ async function storedConfig(connectorId: string): Promise<ConnectorConfigValues>
   const out: ConnectorConfigValues = {};
   for (const [k, v] of Object.entries(row.config)) {
     if (v == null || v === "") continue;
-    out[k] = isSecret(connectorId, k) ? await decryptJson<string>(v) : v;
+    out[k] = (await isSecret(connectorId, k)) ? await decryptJson<string>(v) : v;
   }
   return out;
 }
 
 export async function getConnectorConfig(connectorId: string): Promise<ConnectorConfigValues> {
-  return { ...envDefaults(connectorId), ...(await storedConfig(connectorId)) };
+  return { ...(await envDefaults(connectorId)), ...(await storedConfig(connectorId)) };
 }
 
 export async function saveConnectorConfig(connectorId: string, values: ConnectorConfigValues): Promise<void> {
   if (!dbConfigured()) throw new Error("Supabase/CONFIG_MASTER_KEY no configurado: no se puede guardar la config");
   const row = await getRow(connectorId);
   const config: Record<string, string> = { ...(row?.config ?? {}) };
-  for (const f of schemaFields(connectorId)) {
+  for (const f of await schemaFields(connectorId)) {
     const v = values[f.key];
     if (v === undefined) continue;
     if (f.type === "secret" && v === "") continue;
@@ -87,8 +90,8 @@ export interface FieldStatus {
 
 export async function configFieldStatus(connectorId: string): Promise<FieldStatus[]> {
   const stored = (await getRow(connectorId))?.config ?? {};
-  const env = envDefaults(connectorId);
-  return schemaFields(connectorId).map((f) => {
+  const env = await envDefaults(connectorId);
+  return (await schemaFields(connectorId)).map((f) => {
     const inUi = stored[f.key] != null && stored[f.key] !== "";
     const inEnv = env[f.key] != null;
     return {
