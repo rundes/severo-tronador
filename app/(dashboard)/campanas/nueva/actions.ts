@@ -3,6 +3,9 @@
 import { redirect } from "next/navigation";
 import { executeCampaign } from "@/lib/campaigns";
 import { filterFromParams } from "@/lib/segments";
+import type { Channel } from "@/lib/relationship";
+
+const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice"];
 
 function str(v: FormDataEntryValue | null): string | undefined {
   if (v == null) return undefined;
@@ -13,7 +16,8 @@ function str(v: FormDataEntryValue | null): string | undefined {
 export async function crearCampana(formData: FormData) {
   const nombre = str(formData.get("nombre")) ?? "Campaña sin nombre";
   const templateId = str(formData.get("templateId")) ?? "";
-  const channel = str(formData.get("channel")) === "whatsapp" ? "whatsapp" : "email";
+  const chParam = str(formData.get("channel")) as Channel | undefined;
+  const channel: Channel = chParam && CHANNELS.includes(chParam) ? chParam : "email";
   const segmentFilter = filterFromParams({
     sexo: str(formData.get("sexo")),
     edadMin: str(formData.get("edadMin")),

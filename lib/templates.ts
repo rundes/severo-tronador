@@ -50,6 +50,27 @@ const seed: Template[] = [
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
+  {
+    id: "tpl-sms-recordatorio",
+    channel: "sms",
+    nombre: "SMS · Recordatorio corto",
+    cuerpo:
+      "Relevamiento Maipú: {{nombre}}, tu encuesta de {{barrio}} sigue " +
+      "abierta. Responder BAJA para no recibir más.",
+    estado: "activo",
+    createdAt: "2026-05-01T00:00:00.000Z",
+  },
+  {
+    id: "tpl-voz-ivr",
+    channel: "voice",
+    nombre: "Voz · Guion IVR",
+    cuerpo:
+      "Hola {{nombre}}. Le habla el equipo de relevamiento de Maipú. " +
+      "Estamos haciendo una breve encuesta de opinión sobre {{barrio}}. " +
+      "Si desea participar, presione 1. Para no recibir más llamados, presione 9.",
+    estado: "activo",
+    createdAt: "2026-05-01T00:00:00.000Z",
+  },
 ];
 
 type Store = Template[];

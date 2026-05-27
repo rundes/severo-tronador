@@ -5,6 +5,8 @@
 // F3: ejecución síncrona (sin Vercel Cron todavía) y store en memoria.
 import { resendConnector } from "@/lib/connectors/resend";
 import { metaWaCloudConnector } from "@/lib/connectors/meta-wa-cloud";
+import { telnyxSmsConnector } from "@/lib/connectors/telnyx-sms";
+import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { channelAvailable, type Channel } from "@/lib/relationship";
@@ -71,6 +73,8 @@ export function updateEnvioStatus(
 const CONNECTOR_BY_CHANNEL: Partial<Record<Channel, OutreachConnector>> = {
   email: resendConnector,
   whatsapp: metaWaCloudConnector,
+  sms: telnyxSmsConnector,
+  voice: telnyxVoiceConnector,
 };
 
 export function outreachConnectorFor(

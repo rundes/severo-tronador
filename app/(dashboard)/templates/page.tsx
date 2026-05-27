@@ -74,6 +74,8 @@ export default function TemplatesPage() {
         <select name="channel" defaultValue="email" className={`w-full ${inputCls}`}>
           <option value="email">📧 Email</option>
           <option value="whatsapp">💬 WhatsApp</option>
+          <option value="sms">📱 SMS</option>
+          <option value="voice">☎️ Voz (guion IVR)</option>
         </select>
         <input name="nombre" required placeholder="Nombre interno" className={`w-full ${inputCls}`} />
         <input

@@ -6,13 +6,16 @@ import { googleSheetsConnector } from "./google-sheets";
 import { googleOAuthConnector } from "./google-oauth";
 import { resendConnector } from "./resend";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
+import { telnyxSmsConnector } from "./telnyx-sms";
+import { telnyxVoiceConnector } from "./telnyx-voice";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
   googleOAuthConnector,
   resendConnector,
   metaWaCloudConnector,
-  // F5: telnyx-sms, telnyx-voice, bland-ai (outreach)
+  telnyxSmsConnector,
+  telnyxVoiceConnector,
   // F7: claude-api (analysis)
   // F8: gdelt, x-api, reddit-api (listening)
 ];

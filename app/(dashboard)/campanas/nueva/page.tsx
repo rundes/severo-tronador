@@ -28,7 +28,10 @@ export default async function NuevaCampanaPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
-  const channel: Channel = params.channel === "whatsapp" ? "whatsapp" : "email";
+  const channel: Channel =
+    params.channel && OUTREACH_CHANNELS.includes(params.channel as Channel)
+      ? (params.channel as Channel)
+      : "email";
   const filter = filterFromParams(params);
   const all = await loadContacts();
   const matched = applySegment(all, filter);

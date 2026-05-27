@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HealthBadge } from "@/components/health-badge";
+import { registrarLlamada } from "./actions";
 import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
 import { getRawRelationship } from "@/lib/mock/relaciones";
+import { CALL_OUTCOMES, listCallsFor } from "@/lib/calls";
 import {
   deriveRelationship,
   edadLabel,
@@ -15,6 +17,13 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   sms: "SMS",
   voice: "Voz",
 };
+
+const OUTCOME_LABEL: Record<string, string> = Object.fromEntries(
+  CALL_OUTCOMES.map((o) => [o.value, o.label]),
+);
+
+const callInputCls =
+  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
 function fmt(iso?: string): string {
   if (!iso) return "—";
@@ -40,6 +49,7 @@ export default async function ContactoPage({
   const historial = [...(raw?.events ?? [])].sort(
     (a, b) => +new Date(b.contactedAt) - +new Date(a.contactedAt),
   );
+  const llamadas = listCallsFor(dni);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -127,15 +137,55 @@ export default async function ContactoPage({
         )}
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          disabled
-          title="Disponible cuando haya canales activos (F3+)"
-          className="cursor-not-allowed rounded bg-zinc-200 px-3 py-1.5 text-sm text-zinc-500 dark:bg-zinc-800"
+      {/* Registro manual de llamadas (encuestador llama desde su celular) */}
+      <div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+          Llamadas registradas
+        </div>
+        {llamadas.length > 0 && (
+          <ul className="mb-3 space-y-1 text-sm">
+            {llamadas.map((c, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className="font-mono text-zinc-400">{fmt(c.at)}</span>
+                <span className="text-zinc-700 dark:text-zinc-300">
+                  {OUTCOME_LABEL[c.outcome] ?? c.outcome}
+                </span>
+                {c.notes && (
+                  <span className="text-zinc-400">· {c.notes}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          action={registrarLlamada}
+          className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700"
         >
-          Contactar ahora
-        </button>
+          <input type="hidden" name="dni" value={contact.dni} />
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            Resultado
+            <select name="outcome" required className={callInputCls} defaultValue="">
+              <option value="" disabled>
+                elegí…
+              </option>
+              {CALL_OUTCOMES.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-xs text-zinc-500">
+            Notas (opcional)
+            <input name="notes" className={callInputCls} />
+          </label>
+          <button
+            type="submit"
+            className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            Registrar llamada
+          </button>
+        </form>
       </div>
     </div>
   );
