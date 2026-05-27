@@ -11,6 +11,6 @@ export async function registrarLlamada(formData: FormData) {
   const valid = CALL_OUTCOMES.some((o) => o.value === outcomeRaw);
   if (!valid) return;
 
-  addManualCall({ dni, outcome: outcomeRaw, notes: notes || undefined });
+  await addManualCall({ dni, outcome: outcomeRaw, notes: notes || undefined });
   revalidatePath(`/contactos/${dni}`);
 }

@@ -1,6 +1,8 @@
 // Registro manual de llamadas (ARCHITECTURE / PLAN F5): cuando un encuestador
 // llama desde su celular, carga el resultado acá — no se necesita provider de
-// voz. F5: store en memoria; en producción es una hoja más.
+// voz. F9: store via repo (Supabase en prod, memoria en dev).
+import { repo } from "@/lib/db";
+
 export type CallOutcome =
   | "contactado"
   | "no_atendio"
@@ -15,24 +17,24 @@ export const CALL_OUTCOMES: { value: CallOutcome; label: string }[] = [
 ];
 
 export interface ManualCall {
+  id?: string;
   dni: string;
   at: string; // ISO
   outcome: CallOutcome;
   notes?: string;
 }
 
-type Store = ManualCall[];
-const g = globalThis as unknown as { __manualCalls?: Store };
-const store: Store = (g.__manualCalls ??= []);
+const r = () => repo<ManualCall>("llamadas", true);
 
-export function addManualCall(input: Omit<ManualCall, "at">): ManualCall {
-  const call: ManualCall = { ...input, at: new Date().toISOString() };
-  store.push(call);
-  return call;
+export async function addManualCall(
+  input: Omit<ManualCall, "at" | "id">,
+): Promise<ManualCall> {
+  return r().upsert({ ...input, at: new Date().toISOString() });
 }
 
-export function listCallsFor(dni: string): ManualCall[] {
-  return store
+export async function listCallsFor(dni: string): Promise<ManualCall[]> {
+  const all = await r().list();
+  return all
     .filter((c) => c.dni === dni)
     .sort((a, b) => b.at.localeCompare(a.at));
 }

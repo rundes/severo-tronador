@@ -49,7 +49,7 @@ export default async function ContactoPage({
   const historial = [...(raw?.events ?? [])].sort(
     (a, b) => +new Date(b.contactedAt) - +new Date(a.contactedAt),
   );
-  const llamadas = listCallsFor(dni);
+  const llamadas = await listCallsFor(dni);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
