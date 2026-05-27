@@ -26,6 +26,6 @@ export async function responderEncuesta(formData: FormData) {
 export async function optarBaja(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const ref = resolveToken(token);
-  if (ref) optOut(ref.dni, "baja desde encuesta");
+  if (ref) await optOut(ref.dni, "baja desde encuesta");
   redirect(`/encuesta/${token}?baja=1`);
 }

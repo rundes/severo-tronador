@@ -12,7 +12,7 @@ import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { createToken } from "@/lib/survey";
-import { isOptedOut } from "@/lib/optout";
+import { optedOutSet } from "@/lib/optout";
 
 export interface Envio {
   dni: string;
@@ -129,8 +129,9 @@ export async function executeCampaign(
   const matched = applySegment(all, input.segmentFilter);
 
   // Opt-out global cross-channel: regla dura, se consulta ANTES de enviar.
-  const optedOut = matched.filter((m) => isOptedOut(m.contact.dni));
-  const rest = matched.filter((m) => !isOptedOut(m.contact.dni));
+  const opted = await optedOutSet();
+  const optedOut = matched.filter((m) => opted.has(m.contact.dni));
+  const rest = matched.filter((m) => !opted.has(m.contact.dni));
 
   // De los que quedan: disponibles en el canal (cooldown) vs. en cooldown.
   const sendable = rest.filter((m) => channelAvailable(m.rel, input.channel));

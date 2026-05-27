@@ -68,7 +68,7 @@ export default async function EncuestaPage({
     );
   }
 
-  if (isOptedOut(ref.dni)) {
+  if (await isOptedOut(ref.dni)) {
     return (
       <Shell>
         <h1 className="text-lg font-semibold">Estás dado de baja</h1>
