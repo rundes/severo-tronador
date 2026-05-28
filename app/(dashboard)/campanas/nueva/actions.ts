@@ -2,54 +2,60 @@
 
 import { redirect } from "next/navigation";
 import { executeCampaign } from "@/lib/campaigns";
-import { filterFromParams } from "@/lib/segments";
-import type { Channel } from "@/lib/relationship";
-
-const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice"];
-
-function str(v: FormDataEntryValue | null): string | undefined {
-  if (v == null) return undefined;
-  const s = String(v).trim();
-  return s === "" ? undefined : s;
-}
+import {
+  CrearCampanaSchema,
+  formToObject,
+  summarizeZodError,
+} from "@/lib/schemas";
 
 export async function crearCampana(formData: FormData) {
-  const nombre = str(formData.get("nombre")) ?? "Campaña sin nombre";
-  const templateId = str(formData.get("templateId")) ?? "";
-  const chParam = str(formData.get("channel")) as Channel | undefined;
-  const channel: Channel = chParam && CHANNELS.includes(chParam) ? chParam : "email";
+  const raw = formToObject(formData);
   const preguntas = String(formData.get("preguntas") ?? "")
     .split("\n")
     .map((p) => p.trim())
     .filter(Boolean);
-  const segmentFilter = filterFromParams({
-    sexo: str(formData.get("sexo")),
-    edadMin: str(formData.get("edadMin")),
-    edadMax: str(formData.get("edadMax")),
-    barrio: str(formData.get("barrio")),
-    healthMin: str(formData.get("healthMin")),
-  });
 
-  const res = await executeCampaign({
-    nombre,
-    channel,
-    templateId,
-    segmentFilter,
+  const parsed = CrearCampanaSchema.safeParse({
+    nombre: raw.nombre,
+    templateId: raw.templateId,
+    channel: raw.channel,
     preguntas,
+    segmentFilter: {
+      sexo: raw.sexo,
+      edadMin: raw.edadMin,
+      edadMax: raw.edadMax,
+      barrio: raw.barrio,
+      healthMin: raw.healthMin,
+    },
   });
 
+  if (!parsed.success) {
+    const params = preservedParams(formData);
+    params.set("error", "validacion");
+    params.set("detalle", summarizeZodError(parsed.error));
+    redirect(`/campanas/nueva?${params}`);
+  }
+
+  const res = await executeCampaign(parsed.data);
   if (res.ok) redirect(`/campanas/${res.campaign.id}`);
 
-  // Re-render del form con el motivo del bloqueo en la URL.
+  const params = preservedParams(formData);
+  params.set("error", res.reason);
+  if (res.reason === "quota_blocked") {
+    params.set("needed", String(res.needed));
+    params.set("remaining", String(res.remaining));
+  }
+  redirect(`/campanas/nueva?${params}`);
+}
+
+// Preserva los valores del form salvo templateId (no queremos repegar un id
+// que pudo cambiar) ni el textarea de preguntas (overflow en URL).
+function preservedParams(formData: FormData): URLSearchParams {
   const p = new URLSearchParams();
   for (const [k, v] of formData.entries()) {
+    if (k === "templateId" || k === "preguntas") continue;
     const s = String(v).trim();
-    if (s && k !== "templateId") p.set(k, s);
+    if (s) p.set(k, s);
   }
-  p.set("error", res.reason);
-  if (res.reason === "quota_blocked") {
-    p.set("needed", String(res.needed));
-    p.set("remaining", String(res.remaining));
-  }
-  redirect(`/campanas/nueva?${p}`);
+  return p;
 }

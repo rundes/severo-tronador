@@ -4,9 +4,13 @@ import { redirect } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
 import { addResponse, resolveToken } from "@/lib/survey";
 import { optOut } from "@/lib/optout";
+import { TokenSchema, formToObject } from "@/lib/schemas";
 
 export async function responderEncuesta(formData: FormData) {
-  const token = String(formData.get("token") ?? "");
+  const parsed = TokenSchema.safeParse(formToObject(formData));
+  if (!parsed.success) redirect(`/encuesta/invalido?error=token`);
+  const { token } = parsed.data;
+
   const ref = await resolveToken(token);
   if (!ref) redirect(`/encuesta/${token}?error=1`);
 
@@ -24,7 +28,10 @@ export async function responderEncuesta(formData: FormData) {
 }
 
 export async function optarBaja(formData: FormData) {
-  const token = String(formData.get("token") ?? "");
+  const parsed = TokenSchema.safeParse(formToObject(formData));
+  if (!parsed.success) redirect(`/encuesta/invalido?error=token`);
+  const { token } = parsed.data;
+
   const ref = await resolveToken(token);
   if (ref) await optOut(ref.dni, "baja desde encuesta");
   redirect(`/encuesta/${token}?baja=1`);

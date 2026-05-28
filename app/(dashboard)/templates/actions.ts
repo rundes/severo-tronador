@@ -2,23 +2,17 @@
 
 import { redirect } from "next/navigation";
 import { createTemplate } from "@/lib/templates";
-import type { Channel } from "@/lib/relationship";
-
-const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice"];
+import { NuevaPlantillaSchema, formToObject } from "@/lib/schemas";
 
 export async function nuevaPlantilla(formData: FormData) {
-  const nombre = String(formData.get("nombre") ?? "").trim();
-  const asunto = String(formData.get("asunto") ?? "").trim();
-  const cuerpo = String(formData.get("cuerpo") ?? "").trim();
-  const chRaw = String(formData.get("channel") ?? "") as Channel;
-  const channel: Channel = CHANNELS.includes(chRaw) ? chRaw : "email";
-  if (!nombre || !cuerpo) redirect("/templates?error=campos");
+  const parsed = NuevaPlantillaSchema.safeParse(formToObject(formData));
+  if (!parsed.success) redirect("/templates?error=campos");
 
   await createTemplate({
-    channel,
-    nombre,
-    asunto: channel === "email" ? asunto || undefined : undefined,
-    cuerpo,
+    channel: parsed.data.channel,
+    nombre: parsed.data.nombre,
+    asunto: parsed.data.asunto,
+    cuerpo: parsed.data.cuerpo,
     estado: "activo",
   });
   redirect("/templates");
