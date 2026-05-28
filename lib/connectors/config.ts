@@ -38,7 +38,17 @@ async function storedConfig(connectorId: string): Promise<ConnectorConfigValues>
   const out: ConnectorConfigValues = {};
   for (const [k, v] of Object.entries(row.config)) {
     if (v == null || v === "") continue;
-    out[k] = (await isSecret(connectorId, k)) ? await decryptJson<string>(v) : v;
+    if (await isSecret(connectorId, k)) {
+      try {
+        out[k] = await decryptJson<string>(v);
+      } catch {
+        // Valor corrupto o CONFIG_MASTER_KEY cambiada: se omite este campo
+        // (cae al default de env) en vez de romper toda la resolución.
+        continue;
+      }
+    } else {
+      out[k] = v;
+    }
   }
   return out;
 }
