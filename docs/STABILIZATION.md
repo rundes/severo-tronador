@@ -15,7 +15,7 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 | 2 | `app/api/webhooks/meta/route.ts` | ✅ ~~🟠 Compara verify token con `===`.~~ Resuelto en `26c704d`: `constantTimeEqual` via `crypto.timingSafeEqual`. |
 | 3 | `lib/survey.ts` | ✅ ~~🟠 Race entre `hasResponded` y `push`.~~ Resuelto en `0005_respuestas_token_unique.sql` + `addResponse` maps PG error 23505 → null (dedupe DB-level). |
 | 4 | `app/(dashboard)/campanas/nueva/actions.ts` | ✅ ~~🟠 `executeCampaign` sin try/catch.~~ Resuelto en `f886d00`: validación zod redirige con `?error=validacion&detalle=...`. La UI lo muestra en banner. |
-| 5 | `lib/segments.ts` (`loadContacts`) | 🟠 `readPadron` sin manejo de error; una caída de Sheets rompe el render. | try/catch + estado de error en la UI. |
+| 5 | `lib/segments.ts` (`loadContacts`) | ✅ ~~🟠 `readPadron` sin manejo de error.~~ Resuelto en `a510840`: error boundary `app/(dashboard)/error.tsx` + mensaje user-friendly en `readPadronFromDb`. |
 | 6 | conectores outreach | 🟡 La cuota se incrementa tras el `fetch` OK aunque `providerMessageId` venga `undefined`. | Aceptable (el envío salió); registrar warning si falta el id. |
 | 7 | `lib/connectors/claude-api.ts` | 🟡 Incrementa tokens estimados aun en mock (sin refund si falla). | Mover el incremento a post-éxito cuando se implemente la llamada real. |
 | 8 | `app/(dashboard)/layout.tsx` | ✅ ~~🟡 Sin auth configurada el panel es accesible en prod.~~ Resuelto en `c4476ab` + `8154e3d`: middleware 503 si auth no configurada, `instrumentation.ts` aborta el boot, layout redirige a signin. |
@@ -85,17 +85,26 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 ## P2 — Madurez
 
 12. **Plantillas WhatsApp aprobadas**: mapear `template` con componentes Meta
-    (hoy se manda `type=text`, válido solo en ventana 24h).
-13. **Listening real**: la **config** de escucha (zona/país/radio/keywords/
-    fuentes) ya existe y se gestiona desde `/escucha → Configurar escucha`
-    (feature #2, tabla `listening_config`); `runListening` arma el `ListenQuery`
-    desde ahí. Pendiente: implementar el `fetch` real de GDELT/X/Reddit (hoy
-    mock) usando esos parámetros, y persistir series temporales para el baseline.
-14. **Validación de emails/teléfonos** antes de enviar (regex + verifier
-    opcional) y warm-up de dominio para deliverabilidad.
-15. **Observabilidad**: logging estructurado, métricas de cuota/envío, y
-    auditoría (quién creó cada campaña) persistida.
-16. **Lint/CI**: correr `next lint` + `tsc --noEmit` + tests en CI por PR.
+    (hoy se manda `type=text`, válido solo en ventana 24h). **Pendiente**: la
+    infra real depende de tener plantillas pre-aprobadas; cuando lleguen,
+    extender `OutreachMessage` con `template?: { name, lang, params }` y
+    switch en `metaWaCloudConnector.send` entre `type=text` y `type=template`.
+13. ~~**Listening real**.~~ ✅ **Parcial** (v0.5.2). GDELT (sin auth) y X API
+    (con `X_API_BEARER_TOKEN`) ahora hacen fetch real con fallback al mock
+    si la API falla. Reddit sigue mock (OAuth client-credentials pendiente).
+    Series temporales para baseline pendiente.
+14. ~~**Validación de emails/teléfonos.**~~ ✅ **Resuelto** (v0.5.1, `a510840`).
+    `isValidEmail` + `isValidPhone` en `lib/schemas.ts`; los 4 connectors
+    outreach chequean antes de tocar el provider. Warm-up de dominio queda
+    como práctica operativa, no código.
+15. ~~**Observabilidad.**~~ ✅ **Parcial** (v0.5.2). `lib/logger.ts` emite
+    JSON por línea a stdout (Vercel Logs lo ingesta). Niveles: debug/info/
+    warn/error filtrados por `LOG_LEVEL` o `NODE_ENV`. Cron send-queue,
+    webhook Meta, conectores de listening ya emiten. Pendiente: métricas
+    agregadas + auditoría de quién creó cada campaña.
+16. ~~**Lint/CI.**~~ ✅ **Resuelto** (v0.5.1, `a510840`).
+    `.github/workflows/ci.yml` corre `tsc --noEmit` + `eslint` + `vitest`
+    en cada PR y push a main. Cancela runs viejas del mismo branch.
 17. **Idempotencia del espejo a Sheets**: si el cron cae entre `appendRow` y
     marcar `done`, reintenta y duplica la fila. Consolidar por clave (upsert por
     id en la hoja) en vez de append, o marcar `done` antes del append con
@@ -107,8 +116,11 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 ## Orden sugerido
 
-✅ P0 completo (persistencia, webhook seguro, auth gate, cola async). Siguiente:
-P1 — tests (#5 cubierto parcialmente con webhook-meta + auth-guard + send-queue,
-falta `relationship`, `segments`, `optout`, `survey`) → validación zod (#6) →
-manejo de errores end-to-end (#7, #8) → reconciliación (#9) → atomicidad de
-cuota (#10) → dedupe DB respuestas (#11) → P2.
+✅ P0 completo. ✅ P1 completo (#5 #6 #7 #8 #9 #10 #11). P2 mayormente
+cerrado: #14 #15 #16 ✅, #13 parcial (Reddit OAuth pendiente), #12
+infrastructure-only (espera templates aprobados de Meta), #17 pendiente
+(idempotencia mirror Sheets).
+
+Siguiente: reconciliación con pull real de Meta Graph (cuando haya
+tráfico WA), Reddit OAuth, templates WA aprobados, mirror sheets
+idempotente, métricas agregadas + auditoría.

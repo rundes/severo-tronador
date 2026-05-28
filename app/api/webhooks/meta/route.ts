@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { updateEnvioStatus, type Envio } from "@/lib/campaigns";
 import { constantTimeEqual, verifyHmacSha256 } from "@/lib/crypto";
+import { log } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
   const secret = process.env.META_WA_APP_SECRET;
 
   if (!verifyHmacSha256(raw, signature, secret)) {
+    log.warn("webhook.meta.signature_failed", {
+      has_header: Boolean(signature),
+      has_secret: Boolean(secret),
+    });
     return new Response("Forbidden", { status: 403 });
   }
 
@@ -53,6 +58,7 @@ export async function POST(req: Request) {
   try {
     body = JSON.parse(raw.toString("utf8")) as MetaWebhookBody;
   } catch {
+    log.warn("webhook.meta.bad_json");
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
 
@@ -65,5 +71,6 @@ export async function POST(req: Request) {
       }
     }
   }
+  log.info("webhook.meta.processed", { updated });
   return NextResponse.json({ ok: true, updated });
 }

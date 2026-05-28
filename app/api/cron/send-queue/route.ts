@@ -17,6 +17,7 @@ import {
 } from "@/lib/campaigns";
 import type { Channel } from "@/lib/relationship";
 import { enqueueSheetSync } from "@/lib/db/mirror";
+import { log } from "@/lib/logger";
 
 const BATCH = 20;
 const MAX_ATTEMPTS = 3;
@@ -172,6 +173,13 @@ export async function GET(req: Request) {
     await refreshCampaignState(db, campaignId);
   }
 
+  log.info("cron.send_queue.tick", {
+    done,
+    failed,
+    rescheduled,
+    batch: pending.length,
+    campaigns_touched: touchedCampaigns.size,
+  });
   return NextResponse.json({
     done,
     failed,
