@@ -123,14 +123,19 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 infra (#14 #15 #16 done, #12 #13 #17 partial — esperan trabajo operativo:
 templates aprobadas Meta, Reddit OAuth, sweep dedupe Sheets).
 
+**Próximo foco: feature-density**, no más hardening. Ver
+[plans/02-segments-campaigns-design.md](../plans/02-segments-campaigns-design.md)
+para roadmap detallado: segment builder v2 (AND/OR + persistencia +
+filtros nuevos + embudo + estimación de costo), editores por canal
+(Email/WA/SMS/Voz), drip flows, send-window + dignidad.
+
 Pendientes operativos (no código):
 - Aprobar templates WhatsApp con Meta (vertical Survey/Research)
 - Setear Reddit OAuth app (client credentials)
-- Domain warm-up + DNS DKIM/SPF para Resend
+- Domain warm-up + DNS DKIM/SPF para Resend (en progreso)
 - AAIP — inscripción de la base ante autoridad de datos personales
 
-Pendientes código (P3 / futuro):
+Pendientes código (post Plan 02):
 - Pull real Meta Graph API para reconciliación con tráfico WA real
 - Dedupe sweep periódico contra `_mirror_id` en Sheets
-- Métricas agregadas + auditoría (quién creó cada campaña)
 - Connector contract tests con MSW
