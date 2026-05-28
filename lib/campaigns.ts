@@ -50,6 +50,8 @@ function destinoFor(channel: Channel, c: Contact): string {
   return c.telefono ?? "—"; // whatsapp, sms, voice
 }
 
+export type CampaignEstado = "enviada" | "encolada" | "enviando";
+
 export interface Campaign {
   id: string;
   nombre: string;
@@ -58,9 +60,15 @@ export interface Campaign {
   segmentFilter: SegmentFilter;
   preguntas: string[];
   createdAt: string;
-  estado: "enviada";
+  estado: CampaignEstado;
   envios: Envio[];
-  metrics: { total: number; sent: number; failed: number; skipped: number };
+  metrics: {
+    total: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    enqueued?: number;
+  };
 }
 
 // --- Fallback en memoria (sin Supabase) ---
@@ -79,9 +87,27 @@ interface CampanaRow {
   template_id: string;
   segment_filter: SegmentFilter;
   preguntas: string[];
-  estado: Campaign["estado"];
+  estado: CampaignEstado;
   metrics: Campaign["metrics"];
   created_at: string;
+}
+
+// Fila en envio_queue (cola async). Una por destinatario sendable.
+export interface EnvioQueueRow {
+  id?: string;
+  campaign_id: string;
+  channel: Channel;
+  connector_id: string;
+  contact: Contact;
+  template: { subject: string | null; body: string };
+  token: string;
+  status?: "pending" | "done" | "failed";
+  attempts?: number;
+  last_error?: string | null;
+  provider_message_id?: string | null;
+  scheduled_at?: string | null;
+  processed_at?: string | null;
+  created_at?: string;
 }
 
 interface EnvioRow {
@@ -307,56 +333,99 @@ export async function executeCampaign(
     });
   }
 
-  // Envío real (o mock) a los disponibles, cada uno con su token de encuesta.
+  const preguntas =
+    input.preguntas && input.preguntas.length
+      ? input.preguntas
+      : DEFAULT_PREGUNTAS;
+  const createdAt = new Date().toISOString();
+
+  // ── Memory path (dev, sin Supabase): envío inline síncrono.
+  if (!dbConfigured()) {
+    for (const m of sendable) {
+      const token = await createToken(campaignId, m.contact.dni);
+      const url = `${baseUrl()}/encuesta/${token}`;
+      const result = await connector.send(
+        {
+          subject: template.asunto
+            ? interpolate(template.asunto, m.contact)
+            : undefined,
+          body: buildBody(template.cuerpo, m.contact, url),
+        },
+        m.contact,
+      );
+      envios.push({
+        dni: m.contact.dni,
+        nombre: `${m.contact.nombre} ${m.contact.apellido}`,
+        destino: destinoFor(input.channel, m.contact),
+        estado: result.ok ? "sent" : "failed",
+        reason: result.error,
+        providerMessageId: result.providerMessageId,
+        token,
+      });
+    }
+    const campaign: Campaign = {
+      id: campaignId,
+      nombre: input.nombre,
+      channel: input.channel,
+      templateId: input.templateId,
+      segmentFilter: input.segmentFilter,
+      preguntas,
+      createdAt,
+      estado: "enviada",
+      envios,
+      metrics: {
+        total: envios.length,
+        sent: envios.filter((e) => e.estado === "sent").length,
+        failed: envios.filter((e) => e.estado === "failed").length,
+        skipped: envios.filter((e) => e.estado === "skipped").length,
+      },
+    };
+    store.push(campaign);
+    return { ok: true, campaign };
+  }
+
+  // ── DB path: encolar sendable en envio_queue. El cron
+  // /api/cron/send-queue procesa async respetando rate limit por provider.
+  const queueRows: EnvioQueueRow[] = [];
   for (const m of sendable) {
     const token = await createToken(campaignId, m.contact.dni);
     const url = `${baseUrl()}/encuesta/${token}`;
-    const result = await connector.send(
-      {
+    queueRows.push({
+      campaign_id: campaignId,
+      channel: input.channel,
+      connector_id: connector.id,
+      contact: m.contact,
+      template: {
         subject: template.asunto
           ? interpolate(template.asunto, m.contact)
-          : undefined,
+          : null,
         body: buildBody(template.cuerpo, m.contact, url),
       },
-      m.contact,
-    );
-    envios.push({
-      dni: m.contact.dni,
-      nombre: `${m.contact.nombre} ${m.contact.apellido}`,
-      destino: destinoFor(input.channel, m.contact),
-      estado: result.ok ? "sent" : "failed",
-      reason: result.error,
-      providerMessageId: result.providerMessageId,
       token,
     });
   }
 
+  const enqueued = queueRows.length;
   const campaign: Campaign = {
     id: campaignId,
     nombre: input.nombre,
     channel: input.channel,
     templateId: input.templateId,
     segmentFilter: input.segmentFilter,
-    preguntas:
-      input.preguntas && input.preguntas.length
-        ? input.preguntas
-        : DEFAULT_PREGUNTAS,
-    createdAt: new Date().toISOString(),
-    estado: "enviada",
+    preguntas,
+    createdAt,
+    // Si no hay nada que encolar (todo opted-out o cooling), termina ya.
+    estado: enqueued > 0 ? "encolada" : "enviada",
     envios,
     metrics: {
-      total: envios.length,
-      sent: envios.filter((e) => e.estado === "sent").length,
-      failed: envios.filter((e) => e.estado === "failed").length,
-      skipped: envios.filter((e) => e.estado === "skipped").length,
+      total: envios.length + enqueued,
+      sent: 0,
+      failed: 0,
+      skipped: envios.length,
+      enqueued,
     },
   };
-  if (!dbConfigured()) {
-    store.push(campaign);
-    return { ok: true, campaign };
-  }
 
-  // Persistencia en Supabase: fila `campanas` (sin `envios`) + N filas `envios`.
   const campanaRow = campaignToRow(campaign);
   const { error: campErr } = await getSupabase()
     .from("campanas")
@@ -364,15 +433,24 @@ export async function executeCampaign(
   if (campErr) throw campErr;
   await enqueueSheetSync("campanas", "upsert", campanaRow);
 
+  // Persistir los skipped (opt-out + cooldown) en envios. Las filas reales
+  // (sent/failed) las crea el cron al despachar el queue.
   if (envios.length) {
-    const envioRows = envios.map((e) =>
-      envioToRow(e, campaign.id, campaign.createdAt),
-    );
+    const envioRows = envios.map((e) => envioToRow(e, campaign.id, createdAt));
     const { error: envErr } = await getSupabase().from("envios").insert(envioRows);
     if (envErr) throw envErr;
     for (const row of envioRows) {
       await enqueueSheetSync("envios", "upsert", row);
     }
+  }
+
+  // Encolar para envío async. Batches de 500 por límite de Supabase REST.
+  for (let i = 0; i < queueRows.length; i += 500) {
+    const batch = queueRows.slice(i, i + 500);
+    const { error: qErr } = await getSupabase()
+      .from("envio_queue")
+      .insert(batch);
+    if (qErr) throw qErr;
   }
 
   return { ok: true, campaign };
