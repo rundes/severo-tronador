@@ -127,6 +127,9 @@ export interface ListenQuery {
   keywords: string[];
   geo?: string;
   since?: string;
+  zona?: string;
+  pais?: string;
+  radioKm?: number | null;
 }
 
 export interface ListenItem {
