@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { runListening } from "@/lib/listening";
 import { TERRITORY } from "@/lib/config";
+import { getListeningConfig } from "@/lib/listening-config";
+import { guardarEscucha } from "./actions";
 
 export const metadata = { title: "Escucha · Severo Tronador" };
 
@@ -10,8 +12,20 @@ const SOURCE_LABEL: Record<string, string> = {
   "reddit-api": "👽 Reddit",
 };
 
+const inputCls =
+  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+
+const FUENTES = [
+  { id: "gdelt", label: "📰 GDELT" },
+  { id: "x-api", label: "𝕏 X" },
+  { id: "reddit-api", label: "👽 Reddit" },
+];
+
 export default async function EscuchaPage() {
-  const { totalItems, bySource, topics } = await runListening();
+  const [{ totalItems, bySource, topics }, cfg] = await Promise.all([
+    runListening(),
+    getListeningConfig(),
+  ]);
   const emerging = topics.filter((t) => t.emerging);
 
   return (
@@ -25,6 +39,43 @@ export default async function EscuchaPage() {
           temas <em>antes</em> de diseñar una encuesta.
         </p>
       </div>
+
+      <form action={guardarEscucha} className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="text-sm font-medium">Configurar escucha</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">Zona
+            <input name="zona" defaultValue={cfg.zona} placeholder="ej: La Plata" className={inputCls} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">País
+            <input name="pais" defaultValue={cfg.pais} className={inputCls} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">Radio (km, opcional)
+            <input name="radioKm" type="number" defaultValue={cfg.radioKm ?? ""} className={inputCls} />
+          </label>
+        </div>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">Keywords (una por línea)
+          <textarea name="keywords" rows={3} defaultValue={cfg.keywords.join("\n")} className={inputCls} />
+        </label>
+        <div className="flex flex-wrap gap-3 text-sm">
+          {FUENTES.map((f) => (
+            <label key={f.id} className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                name="fuentes"
+                value={f.id}
+                defaultChecked={cfg.fuentes.length === 0 || cfg.fuentes.includes(f.id)}
+              />
+              {f.label}
+            </label>
+          ))}
+        </div>
+        <button type="submit" className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          Guardar escucha
+        </button>
+        <p className="text-xs text-zinc-400">
+          Sin Supabase configurado, guardar avisa el error; la escucha corre con el default (todo el mock).
+        </p>
+      </form>
 
       <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         <span className="text-zinc-500">{totalItems} menciones</span>
