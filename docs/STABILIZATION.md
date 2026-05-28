@@ -63,8 +63,11 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 12. **Plantillas WhatsApp aprobadas**: mapear `template` con componentes Meta
     (hoy se manda `type=text`, válido solo en ventana 24h).
-13. **Listening real**: implementar `fetch` de GDELT/X/Reddit (hoy mock) y
-    persistir series temporales para el baseline de temas emergentes.
+13. **Listening real**: la **config** de escucha (zona/país/radio/keywords/
+    fuentes) ya existe y se gestiona desde `/escucha → Configurar escucha`
+    (feature #2, tabla `listening_config`); `runListening` arma el `ListenQuery`
+    desde ahí. Pendiente: implementar el `fetch` real de GDELT/X/Reddit (hoy
+    mock) usando esos parámetros, y persistir series temporales para el baseline.
 14. **Validación de emails/teléfonos** antes de enviar (regex + verifier
     opcional) y warm-up de dominio para deliverabilidad.
 15. **Observabilidad**: logging estructurado, métricas de cuota/envío, y

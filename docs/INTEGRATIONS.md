@@ -214,6 +214,12 @@ Ref: [Anthropic Docs](https://docs.anthropic.com/) · costo orientativo: Haiku �
 
 Prensa mundial geo-codificada, **gratis y sin API key**. Hoy en mock; el real consulta la DOC 2.0 API.
 
+> **Config de escucha** (aplica a GDELT, X y Reddit): la zona, país, radio,
+> keywords y qué fuentes usar se configuran desde `/escucha → Configurar escucha`
+> (se guardan en `listening_config`). `runListening` arma el `ListenQuery` desde
+> esa config; cada conector la traduce a su API en el modo real (GDELT por
+> `sourcecountry`+location, X por place/keyword, Reddit por keyword).
+
 **Pasos**
 1. Sin credenciales. Para el modo real, consultar la [DOC 2.0 API](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) con `query=<keywords> sourcecountry:AR` y filtro temporal.
 
