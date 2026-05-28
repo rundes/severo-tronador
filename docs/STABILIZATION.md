@@ -74,8 +74,10 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
     marcar `done`, reintenta y duplica la fila. Consolidar por clave (upsert por
     id en la hoja) en vez de append, o marcar `done` antes del append con
     compensación.
-18. **Encriptación de credenciales ya disponible** (`lib/crypto.ts`): aplicarla
-    al persistir `conector_config` cuando se implemente la feature #1.
+18. ~~**Encriptación de credenciales**~~ ✅ **Resuelto** (feature #1, branch
+    `connector-config`): la config de conectores se persiste en `conector_config`
+    con los campos `secret` encriptados (AES-GCM, `lib/crypto.ts`) y se gestiona
+    desde `/conectores → Configurar`. La UI nunca recibe los secretos.
 
 ## Orden sugerido
 

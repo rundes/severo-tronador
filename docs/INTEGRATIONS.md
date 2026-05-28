@@ -5,6 +5,11 @@
 > puedas probar el flujo completo. Activar el modo real = setear las variables
 > de entorno del conector en `.env.local` (o en Vercel) y reiniciar.
 >
+> **Desde el panel**: además de env vars, podés configurar cada conector en
+> `/conectores → Configurar` (requiere Supabase + `CONFIG_MASTER_KEY`). Lo
+> guardado ahí se encripta y **tiene prioridad sobre la env var**; el modal
+> linkea a la sección de esta guía para saber de dónde sacar cada dato.
+>
 > Tabla de contenidos: [Identidad](#0-identidad-del-despliegue) ·
 > [Google OAuth](#1-google-oauth-auth) · [Google Sheets](#2-google-sheets-datos) ·
 > [Resend](#3-resend-email) · [Meta WhatsApp](#4-meta-cloud-api-whatsapp) ·
