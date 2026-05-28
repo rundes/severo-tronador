@@ -3,17 +3,14 @@
 // config de Auth.js. Si no hay allowlist, en dev se permite cualquier cuenta.
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { allowedEmails } from "./auth-guards";
 
-const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
-export const authConfigured = Boolean(
-  process.env.GOOGLE_OAUTH_CLIENT_ID &&
-    process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
-    (process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET),
-);
+export {
+  allowedEmails,
+  authConfigured,
+  assertAuthConfiguredInProd,
+  assertAllowlistConfiguredInProd,
+} from "./auth-guards";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,

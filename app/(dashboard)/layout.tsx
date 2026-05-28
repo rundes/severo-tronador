@@ -4,6 +4,7 @@ import { auth, authConfigured } from "@/lib/auth";
 import { connectors } from "@/lib/connectors/registry";
 import type { OutreachConnector } from "@/lib/connectors/types";
 import { APP_NAME } from "@/lib/config";
+import { VERSION_STRING } from "@/lib/version";
 
 const NAV = [
   { href: "/padron", label: "Padrón" },
@@ -20,11 +21,15 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Gate de auth: solo se aplica si OAuth está configurado. En dev local sin
-  // credenciales, el panel es accesible para poder iterar contra el mock.
+  // Gate de auth: en prod es obligatorio (instrumentation aborta el boot si
+  // falta). En dev sin OAuth configurado, el panel es accesible para iterar
+  // contra el mock.
   if (authConfigured) {
     const session = await auth();
     if (!session) redirect("/api/auth/signin");
+  } else if (process.env.NODE_ENV === "production") {
+    // Defensa en profundidad: instrumentation debería haber abortado el boot.
+    throw new Error("AUTH_NOT_CONFIGURED: dashboard requiere OAuth en prod.");
   }
 
   const outreach = connectors.filter(
@@ -52,7 +57,8 @@ export default async function DashboardLayout({
           ))}
         </nav>
         <div className="mt-auto pt-6 text-xs text-zinc-400">
-          {authConfigured ? "auth: Google OAuth" : "auth: dev (sin login)"}
+          <div>{authConfigured ? "auth: Google OAuth" : "auth: dev (sin login)"}</div>
+          <div className="mt-1 font-mono text-[10px] text-zinc-500">{VERSION_STRING}</div>
         </div>
       </aside>
       <div className="flex flex-1 flex-col">
