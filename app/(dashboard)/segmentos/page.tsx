@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FilterForm } from "@/components/segmentos/filter-form";
+import { SavedList } from "@/components/segmentos/saved-list";
 import { HealthBadge } from "@/components/health-badge";
 import {
   applySegment,
@@ -13,6 +14,8 @@ import {
   healthBand,
   type Channel,
 } from "@/lib/relationship";
+import { listSavedSegments } from "@/lib/segments-store";
+import { borrarSegmento, guardarSegmento } from "./actions";
 
 export const metadata = { title: "Segmentos · Severo Tronador" };
 
@@ -43,6 +46,7 @@ export default async function SegmentosPage({
   const filter = filterFromParams(params);
   const all = await loadContacts();
   const matched = applySegment(all, filter);
+  const saved = await listSavedSegments();
 
   const bands = { green: 0, yellow: 0, red: 0 };
   for (const m of matched) bands[healthBand(m.rel.healthScore)]++;
@@ -77,7 +81,58 @@ export default async function SegmentosPage({
         </p>
       </div>
 
+      {params.error === "validacion" && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
+          <div>Datos inválidos. Revisá los campos.</div>
+          {params.detalle && (
+            <div className="mt-1 font-mono text-xs text-red-600">
+              {params.detalle}
+            </div>
+          )}
+        </div>
+      )}
+      {params.guardado === "1" && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-800 dark:bg-emerald-950/30">
+          Segmento guardado.
+        </div>
+      )}
+
       <FilterForm barrios={barriosDisponibles(all)} />
+
+      <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400">
+          Segmentos guardados ({saved.length})
+        </summary>
+        <div className="mt-3">
+          <SavedList segments={saved} onDelete={borrarSegmento} />
+        </div>
+      </details>
+
+      <form
+        action={guardarSegmento}
+        className="flex items-end gap-2 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700"
+      >
+        <input type="hidden" name="sexo" value={filter.sexo ?? ""} />
+        <input type="hidden" name="edadMin" value={filter.edadMin ?? ""} />
+        <input type="hidden" name="edadMax" value={filter.edadMax ?? ""} />
+        <input type="hidden" name="barrio" value={filter.barrio ?? ""} />
+        <input type="hidden" name="healthMin" value={filter.healthMin ?? ""} />
+        <label className="flex flex-1 flex-col gap-1 text-xs text-zinc-500">
+          Guardar segmento actual como…
+          <input
+            name="nombre"
+            required
+            placeholder="Mujeres 40-65 Centro"
+            className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Guardar
+        </button>
+      </form>
 
       <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <div className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
@@ -122,13 +177,23 @@ export default async function SegmentosPage({
         </div>
 
         {total > 0 && (
-          <div className="mt-4 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <Link
               href={qs ? `/campanas/nueva?${qs}` : "/campanas/nueva"}
               className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
             >
               Iniciar campaña →
             </Link>
+            <a
+              href={
+                qs
+                  ? `/api/segmentos/export?${qs}`
+                  : "/api/segmentos/export"
+              }
+              className="inline-block rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200"
+            >
+              ⬇️ CSV
+            </a>
           </div>
         )}
       </div>
