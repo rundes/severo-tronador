@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { getConnectorConfig } from "./config";
+import { isValidPhone } from "@/lib/schemas";
 
 const ID = "telnyx-voice";
 
@@ -86,6 +87,9 @@ export const telnyxVoiceConnector: OutreachConnector = {
     recipient: Contact,
   ): Promise<SendResult> {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
+    if (!isValidPhone(recipient.telefono)) {
+      return { ok: false, error: "Teléfono inválido (E.164)" };
+    }
 
     const cfg = await getConnectorConfig(ID);
 

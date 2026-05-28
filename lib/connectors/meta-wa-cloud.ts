@@ -18,6 +18,7 @@ import type {
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { getConnectorConfig } from "./config";
+import { isValidPhone } from "@/lib/schemas";
 
 const FREE_LIMIT = 1000; // conversaciones service-initiated/mes
 const ID = "meta-wa-cloud";
@@ -90,6 +91,9 @@ export const metaWaCloudConnector: OutreachConnector = {
   ): Promise<SendResult> {
     if (!recipient.telefono) {
       return { ok: false, error: "Contacto sin teléfono" };
+    }
+    if (!isValidPhone(recipient.telefono)) {
+      return { ok: false, error: "Teléfono inválido (E.164)" };
     }
 
     const cfg = await getConnectorConfig(ID);

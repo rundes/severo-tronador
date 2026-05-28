@@ -8,6 +8,8 @@ import {
   SegmentFilterSchema,
   formToObject,
   summarizeZodError,
+  isValidEmail,
+  isValidPhone,
 } from "@/lib/schemas";
 
 describe("formToObject", () => {
@@ -256,6 +258,40 @@ describe("GuardarEscuchaSchema", () => {
   it("keywords con elemento vacío → falla", () => {
     const r = GuardarEscuchaSchema.safeParse({ keywords: ["valida", ""] });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("isValidEmail", () => {
+  it.each([
+    ["a@b.co", true],
+    ["user.name+tag@dominio.org", true],
+    ["x@y.com", true],
+    ["sin-arroba.com", false],
+    ["faltan@dominio", false],
+    ["@dominio.com", false],
+    ["user@.com", false], // dominio sin label antes del TLD
+    ["", false],
+    [undefined, false],
+    [null, false],
+    ["  user@dominio.com  ", true],
+  ])("isValidEmail(%p) = %p", (input, expected) => {
+    expect(isValidEmail(input as string | null | undefined)).toBe(expected);
+  });
+});
+
+describe("isValidPhone", () => {
+  it.each([
+    ["+5491123456789", true],
+    ["541123456789", true],
+    ["+1 (555) 123-4567", true], // permite separadores comunes
+    ["12345", false], // muy corto
+    ["0011234567890", false], // empieza con 0
+    ["+0123456789", false], // primer dígito 0
+    ["", false],
+    [null, false],
+    ["abc123", false],
+  ])("isValidPhone(%p) = %p", (input, expected) => {
+    expect(isValidPhone(input as string | null | undefined)).toBe(expected);
   });
 });
 

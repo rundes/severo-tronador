@@ -111,6 +111,38 @@ export const GuardarEscuchaSchema = z.object({
 });
 export type GuardarEscuchaInput = z.infer<typeof GuardarEscuchaSchema>;
 
+// ── Validadores de destino (email + teléfono) ────────────────────────────
+// Reglas pragmáticas para filtrar destinos rotos antes de enviar
+// (#14 STABILIZATION). No reemplaza un verifier API, pero descarta typos.
+
+// RFC 5322 simplificado: local + @ + dominio con TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+// E.164: + opcional + 8-15 dígitos. Acepta separadores comunes (' ', '-')
+// que se limpian antes del check.
+const PHONE_RE = /^\+?[1-9]\d{7,14}$/;
+
+export function isValidEmail(s: string | undefined | null): boolean {
+  if (!s) return false;
+  return EMAIL_RE.test(s.trim());
+}
+
+export function isValidPhone(s: string | undefined | null): boolean {
+  if (!s) return false;
+  const cleaned = s.replace(/[\s()-]/g, "");
+  return PHONE_RE.test(cleaned);
+}
+
+export const EmailSchema = z
+  .string()
+  .trim()
+  .refine(isValidEmail, "Email inválido");
+
+export const PhoneSchema = z
+  .string()
+  .trim()
+  .refine(isValidPhone, "Teléfono inválido (formato E.164)");
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 // FormData → objeto plano. Agrupa keys repetidas en array. Devuelve string |

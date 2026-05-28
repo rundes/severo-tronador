@@ -32,7 +32,11 @@ export async function readPadronFromDb(limit?: number): Promise<Contact[]> {
   let q = getSupabase().from("padron").select("*");
   if (limit) q = q.limit(limit);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) {
+    // Mensaje user-friendly; el boundary muestra esto. El detail técnico ya
+    // está en el message original (`error.message`), no leakea info sensible.
+    throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+  }
   return (data ?? []) as Contact[];
 }
 

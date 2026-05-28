@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { getConnectorConfig } from "./config";
+import { isValidEmail } from "@/lib/schemas";
 
 const FREE_LIMIT = 3000;
 const ID = "resend";
@@ -84,6 +85,9 @@ export const resendConnector: OutreachConnector = {
   ): Promise<SendResult> {
     if (!recipient.email) {
       return { ok: false, error: "Contacto sin email" };
+    }
+    if (!isValidEmail(recipient.email)) {
+      return { ok: false, error: "Email inválido (formato)" };
     }
 
     const cfg = await getConnectorConfig(ID);
