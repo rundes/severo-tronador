@@ -1,0 +1,50 @@
+name: Trigger send-queue cron
+
+# Fallback al límite de Vercel Hobby (1 cron job/día). GitHub Actions ofrece
+# schedule mínimo de 5 min en cron y es gratuito para repos públicos. Despacha
+# pendientes de envio_queue golpeando el endpoint con Bearer.
+#
+# Requisitos en el repo:
+#   Settings → Secrets and variables → Actions → New repository secret
+#     - CRON_SECRET   (mismo valor que en Vercel env)
+#     - APP_URL       (opcional, default https://severo-tronador.vercel.app)
+#
+# El schedule de GitHub Actions puede demorarse minutos extra bajo carga; no
+# es tiempo real. Suficiente para encuestas territoriales.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: send-queue
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/send-queue
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret no configurado en el repo"
+            exit 1
+          fi
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/send-queue")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "::error::endpoint devolvió $code"
+            exit 1
+          fi

@@ -11,14 +11,14 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 | # | Archivo | Hallazgo | Fix |
 |---|---|---|---|
-| 1 | `app/api/webhooks/meta/route.ts` | 🔴 No verifica la firma del webhook (`X-Hub-Signature-256`); acepta cualquier POST. | Validar HMAC-SHA256 con el App Secret de Meta antes de procesar. |
-| 2 | `app/api/webhooks/meta/route.ts` | 🟠 Compara el verify token con `===` (no timing-safe). | Usar `crypto.timingSafeEqual`. |
+| 1 | `app/api/webhooks/meta/route.ts` | ✅ ~~🔴 No verifica la firma del webhook.~~ Resuelto en `26c704d`: `verifyHmacSha256` valida HMAC-SHA256 con `META_WA_APP_SECRET`. |
+| 2 | `app/api/webhooks/meta/route.ts` | ✅ ~~🟠 Compara verify token con `===`.~~ Resuelto en `26c704d`: `constantTimeEqual` via `crypto.timingSafeEqual`. |
 | 3 | `lib/survey.ts` | 🟠 Race entre `hasResponded` y `push` (dos POST concurrentes podrían duplicar). | Check-and-insert atómico (Set por token) — se resuelve solo al migrar a una DB con constraint único. |
 | 4 | `app/(dashboard)/campanas/nueva/actions.ts` | 🟠 `executeCampaign` no está en try/catch; si lanza, no hay feedback al usuario. | Envolver y redirigir con `?error=interno`. |
 | 5 | `lib/segments.ts` (`loadContacts`) | 🟠 `readPadron` sin manejo de error; una caída de Sheets rompe el render. | try/catch + estado de error en la UI. |
 | 6 | conectores outreach | 🟡 La cuota se incrementa tras el `fetch` OK aunque `providerMessageId` venga `undefined`. | Aceptable (el envío salió); registrar warning si falta el id. |
 | 7 | `lib/connectors/claude-api.ts` | 🟡 Incrementa tokens estimados aun en mock (sin refund si falla). | Mover el incremento a post-éxito cuando se implemente la llamada real. |
-| 8 | `app/(dashboard)/layout.tsx` | 🟡 Sin auth configurada, el panel es accesible (intencional en dev). | Forzar `authConfigured` obligatorio en producción (chequeo en build/runtime). |
+| 8 | `app/(dashboard)/layout.tsx` | ✅ ~~🟡 Sin auth configurada el panel es accesible en prod.~~ Resuelto en `c4476ab` + `8154e3d`: middleware 503 si auth no configurada, `instrumentation.ts` aborta el boot, layout redirige a signin. |
 
 ## P0 — Bloqueantes de producción
 
@@ -27,14 +27,34 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
    interfaz `Repository` (`lib/db/`); los stores `globalThis` quedan solo como
    fallback de dev. Google Sheets se espeja write-behind (`sheets_sync_queue` +
    cron `/api/cron/sheets-sync`). El padrón lo carga el usuario en `/padron`.
-   Pendiente menor: dedupe fina al consolidar en Sheets (hoy append).
-2. **Webhook seguro** (hallazgo #1, #2): firma + timing-safe.
-3. **Auth obligatoria en producción** (hallazgo #8): si `NODE_ENV=production` y
-   falta OAuth, abortar el arranque en vez de servir sin login.
-4. **Cola asíncrona con Vercel Cron.** Hoy el envío es síncrono dentro del
-   server action; con segmentos grandes se corta por timeout. Mover a una cola
-   (`pendientes_envio`) procesada por `/api/cron` cada minuto, respetando rate
-   limit por conector.
+   RLS deny-all habilitada (`2863445`). Pendiente menor: dedupe fina al
+   consolidar en Sheets (hoy append).
+2. ~~**Webhook seguro.**~~ ✅ **Resuelto** (`26c704d`, v0.2.0). `lib/crypto.ts`
+   suma `verifyHmacSha256` + `constantTimeEqual`. `app/api/webhooks/meta/route.ts`
+   valida `x-hub-signature-256` con `META_WA_APP_SECRET` y compara el verify
+   token con `timingSafeEqual`. Sin secret → 403. 11 tests en
+   `tests/webhook-meta.test.ts`.
+3. ~~**Auth obligatoria en producción.**~~ ✅ **Resuelto** (`c4476ab` +
+   `8154e3d`, v0.2.0). `lib/auth-guards.ts` separa los guards del runtime
+   NextAuth; `instrumentation.ts` aborta el boot si falta OAuth en prod;
+   `middleware.ts` devuelve 503 si la auth no está configurada y redirige a
+   `/api/auth/signin` sin sesión; el matcher excluye rutas públicas (`/api/auth`,
+   `/api/cron`, `/api/webhooks`, `/api/version`, `/encuesta`). 9 tests en
+   `tests/auth-guard.test.ts`.
+4. ~~**Cola asíncrona.**~~ ✅ **Resuelto** (`d491da3`, v0.3.0). Migración
+   `0003_envio_queue.sql` agrega la tabla `envio_queue` con índice parcial sobre
+   `status='pending'`. En el path Supabase, `executeCampaign` encola en vez de
+   enviar inline y deja la campaña en `estado='encolada'`. El cron
+   `/api/cron/send-queue` (Bearer `CRON_SECRET`) procesa BATCH=20 por tick,
+   re-chequea cuota antes de cada send (re-schedule +60s si llena), reintenta
+   hasta 3 veces con backoff exponencial 2/4/8 min, e inserta cada resultado en
+   `envios` mientras refresca `metrics`/`estado` de la campaña. 9 tests en
+   `tests/send-queue.test.ts`.
+
+   > **Hobby tier**: Vercel limita crons a 1/día. El endpoint queda accesible
+   > vía Bearer y se dispara cada 5 min desde `.github/workflows/send-queue.yml`
+   > (free para repos privados con ~2 000 min/mes — más que suficiente). Para
+   > sub-minute usar Pro o Upstash QStash.
 
 ## P1 — Confiabilidad
 
@@ -84,5 +104,8 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 ## Orden sugerido
 
-P0.1 (persistencia) desbloquea casi todo lo demás → P0.2/P0.3 (seguridad) →
-P0.4 (cola) → P1 (tests + validación + errores) → P2.
+✅ P0 completo (persistencia, webhook seguro, auth gate, cola async). Siguiente:
+P1 — tests (#5 cubierto parcialmente con webhook-meta + auth-guard + send-queue,
+falta `relationship`, `segments`, `optout`, `survey`) → validación zod (#6) →
+manejo de errores end-to-end (#7, #8) → reconciliación (#9) → atomicidad de
+cuota (#10) → dedupe DB respuestas (#11) → P2.
