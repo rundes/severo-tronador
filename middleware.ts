@@ -21,10 +21,11 @@ export default async function middleware(req: Request) {
 //   /api/auth/*       — NextAuth signin/callback
 //   /api/cron/*       — protegido por CRON_SECRET
 //   /api/webhooks/*   — protegido por firma del provider
+//   /api/version      — endpoint público de health/versionado
 //   /encuesta/*       — landing pública para responder encuestas
 //   /_next/*, favicon — assets
 export const config = {
   matcher: [
-    "/((?!api/auth|api/cron|api/webhooks|encuesta|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/cron|api/webhooks|api/version|encuesta|_next/static|_next/image|favicon.ico).*)",
   ],
 };
