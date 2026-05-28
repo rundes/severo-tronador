@@ -12,7 +12,15 @@ export interface SavedFilters {
   edadMin?: number;
   edadMax?: number;
   barrio?: string;
+  circuito?: string;
+  mesa?: string;
   healthMin?: number;
+  healthBands?: ("green" | "yellow" | "red")[];
+  respondedWithinDays?: number;
+  notContactedDays?: number;
+  hasEmail?: boolean;
+  hasTelefono?: boolean;
+  preferredChannel?: "email" | "whatsapp" | "sms" | "voice";
 }
 
 export interface SavedSegment {

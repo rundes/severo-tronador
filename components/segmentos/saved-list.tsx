@@ -68,6 +68,14 @@ function filtrosResumen(f: SavedSegment["filtros"]): string {
   if (f.edadMin != null || f.edadMax != null)
     parts.push(`${f.edadMin ?? ""}–${f.edadMax ?? ""}`);
   if (f.barrio) parts.push(f.barrio);
+  if (f.circuito) parts.push(`circ ${f.circuito}`);
+  if (f.mesa) parts.push(`mesa ${f.mesa}`);
   if (f.healthMin != null) parts.push(`salud≥${f.healthMin}`);
+  if (f.healthBands?.length) parts.push(f.healthBands.join("/"));
+  if (f.preferredChannel) parts.push(`pref ${f.preferredChannel}`);
+  if (f.respondedWithinDays) parts.push(`resp<${f.respondedWithinDays}d`);
+  if (f.notContactedDays) parts.push(`sin>${f.notContactedDays}d`);
+  if (f.hasEmail === true) parts.push("+email");
+  if (f.hasTelefono === true) parts.push("+tel");
   return parts.length ? `(${parts.join(", ")})` : "";
 }

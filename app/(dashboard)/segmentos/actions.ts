@@ -22,6 +22,7 @@ const GuardarSegmentoSchema = z.object({
 
 export async function guardarSegmento(formData: FormData) {
   const raw = formToObject(formData);
+  const bands = formData.getAll("healthBands").map(String);
   const parsed = GuardarSegmentoSchema.safeParse({
     nombre: raw.nombre,
     filtros: {
@@ -29,7 +30,15 @@ export async function guardarSegmento(formData: FormData) {
       edadMin: raw.edadMin,
       edadMax: raw.edadMax,
       barrio: raw.barrio,
+      circuito: raw.circuito,
+      mesa: raw.mesa,
       healthMin: raw.healthMin,
+      healthBands: bands.length > 0 ? bands : undefined,
+      respondedWithinDays: raw.respondedWithinDays,
+      notContactedDays: raw.notContactedDays,
+      hasEmail: raw.hasEmail === "1" ? true : raw.hasEmail === "0" ? false : undefined,
+      hasTelefono: raw.hasTelefono === "1" ? true : raw.hasTelefono === "0" ? false : undefined,
+      preferredChannel: raw.preferredChannel,
     },
   });
   if (!parsed.success) {

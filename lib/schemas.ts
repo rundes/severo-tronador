@@ -34,12 +34,22 @@ function optInt(min: number, max: number) {
 }
 
 // ── Filtro de segmento (usado en query string + form de campañas) ─────────
+const HealthBandEnum = z.enum(["green", "yellow", "red"]);
+
 export const SegmentFilterSchema = z.object({
   sexo: emptyToUndef.pipe(SexoEnum.optional()),
   edadMin: optInt(0, 120),
   edadMax: optInt(0, 120),
   barrio: emptyToUndef,
+  circuito: emptyToUndef,
+  mesa: emptyToUndef,
   healthMin: optInt(0, 100),
+  healthBands: z.array(HealthBandEnum).max(3).optional(),
+  respondedWithinDays: optInt(0, 3650),
+  notContactedDays: optInt(0, 3650),
+  hasEmail: z.boolean().optional(),
+  hasTelefono: z.boolean().optional(),
+  preferredChannel: emptyToUndef.pipe(ChannelEnum.optional()),
 });
 export type SegmentFilterInput = z.infer<typeof SegmentFilterSchema>;
 

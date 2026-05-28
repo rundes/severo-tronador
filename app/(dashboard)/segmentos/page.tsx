@@ -116,7 +116,45 @@ export default async function SegmentosPage({
         <input type="hidden" name="edadMin" value={filter.edadMin ?? ""} />
         <input type="hidden" name="edadMax" value={filter.edadMax ?? ""} />
         <input type="hidden" name="barrio" value={filter.barrio ?? ""} />
+        <input type="hidden" name="circuito" value={filter.circuito ?? ""} />
+        <input type="hidden" name="mesa" value={filter.mesa ?? ""} />
         <input type="hidden" name="healthMin" value={filter.healthMin ?? ""} />
+        {(filter.healthBands ?? []).map((band) => (
+          <input key={band} type="hidden" name="healthBands" value={band} />
+        ))}
+        <input
+          type="hidden"
+          name="respondedWithinDays"
+          value={filter.respondedWithinDays ?? ""}
+        />
+        <input
+          type="hidden"
+          name="notContactedDays"
+          value={filter.notContactedDays ?? ""}
+        />
+        <input
+          type="hidden"
+          name="hasEmail"
+          value={
+            filter.hasEmail === true ? "1" : filter.hasEmail === false ? "0" : ""
+          }
+        />
+        <input
+          type="hidden"
+          name="hasTelefono"
+          value={
+            filter.hasTelefono === true
+              ? "1"
+              : filter.hasTelefono === false
+                ? "0"
+                : ""
+          }
+        />
+        <input
+          type="hidden"
+          name="preferredChannel"
+          value={filter.preferredChannel ?? ""}
+        />
         <label className="flex flex-1 flex-col gap-1 text-xs text-zinc-500">
           Guardar segmento actual como…
           <input

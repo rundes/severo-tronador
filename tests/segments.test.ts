@@ -20,6 +20,8 @@ function row(
     apellido: partial.apellido ?? "Y",
     sexo: partial.sexo,
     barrio: partial.barrio,
+    circuito: partial.circuito,
+    mesa: partial.mesa,
     fecha_nac: partial.fecha_nac,
     email: partial.email,
     telefono: partial.telefono,
@@ -106,6 +108,126 @@ describe("applySegment", () => {
 
   it("sin matches → []", () => {
     expect(applySegment(all, { barrio: "Inexistente" })).toEqual([]);
+  });
+});
+
+describe("applySegment — filtros avanzados (Plan 02 F1.3)", () => {
+  function richRow(
+    partial: Partial<ContactWithRelationship["contact"]> & { dni: string },
+    rel: Partial<ContactWithRelationship["rel"]> = {},
+  ): ContactWithRelationship {
+    const base = row(partial);
+    return { ...base, rel: { ...base.rel, ...rel } };
+  }
+
+  it("filtra por circuito y mesa exactos", () => {
+    const all = [
+      richRow({ dni: "1", circuito: "12", mesa: "0034" }),
+      richRow({ dni: "2", circuito: "12", mesa: "0099" }),
+      richRow({ dni: "3", circuito: "13", mesa: "0034" }),
+    ];
+    expect(applySegment(all, { circuito: "12" }).map((c) => c.contact.dni)).toEqual(
+      ["1", "2"],
+    );
+    expect(
+      applySegment(all, { circuito: "12", mesa: "0034" }).map((c) => c.contact.dni),
+    ).toEqual(["1"]);
+  });
+
+  it("filtra por healthBands (multi-select)", () => {
+    const all = [
+      richRow({ dni: "g" }, { healthScore: 90 }),
+      richRow({ dni: "y" }, { healthScore: 60 }),
+      richRow({ dni: "r" }, { healthScore: 20 }),
+    ];
+    expect(
+      applySegment(all, { healthBands: ["green", "red"] }).map((c) => c.contact.dni),
+    ).toEqual(["g", "r"]);
+  });
+
+  it("hasEmail true/false discrimina", () => {
+    const all = [
+      richRow({ dni: "1", email: "a@x.com" }),
+      richRow({ dni: "2" }),
+    ];
+    expect(applySegment(all, { hasEmail: true }).map((c) => c.contact.dni)).toEqual([
+      "1",
+    ]);
+    expect(applySegment(all, { hasEmail: false }).map((c) => c.contact.dni)).toEqual([
+      "2",
+    ]);
+  });
+
+  it("preferredChannel matchea ficha de relación", () => {
+    const all = [
+      richRow({ dni: "1" }, { preferredChannel: "email" }),
+      richRow({ dni: "2" }, { preferredChannel: "whatsapp" }),
+    ];
+    expect(
+      applySegment(all, { preferredChannel: "whatsapp" }).map((c) => c.contact.dni),
+    ).toEqual(["2"]);
+  });
+
+  it("respondedWithinDays incluye solo quien respondió dentro de la ventana", () => {
+    const NOW = Date.parse("2026-05-28T00:00:00Z");
+    const recent = new Date(NOW - 10 * 86400000).toISOString();
+    const old = new Date(NOW - 100 * 86400000).toISOString();
+    const all = [
+      richRow({ dni: "recent" }, {
+        channels: { email: { available: true, lastRespondedAt: recent } },
+      }),
+      richRow({ dni: "old" }, {
+        channels: { email: { available: true, lastRespondedAt: old } },
+      }),
+      richRow({ dni: "never" }, { channels: {} }),
+    ];
+    const out = applySegment(all, { respondedWithinDays: 30 }, NOW);
+    expect(out.map((c) => c.contact.dni)).toEqual(["recent"]);
+  });
+
+  it("notContactedDays incluye nunca-contactados + contactados hace tiempo", () => {
+    const NOW = Date.parse("2026-05-28T00:00:00Z");
+    const recent = new Date(NOW - 10 * 86400000).toISOString();
+    const old = new Date(NOW - 100 * 86400000).toISOString();
+    const all = [
+      richRow({ dni: "recent" }, {
+        channels: { email: { available: false, lastContactedAt: recent } },
+      }),
+      richRow({ dni: "old" }, {
+        channels: { email: { available: true, lastContactedAt: old } },
+      }),
+      richRow({ dni: "never" }, { channels: {} }),
+    ];
+    const out = applySegment(all, { notContactedDays: 60 }, NOW);
+    expect(out.map((c) => c.contact.dni)).toEqual(
+      expect.arrayContaining(["old", "never"]),
+    );
+    expect(out.map((c) => c.contact.dni)).not.toContain("recent");
+  });
+});
+
+describe("filterFromParams (Plan 02 F1.3)", () => {
+  it("parsea healthBands CSV", () => {
+    const f = filterFromParams({ healthBands: "green,yellow" });
+    expect(f.healthBands).toEqual(["green", "yellow"]);
+  });
+
+  it("descarta valores inválidos de healthBands", () => {
+    const f = filterFromParams({ healthBands: "green,invalid,red" });
+    expect(f.healthBands).toEqual(["green", "red"]);
+  });
+
+  it("hasEmail '1' → true, '0' → false, undefined si vacío", () => {
+    expect(filterFromParams({ hasEmail: "1" }).hasEmail).toBe(true);
+    expect(filterFromParams({ hasEmail: "0" }).hasEmail).toBe(false);
+    expect(filterFromParams({ hasEmail: "" }).hasEmail).toBeUndefined();
+  });
+
+  it("preferredChannel rechaza valores fuera del enum", () => {
+    expect(filterFromParams({ preferredChannel: "fax" }).preferredChannel).toBeUndefined();
+    expect(filterFromParams({ preferredChannel: "voice" }).preferredChannel).toBe(
+      "voice",
+    );
   });
 });
 
