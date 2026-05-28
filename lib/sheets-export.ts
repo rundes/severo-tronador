@@ -20,12 +20,26 @@ export function canExportSheets(): boolean {
   return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_KEY && process.env.SHEETS_PRESERVATION_SHEET_ID);
 }
 
-// Append de una fila (op upsert) a la hoja de la entidad.
-export async function appendRow(entity: string, payload: Record<string, unknown>) {
+// Append de una fila (op upsert) a la hoja de la entidad. Prepende
+// _mirror_id (UUID de la fila en sheets_sync_queue) cuando lo recibe — sirve
+// de idempotency key para correr dedupe off-band si el cron crashea entre
+// el append y el mark done (#17 STABILIZATION). Supabase queda como source
+// of truth y el sheet se reconcilia comparando contra sheets_sync_queue.id.
+export async function appendRow(
+  entity: string,
+  payload: Record<string, unknown>,
+  mirrorId?: string,
+) {
   const sheet = SHEET_BY_ENTITY[entity];
   if (!sheet) return;
-  const values = [Object.values(payload).map((v) =>
-    v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v))];
+  const fullPayload: Record<string, unknown> = mirrorId
+    ? { _mirror_id: mirrorId, ...payload }
+    : payload;
+  const values = [
+    Object.values(fullPayload).map((v) =>
+      v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v),
+    ),
+  ];
   await sheetsClient().spreadsheets.values.append({
     spreadsheetId: process.env.SHEETS_PRESERVATION_SHEET_ID!,
     range: `${sheet}!A1`,

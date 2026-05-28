@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   let done = 0, failed = 0;
   for (const row of rows ?? []) {
     try {
-      if (row.op === "upsert") await appendRow(row.entity, row.payload);
+      if (row.op === "upsert") await appendRow(row.entity, row.payload, row.id);
       await db.from("sheets_sync_queue").update({ status: "done" }).eq("id", row.id);
       done++;
     } catch (e) {

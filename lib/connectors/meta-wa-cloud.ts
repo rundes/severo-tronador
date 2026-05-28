@@ -105,6 +105,35 @@ export const metaWaCloudConnector: OutreachConnector = {
 
     try {
       const to = recipient.telefono.replace(/[^0-9]/g, "");
+      // Si la campaña trae template Meta-aprobado usa type=template (válido
+      // fuera de la ventana 24h). Si no, type=text (solo dentro de 24h).
+      const body = message.template
+        ? {
+            messaging_product: "whatsapp",
+            to,
+            type: "template",
+            template: {
+              name: message.template.name,
+              language: { code: message.template.lang },
+              components: message.template.params?.length
+                ? [
+                    {
+                      type: "body",
+                      parameters: message.template.params.map((p) => ({
+                        type: "text",
+                        text: p,
+                      })),
+                    },
+                  ]
+                : undefined,
+            },
+          }
+        : {
+            messaging_product: "whatsapp",
+            to,
+            type: "text",
+            text: { body: message.body },
+          };
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${cfg.META_WA_PHONE_NUMBER_ID}/messages`,
         {
@@ -113,12 +142,7 @@ export const metaWaCloudConnector: OutreachConnector = {
             Authorization: `Bearer ${cfg.META_WA_ACCESS_TOKEN}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to,
-            type: "text",
-            text: { body: message.body },
-          }),
+          body: JSON.stringify(body),
         },
       );
       if (!res.ok) {

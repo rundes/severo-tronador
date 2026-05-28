@@ -84,11 +84,12 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 ## P2 — Madurez
 
-12. **Plantillas WhatsApp aprobadas**: mapear `template` con componentes Meta
-    (hoy se manda `type=text`, válido solo en ventana 24h). **Pendiente**: la
-    infra real depende de tener plantillas pre-aprobadas; cuando lleguen,
-    extender `OutreachMessage` con `template?: { name, lang, params }` y
-    switch en `metaWaCloudConnector.send` entre `type=text` y `type=template`.
+12. ~~**Plantillas WhatsApp aprobadas (infra).**~~ ✅ **Parcial** (v0.5.3).
+    `OutreachMessage.template?: { name, lang, params }` definido en
+    `lib/connectors/types.ts`. `metaWaCloudConnector.send` switches a
+    `type=template` cuando recibe `template` y arma `components.parameters`
+    desde `params`. Falta: UI/template store para asignar template aprobado
+    por campaña + workflow de aprobación con Meta (operativo, no código).
 13. ~~**Listening real**.~~ ✅ **Parcial** (v0.5.2). GDELT (sin auth) y X API
     (con `X_API_BEARER_TOKEN`) ahora hacen fetch real con fallback al mock
     si la API falla. Reddit sigue mock (OAuth client-credentials pendiente).
@@ -105,10 +106,12 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 16. ~~**Lint/CI.**~~ ✅ **Resuelto** (v0.5.1, `a510840`).
     `.github/workflows/ci.yml` corre `tsc --noEmit` + `eslint` + `vitest`
     en cada PR y push a main. Cancela runs viejas del mismo branch.
-17. **Idempotencia del espejo a Sheets**: si el cron cae entre `appendRow` y
-    marcar `done`, reintenta y duplica la fila. Consolidar por clave (upsert por
-    id en la hoja) en vez de append, o marcar `done` antes del append con
-    compensación.
+17. ~~**Idempotencia del espejo a Sheets.**~~ ✅ **Parcial** (v0.5.3).
+    `appendRow` ahora recibe `mirrorId` (UUID de la fila en
+    `sheets_sync_queue`) y lo prepende como columna `_mirror_id` en el sheet.
+    Permite dedupe off-band: comparar `sheets_sync_queue.id status='done'`
+    contra la columna A del sheet. Falta: script de reconciliación que
+    detecte duplicados periódicamente y los elimine del sheet.
 18. ~~**Encriptación de credenciales**~~ ✅ **Resuelto** (feature #1, branch
     `connector-config`): la config de conectores se persiste en `conector_config`
     con los campos `secret` encriptados (AES-GCM, `lib/crypto.ts`) y se gestiona
@@ -116,11 +119,18 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 
 ## Orden sugerido
 
-✅ P0 completo. ✅ P1 completo (#5 #6 #7 #8 #9 #10 #11). P2 mayormente
-cerrado: #14 #15 #16 ✅, #13 parcial (Reddit OAuth pendiente), #12
-infrastructure-only (espera templates aprobados de Meta), #17 pendiente
-(idempotencia mirror Sheets).
+✅ P0 completo. ✅ P1 completo (#5 #6 #7 #8 #9 #10 #11). ✅ P2 cerrado en
+infra (#14 #15 #16 done, #12 #13 #17 partial — esperan trabajo operativo:
+templates aprobadas Meta, Reddit OAuth, sweep dedupe Sheets).
 
-Siguiente: reconciliación con pull real de Meta Graph (cuando haya
-tráfico WA), Reddit OAuth, templates WA aprobados, mirror sheets
-idempotente, métricas agregadas + auditoría.
+Pendientes operativos (no código):
+- Aprobar templates WhatsApp con Meta (vertical Survey/Research)
+- Setear Reddit OAuth app (client credentials)
+- Domain warm-up + DNS DKIM/SPF para Resend
+- AAIP — inscripción de la base ante autoridad de datos personales
+
+Pendientes código (P3 / futuro):
+- Pull real Meta Graph API para reconciliación con tráfico WA real
+- Dedupe sweep periódico contra `_mirror_id` en Sheets
+- Métricas agregadas + auditoría (quién creó cada campaña)
+- Connector contract tests con MSW

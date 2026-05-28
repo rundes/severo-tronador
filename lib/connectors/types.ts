@@ -108,6 +108,15 @@ export interface DataConnector extends Connector {
 export interface OutreachMessage {
   subject?: string;
   body: string;
+  // WhatsApp pre-aprobado (Meta vertical Survey/Research). Si está, el
+  // connector usa type=template en lugar de type=text — válido fuera de
+  // la ventana 24h (#12 STABILIZATION).
+  template?: {
+    name: string;
+    lang: string; // ej "es_AR"
+    // Parámetros que reemplazan {{1}}, {{2}}… en el template aprobado.
+    params?: string[];
+  };
 }
 
 export interface SendResult {
