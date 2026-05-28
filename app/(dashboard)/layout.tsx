@@ -21,15 +21,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Gate de auth: en prod es obligatorio (instrumentation aborta el boot si
-  // falta). En dev sin OAuth configurado, el panel es accesible para iterar
-  // contra el mock.
+  // Gate de auth: si OAuth está configurado redirige a signin sin sesión. En
+  // prod el middleware bloquea con 503 si OAuth falta (defense in depth). Acá
+  // no se hace throw para no romper el build estático en environments sin env
+  // vars seteadas en build-time.
   if (authConfigured) {
     const session = await auth();
     if (!session) redirect("/api/auth/signin");
-  } else if (process.env.NODE_ENV === "production") {
-    // Defensa en profundidad: instrumentation debería haber abortado el boot.
-    throw new Error("AUTH_NOT_CONFIGURED: dashboard requiere OAuth en prod.");
   }
 
   const outreach = connectors.filter(
