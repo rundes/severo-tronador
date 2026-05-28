@@ -3,8 +3,9 @@
 // reciente >> baseline). Cierra la pipeline: listening descubre temas →
 // encuestas miden prevalencia (ARCHITECTURE / VISION).
 import { connectors } from "@/lib/connectors/registry";
-import type { ListenItem, ListeningConnector } from "@/lib/connectors/types";
+import type { ListenItem, ListeningConnector, ListenQuery } from "@/lib/connectors/types";
 import { claudeApiConnector, type CodingOutput } from "@/lib/connectors/claude-api";
+import { getListeningConfig } from "@/lib/listening-config";
 
 // Anclado al dataset mock (2026-05-26). El real usaría Date.now().
 const NOW = Date.UTC(2026, 4, 26);
@@ -25,15 +26,24 @@ export interface ListeningResult {
   topics: Topic[];
 }
 
-export async function runListening(
-  keywords: string[] = [],
-): Promise<ListeningResult> {
-  const listeners = connectors.filter(
+export async function runListening(): Promise<ListeningResult> {
+  const cfg = await getListeningConfig();
+
+  const listeners = (connectors.filter(
     (c) => c.category === "listening",
-  ) as ListeningConnector[];
+  ) as ListeningConnector[]).filter(
+    (c) => cfg.fuentes.length === 0 || cfg.fuentes.includes(c.id),
+  );
+
+  const query: ListenQuery = {
+    keywords: cfg.keywords,
+    zona: cfg.zona || undefined,
+    pais: cfg.pais || undefined,
+    radioKm: cfg.radioKm,
+  };
 
   const items: ListenItem[] = (
-    await Promise.all(listeners.map((l) => l.fetch({ keywords })))
+    await Promise.all(listeners.map((l) => l.fetch(query)))
   ).flat();
 
   const coding = (
