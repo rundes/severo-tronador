@@ -136,17 +136,23 @@ Ref: [Resend Docs](https://resend.com/docs) · [Dominios/DNS](https://resend.com
 2. Tener un **Business Manager** verificado; registrar el caso como vertical **Market Research / Survey** (no electoral).
 3. Obtener el **Phone Number ID** y un **Access Token** (permanente vía System User recomendado).
 4. Configurar webhook: URL `https://TU_DOMINIO/api/webhooks/meta`, **Verify Token** a tu elección (debe coincidir con la env), suscribir el campo `messages`.
-5. Crear y **pre-aprobar plantillas** (invitación, recordatorio, agradecimiento) en *WhatsApp Manager → Message Templates*.
+5. Copiar el **App Secret** desde *Settings → Basic → App Secret*. Es requerido en producción: el POST del webhook valida `x-hub-signature-256` (HMAC-SHA256 sobre el raw body) usando esa clave.
+6. Crear y **pre-aprobar plantillas** (invitación, recordatorio, agradecimiento) en *WhatsApp Manager → Message Templates*.
 
 ```env
 META_WA_PHONE_NUMBER_ID=...
 META_WA_ACCESS_TOKEN=...
 META_WA_VERIFY_TOKEN=<string a tu elección>
+META_WA_APP_SECRET=<App Secret de la Meta App>
 ```
 
 > Fuera de la ventana de 24h, WhatsApp exige plantilla aprobada. El envío real
 > actual usa `type=text` (válido en 24h); mapear plantillas aprobadas es el
 > siguiente paso (ver [STABILIZATION.md](./STABILIZATION.md)).
+>
+> Sin `META_WA_APP_SECRET`, todo POST al webhook devuelve 403. Para tests
+> locales, setear cualquier string y firmar el body con `createHmac("sha256",
+> secret)`.
 
 Ref: [Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) · [Webhooks](https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks)
 
