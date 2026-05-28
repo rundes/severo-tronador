@@ -3,6 +3,7 @@
 // también por salud y disponibilidad.
 import { dbConfigured } from "@/lib/db/supabase";
 import { readPadronFromDb } from "@/lib/db/padron";
+import { loadRawRelationships } from "@/lib/db/relations";
 import { mockPadron } from "@/lib/mock/padron";
 import { getRawRelationship } from "@/lib/mock/relaciones";
 import { deriveRelationship, type ContactRelationship } from "@/lib/relationship";
@@ -34,10 +35,19 @@ export function edadDe(fechaNac?: string, now = Date.now()): number | null {
 }
 
 export async function loadContacts(): Promise<ContactWithRelationship[]> {
-  const contacts = dbConfigured() ? await readPadronFromDb() : mockPadron;
+  if (!dbConfigured()) {
+    return mockPadron.map((contact) => ({
+      contact,
+      rel: deriveRelationship(contact.dni, getRawRelationship(contact.dni)),
+      edad: edadDe(contact.fecha_nac),
+    }));
+  }
+  // Path real: padron + ficha de relación derivada de envios/respuestas/opt_outs.
+  const contacts = await readPadronFromDb();
+  const rels = await loadRawRelationships(contacts.map((c) => c.dni));
   return contacts.map((contact) => ({
     contact,
-    rel: deriveRelationship(contact.dni, getRawRelationship(contact.dni)),
+    rel: deriveRelationship(contact.dni, rels.get(contact.dni)),
     edad: edadDe(contact.fecha_nac),
   }));
 }

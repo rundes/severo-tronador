@@ -20,6 +20,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
 const ERROR_MSG: Record<string, string> = {
   no_template: "Elegí una plantilla.",
   no_connector: "No hay conector para ese canal.",
+  validacion: "Datos inválidos. Revisá los campos.",
 };
 
 export default async function NuevaCampanaPage({
@@ -114,7 +115,12 @@ export default async function NuevaCampanaPage({
       )}
       {params.error && ERROR_MSG[params.error] && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
-          {ERROR_MSG[params.error]}
+          <div>{ERROR_MSG[params.error]}</div>
+          {params.detalle && (
+            <div className="mt-1 font-mono text-xs text-red-600">
+              {params.detalle}
+            </div>
+          )}
         </div>
       )}
 

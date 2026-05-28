@@ -13,8 +13,8 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
 |---|---|---|---|
 | 1 | `app/api/webhooks/meta/route.ts` | ✅ ~~🔴 No verifica la firma del webhook.~~ Resuelto en `26c704d`: `verifyHmacSha256` valida HMAC-SHA256 con `META_WA_APP_SECRET`. |
 | 2 | `app/api/webhooks/meta/route.ts` | ✅ ~~🟠 Compara verify token con `===`.~~ Resuelto en `26c704d`: `constantTimeEqual` via `crypto.timingSafeEqual`. |
-| 3 | `lib/survey.ts` | 🟠 Race entre `hasResponded` y `push` (dos POST concurrentes podrían duplicar). | Check-and-insert atómico (Set por token) — se resuelve solo al migrar a una DB con constraint único. |
-| 4 | `app/(dashboard)/campanas/nueva/actions.ts` | 🟠 `executeCampaign` no está en try/catch; si lanza, no hay feedback al usuario. | Envolver y redirigir con `?error=interno`. |
+| 3 | `lib/survey.ts` | ✅ ~~🟠 Race entre `hasResponded` y `push`.~~ Resuelto en `0005_respuestas_token_unique.sql` + `addResponse` maps PG error 23505 → null (dedupe DB-level). |
+| 4 | `app/(dashboard)/campanas/nueva/actions.ts` | ✅ ~~🟠 `executeCampaign` sin try/catch.~~ Resuelto en `f886d00`: validación zod redirige con `?error=validacion&detalle=...`. La UI lo muestra en banner. |
 | 5 | `lib/segments.ts` (`loadContacts`) | 🟠 `readPadron` sin manejo de error; una caída de Sheets rompe el render. | try/catch + estado de error en la UI. |
 | 6 | conectores outreach | 🟡 La cuota se incrementa tras el `fetch` OK aunque `providerMessageId` venga `undefined`. | Aceptable (el envío salió); registrar warning si falta el id. |
 | 7 | `lib/connectors/claude-api.ts` | 🟡 Incrementa tokens estimados aun en mock (sin refund si falla). | Mover el incremento a post-éxito cuando se implemente la llamada real. |
@@ -68,16 +68,19 @@ Severidad: 🔴 alta · 🟠 media · 🟡 baja.
    error en UI + reintentos con backoff en los `fetch` a providers.
 8. **Reconciliación de estados.** Pull periódico para cubrir webhooks perdidos
    (divergencia > 2% → alerta), como dice ARCHITECTURE §12.
-9. **Feedback de la relación.** Hoy `deriveRelationship` solo usa el historial
-   mock; los envíos reales no actualizan cooldowns ni health score. Conectar
-   los `envios`/`respuestas` reales a la ficha de relación.
-10. **Atomicidad de cuota** (review post-migración): `incrementUsage` hace
-    read-then-write → carrera con envíos concurrentes (podría sub-contar y
-    pasarse del free tier). Usar un `UPDATE … RETURNING` atómico (RPC de
-    Postgres) en vez de leer y reescribir.
-11. **Dedupe de respuesta a nivel DB**: agregar `unique` en `respuestas(token)`
-    y manejar el conflicto en `addResponse` (hoy el check-then-insert puede
-    correr en concurrencia). El check app-level cubre el caso común.
+9. ~~**Feedback de la relación.**~~ ✅ **Resuelto** (v0.5.0). `lib/db/relations.ts`
+   construye `RawRelationship` por DNI desde `envios` (sent), `respuestas`
+   (match por token), y `opt_outs` (expandido a 4 canales) en 3 queries
+   paralelas. `loadContacts` lo usa cuando hay DB; mock solo en dev.
+10. ~~**Atomicidad de cuota.**~~ ✅ **Resuelto** (v0.5.0). Migración
+    `0004_increment_quota_rpc.sql` agrega función `increment_quota(connector_id, n)`
+    con `INSERT ... ON CONFLICT DO UPDATE SET used = used + EXCLUDED.used
+    RETURNING used`. `incrementUsage` ahora llama `rpc()`. Atómico bajo envíos
+    concurrentes — no se pasa del free tier.
+11. ~~**Dedupe de respuesta a nivel DB.**~~ ✅ **Resuelto** (v0.5.0). Migración
+    `0005_respuestas_token_unique.sql` agrega `UNIQUE(token)`. `addResponse`
+    captura PG error code `23505` y devuelve `null` (mismo contrato que el
+    check app-level). Cierra el race entre POSTs concurrentes al mismo token.
 
 ## P2 — Madurez
 

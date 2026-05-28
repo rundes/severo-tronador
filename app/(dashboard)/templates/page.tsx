@@ -13,7 +13,12 @@ const CHANNEL_ICON: Record<string, string> = {
   voice: "☎️",
 };
 
-export default async function TemplatesPage() {
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>;
+}) {
+  const params = (await searchParams) ?? {};
   const templates = await listTemplates();
 
   return (
@@ -63,6 +68,12 @@ export default async function TemplatesPage() {
           </div>
         ))}
       </div>
+
+      {params.error === "campos" && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
+          Completá nombre y cuerpo de la plantilla.
+        </div>
+      )}
 
       <form
         action={nuevaPlantilla}

@@ -131,7 +131,13 @@ export async function addResponse(
     .insert(row)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    // 23505 = unique_violation (constraint respuestas_token_unique).
+    // Race entre dos POST concurrentes: el primero ganó, devolvemos null
+    // como el check app-level (#11 STABILIZATION).
+    if ((error as { code?: string }).code === "23505") return null;
+    throw error;
+  }
   const response = rowToResponse(data as RespRow);
   await enqueueSheetSync("respuestas", "upsert", data);
   return response;

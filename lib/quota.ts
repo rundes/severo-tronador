@@ -33,20 +33,15 @@ export async function incrementUsage(connectorId: string, n = 1): Promise<number
     mem.set(connectorId, v);
     return v;
   }
-  const current = await getUsage(connectorId);
-  const used = current + n;
-  await getSupabase()
-    .from("cuotas")
-    .upsert(
-      {
-        connector_id: connectorId,
-        used,
-        resets_at: nextMonthlyReset(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "connector_id" },
-    );
-  return used;
+  // Atómico: RPC con INSERT ... ON CONFLICT DO UPDATE SET used = used + n
+  // RETURNING used (#10 STABILIZATION). Reemplaza el read-then-write que
+  // perdía counts bajo envíos concurrentes y podía pasarse del free tier.
+  const { data, error } = await getSupabase().rpc("increment_quota", {
+    p_connector_id: connectorId,
+    p_n: n,
+  });
+  if (error) throw error;
+  return Number(data);
 }
 
 export async function resetUsage(connectorId: string): Promise<void> {
