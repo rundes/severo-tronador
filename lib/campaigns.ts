@@ -13,6 +13,7 @@ import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { createToken } from "@/lib/survey";
 import { optedOutSet } from "@/lib/optout";
+import { isEnabled } from "@/lib/connectors/config";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 
@@ -255,6 +256,8 @@ export async function executeCampaign(
 ): Promise<ExecuteResult> {
   const connector = CONNECTOR_BY_CHANNEL[input.channel];
   if (!connector) return { ok: false, reason: "no_connector" };
+  // No enviar por un conector desactivado desde el panel.
+  if (!(await isEnabled(connector.id))) return { ok: false, reason: "no_connector" };
 
   const template = await getTemplate(input.templateId);
   if (!template) return { ok: false, reason: "no_template" };
