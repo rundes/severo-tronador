@@ -18,6 +18,7 @@ import {
 import type { Channel } from "@/lib/relationship";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { log } from "@/lib/logger";
+import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 
 const BATCH = 20;
 const MAX_ATTEMPTS = 3;
@@ -31,6 +32,9 @@ interface PendingRow {
   template: EnvioQueueRow["template"];
   token: string;
   attempts: number;
+  flow_id: string | null;
+  flow_step_position: number | null;
+  condition_kind: ConditionKind | null;
 }
 
 function backoffMs(attempt: number): number {
@@ -69,7 +73,33 @@ export async function GET(req: Request) {
   let rescheduled = 0;
   const touchedCampaigns = new Set<string>();
 
+  let skippedByCondition = 0;
   for (const row of pending) {
+    // Drip flows: si el step tiene condición sobre respuestas previas, la
+    // evaluamos antes de tocar el connector. Si no pasa, marcamos done con
+    // status especial y seguimos.
+    if (row.flow_id && row.condition_kind && row.condition_kind !== "always") {
+      const allowed = await shouldDispatch({
+        flow_id: row.flow_id,
+        contact_dni: row.contact.dni,
+        step_position: row.flow_step_position ?? 0,
+        condition_kind: row.condition_kind,
+      });
+      if (!allowed) {
+        await db
+          .from("envio_queue")
+          .update({
+            status: "done",
+            last_error: "condition_skipped",
+            processed_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        skippedByCondition++;
+        touchedCampaigns.add(row.campaign_id);
+        continue;
+      }
+    }
+
     const connector = outreachConnectorFor(row.channel);
     if (!connector || connector.id !== row.connector_id) {
       await db
@@ -177,6 +207,7 @@ export async function GET(req: Request) {
     done,
     failed,
     rescheduled,
+    skipped_by_condition: skippedByCondition,
     batch: pending.length,
     campaigns_touched: touchedCampaigns.size,
   });
@@ -184,6 +215,7 @@ export async function GET(req: Request) {
     done,
     failed,
     rescheduled,
+    skipped_by_condition: skippedByCondition,
     batch: pending.length,
   });
 }
