@@ -54,20 +54,29 @@ export default async function DashboardPage({
             del padrón. Selecciona ventana para comparar períodos.
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
-          {WINDOWS.map((w) => (
-            <Link
-              key={w.days}
-              href={`/dashboard?window=${w.days}`}
-              className={`rounded-full px-3 py-1 transition-colors ${
-                w.days === window
-                  ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-              }`}
-            >
-              {w.label}
-            </Link>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+            {WINDOWS.map((w) => (
+              <Link
+                key={w.days}
+                href={`/dashboard?window=${w.days}`}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  w.days === window
+                    ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                }`}
+              >
+                {w.label}
+              </Link>
+            ))}
+          </div>
+          <a
+            href={`/api/dashboard/export?window=${window}`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            title={`Export zip con CSVs de los últimos ${window} días`}
+          >
+            ⬇️ ZIP
+          </a>
         </div>
       </header>
 
