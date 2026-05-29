@@ -105,6 +105,11 @@ export const SurveyAnswerSchema = z.object({
 export type SurveyAnswerInput = z.infer<typeof SurveyAnswerSchema>;
 
 // ── Config de escucha ─────────────────────────────────────────────────────
+const optFloat = (min: number, max: number) =>
+  emptyToUndef
+    .transform((v) => (v == null ? null : Number(v)))
+    .pipe(z.union([z.number().min(min).max(max), z.null()]));
+
 export const GuardarEscuchaSchema = z.object({
   zona: z.string().trim().max(120).catch(""),
   pais: z
@@ -116,6 +121,8 @@ export const GuardarEscuchaSchema = z.object({
   radioKm: emptyToUndef
     .transform((v) => (v == null ? null : Number(v)))
     .pipe(z.union([z.number().int().min(0).max(5000), z.null()])),
+  lat: optFloat(-90, 90),
+  lng: optFloat(-180, 180),
   keywords: z.array(z.string().trim().min(1)).max(100).default([]),
   fuentes: z.array(z.string().trim().min(1)).max(20).default([]),
 });

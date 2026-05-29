@@ -4,6 +4,13 @@ import { TERRITORY } from "@/lib/config";
 import { getListeningConfig } from "@/lib/listening-config";
 import { dbConfigured } from "@/lib/db/supabase";
 import { guardarEscucha } from "./actions";
+import { TagCloud } from "@/components/escucha/tag-cloud";
+import { AuthorRankingList } from "@/components/escucha/author-ranking";
+import { Feed } from "@/components/escucha/feed";
+import { MapPicker } from "@/components/escucha/map-picker";
+
+// Revalida cada 60s para el "tiempo real" sin sobrecargar las APIs externas.
+export const revalidate = 60;
 
 export const metadata = { title: "Escucha · Tronador" };
 
@@ -48,17 +55,28 @@ export default async function EscuchaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const [{ totalItems, bySource, topics }, cfg] = await Promise.all([
+  const [result, cfg] = await Promise.all([
     runListening(),
     getListeningConfig(),
   ]);
+  const {
+    totalItems,
+    bySource,
+    bySentiment,
+    topics,
+    positiveTags,
+    negativeTags,
+    topPositive,
+    topNegative,
+    feed,
+  } = result;
   const emerging = topics.filter((t) => t.emerging);
   const persistOk = dbConfigured();
   const sources = sourceStatuses();
   const realCount = sources.filter((s) => s.real).length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Escucha
@@ -175,34 +193,37 @@ export default async function EscuchaPage({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Zona">
-            <input
-              name="zona"
-              defaultValue={cfg.zona}
-              placeholder="ej: La Plata"
-              className={inputCls}
-            />
-          </Field>
-          <Field label="País">
-            <input
-              name="pais"
-              defaultValue={cfg.pais}
-              maxLength={2}
-              className={`${inputCls} uppercase`}
-            />
-          </Field>
-          <Field label="Radio (km)">
-            <input
-              name="radioKm"
-              type="number"
-              min={0}
-              max={5000}
-              defaultValue={cfg.radioKm ?? ""}
-              placeholder="opcional"
-              className={inputCls}
-            />
-          </Field>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1fr_220px]">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Zona">
+                <input
+                  name="zona"
+                  defaultValue={cfg.zona}
+                  placeholder="ej: La Plata"
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="País">
+                <input
+                  name="pais"
+                  defaultValue={cfg.pais}
+                  maxLength={2}
+                  className={`${inputCls} uppercase`}
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-zinc-500">
+              El mapa de la derecha fija un pin con lat/lng. X API usa esas
+              coordenadas con el radio como filtro <code>point_radius</code>;
+              GDELT usa <code>sourcecountry</code>; Reddit ignora geo.
+            </p>
+          </div>
+          <MapPicker
+            defaultLat={cfg.lat}
+            defaultLng={cfg.lng}
+            defaultRadio={cfg.radioKm}
+          />
         </div>
 
         <Field label="Keywords (una por línea)">
@@ -274,87 +295,191 @@ export default async function EscuchaPage({
         </div>
       </form>
 
-      {/* Resultado de la corrida actual. */}
-      <section className="space-y-4">
-        <div className="flex items-baseline gap-3">
-          <span className="text-3xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {totalItems}
-          </span>
-          <span className="text-sm text-zinc-500">
-            menciones esta semana
-            {!persistOk && (
-              <span className="ml-2 text-amber-600">
-                (corrida con defaults — no se aplicó tu config)
-              </span>
-            )}
-          </span>
-        </div>
-
-        {emerging.length > 0 && (
-          <div className="space-y-2">
-            {emerging.map((t) => (
-              <div
-                key={t.label}
-                className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-950/30"
-              >
-                <div>
-                  <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                    Tema emergente: <strong>{t.label}</strong>
-                  </div>
-                  <div className="text-xs text-amber-700 dark:text-amber-300">
-                    {t.recent} esta semana vs {t.prior} la previa.
-                  </div>
-                </div>
-                <Link
-                  href={`/campanas/nueva?tema=${encodeURIComponent(t.label)}`}
-                  className="shrink-0 rounded bg-amber-900 px-3 py-1.5 text-sm text-amber-50 hover:bg-amber-800 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-200"
-                >
-                  Diseñar encuesta →
-                </Link>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-            Temas detectados (semana vs baseline)
-          </h3>
-          <ul className="space-y-2">
-            {topics.map((t) => (
-              <li
-                key={t.label}
-                className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                    {t.label}
-                    {t.emerging && (
-                      <span className="ml-2 text-amber-600">↑</span>
-                    )}
-                  </span>
-                  <span className="font-mono text-xs text-zinc-400">
-                    {t.recent}{" "}
-                    <span className="text-zinc-300 dark:text-zinc-600">/</span>{" "}
-                    {t.prior}
-                  </span>
-                </div>
-                {t.examples.slice(0, 2).map((ex, i) => (
-                  <p
-                    key={i}
-                    className="mt-1 text-xs text-zinc-500"
-                    style={{
-                      borderLeft: undefined, // explicit ban: no side-stripes
-                    }}
-                  >
-                    {ex}
-                  </p>
-                ))}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {/* Resumen totales + sentiment. */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <Stat
+          label="Menciones totales"
+          value={totalItems}
+          accent="zinc"
+        />
+        <Stat
+          label="Positivas"
+          value={bySentiment.positive}
+          accent="emerald"
+        />
+        <Stat
+          label="Negativas"
+          value={bySentiment.negative}
+          accent="red"
+        />
+        <Stat
+          label="Neutras"
+          value={bySentiment.neutral}
+          accent="zinc"
+        />
       </section>
+
+      {emerging.length > 0 && (
+        <div className="space-y-2">
+          {emerging.map((t) => (
+            <div
+              key={t.label}
+              className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-950/30"
+            >
+              <div>
+                <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  Tema emergente: <strong>{t.label}</strong>
+                </div>
+                <div className="text-xs text-amber-700 dark:text-amber-300">
+                  {t.recent} esta semana vs {t.prior} la previa.
+                </div>
+              </div>
+              <Link
+                href={`/campanas/nueva?tema=${encodeURIComponent(t.label)}`}
+                className="shrink-0 rounded bg-amber-900 px-3 py-1.5 text-sm text-amber-50 hover:bg-amber-800 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-200"
+              >
+                Diseñar encuesta →
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tag clouds pos/neg. */}
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Panel
+          title="Tags positivos"
+          accent="emerald"
+          right={`${bySentiment.positive}`}
+        >
+          <TagCloud tags={positiveTags} tone="positive" />
+        </Panel>
+        <Panel
+          title="Tags negativos"
+          accent="red"
+          right={`${bySentiment.negative}`}
+        >
+          <TagCloud tags={negativeTags} tone="negative" />
+        </Panel>
+      </section>
+
+      {/* Rankings de autores. */}
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Panel title="Conversan en positivo" accent="emerald">
+          <AuthorRankingList authors={topPositive} tone="positive" />
+        </Panel>
+        <Panel title="Conversan en negativo" accent="red">
+          <AuthorRankingList authors={topNegative} tone="negative" />
+        </Panel>
+      </section>
+
+      {/* Feed scroll. */}
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Feed · últimas 50
+          </h3>
+          <span className="font-mono text-[10px] text-zinc-400">
+            actualiza cada 60s
+          </span>
+        </div>
+        <Feed items={feed} />
+      </section>
+
+      {/* Topics (existing). */}
+      <section>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Temas detectados (semana vs baseline)
+        </h3>
+        <ul className="space-y-2">
+          {topics.map((t) => (
+            <li
+              key={t.label}
+              className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                  {t.label}
+                  {t.emerging && <span className="ml-2 text-amber-600">↑</span>}
+                </span>
+                <span className="font-mono text-xs text-zinc-400">
+                  {t.recent}{" "}
+                  <span className="text-zinc-300 dark:text-zinc-600">/</span>{" "}
+                  {t.prior}
+                </span>
+              </div>
+              {t.examples.slice(0, 2).map((ex, i) => (
+                <p key={i} className="mt-1 text-xs text-zinc-500">
+                  {ex}
+                </p>
+              ))}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {!persistOk && bySource && Object.keys(bySource).length > 0 && (
+        <p className="text-xs text-amber-600">
+          Corrida con defaults: no se aplicó tu config (sin Supabase). Las
+          fuentes reales (GDELT/X) sí trajeron lo que pudieron.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent: "emerald" | "red" | "zinc";
+}) {
+  const colors =
+    accent === "emerald"
+      ? "border-emerald-200 text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-400"
+      : accent === "red"
+        ? "border-red-200 text-red-700 dark:border-red-900/40 dark:text-red-400"
+        : "border-zinc-200 text-zinc-800 dark:border-zinc-800 dark:text-zinc-100";
+  return (
+    <div className={`rounded-lg border p-3 ${colors}`}>
+      <div className="text-3xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  right,
+  accent,
+  children,
+}: {
+  title: string;
+  right?: string;
+  accent: "emerald" | "red";
+  children: React.ReactNode;
+}) {
+  const dot =
+    accent === "emerald" ? "bg-emerald-500" : "bg-red-500";
+  return (
+    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+          <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            {title}
+          </h3>
+        </div>
+        {right && (
+          <span className="font-mono text-[11px] text-zinc-400">{right}</span>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

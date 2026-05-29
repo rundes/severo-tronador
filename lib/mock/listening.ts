@@ -40,11 +40,19 @@ const RAW: Raw[] = [
   { source: "x-api", daysAgo: 1, text: "no se puede salir de noche por la inseguridad" },
 ];
 
+const MOCK_AUTHORS: Record<Src, string[]> = {
+  gdelt: ["lanacion.com.ar", "clarin.com", "pagina12.com.ar", "infobae.com"],
+  "x-api": ["vecino_centro", "anaperez", "marcosk", "agronoticias", "noticiero_x"],
+  "reddit-api": ["u/vecino_norte", "u/larubia", "u/turista", "u/comunero"],
+};
+
 export function mockListenItems(source: Src): ListenItem[] {
-  return RAW.filter((r) => r.source === source).map((r) => ({
+  const authors = MOCK_AUTHORS[source];
+  return RAW.filter((r) => r.source === source).map((r, i) => ({
     source,
     text: r.text,
     url: `https://example.com/${source}/${r.daysAgo}`,
     publishedAt: iso(r.daysAgo),
+    author: authors[i % authors.length],
   }));
 }

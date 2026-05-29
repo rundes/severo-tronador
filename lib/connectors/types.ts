@@ -139,6 +139,10 @@ export interface ListenQuery {
   zona?: string;
   pais?: string;
   radioKm?: number | null;
+  // Coordenadas explícitas seteadas con el map picker. Sobrescriben zona
+  // como hint geo para X (geocode point.lat,lng,radio).
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface ListenItem {
@@ -146,6 +150,9 @@ export interface ListenItem {
   text: string;
   url?: string;
   publishedAt?: string;
+  // Autor cuando el provider lo expone (handle X, dominio GDELT, etc).
+  // Se usa para rankings de "más conversan".
+  author?: string;
 }
 
 export interface ListeningConnector extends Connector {

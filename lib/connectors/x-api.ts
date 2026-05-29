@@ -18,7 +18,7 @@ import { log } from "@/lib/logger";
 const ID = "x-api";
 const FREE_LIMIT = 1500;
 const ENDPOINT = "https://api.x.com/2/tweets/search/recent";
-const MAX_RESULTS = 20;
+const MAX_RESULTS = 100;
 
 interface XTweet {
   id: string;
@@ -41,22 +41,41 @@ async function fetchReal(
   query: ListenQuery,
   bearer: string,
 ): Promise<ListenItem[]> {
+  // Combina keywords + geo + lang. point_radius requiere lat/lng/km.
+  const keywordPart = query.keywords.length
+    ? `(${query.keywords.join(" OR ")})`
+    : "*";
+  let q = `${keywordPart} lang:es -is:retweet`;
+  if (query.lat != null && query.lng != null) {
+    const radio = query.radioKm ?? 25;
+    q += ` point_radius:[${query.lng} ${query.lat} ${radio}km]`;
+  } else if (query.pais) {
+    q += ` place_country:${query.pais.toUpperCase()}`;
+  }
   const params = new URLSearchParams({
-    query: query.keywords.length ? query.keywords.join(" OR ") : "*",
+    query: q,
     max_results: String(MAX_RESULTS),
     "tweet.fields": "created_at,author_id",
+    expansions: "author_id",
+    "user.fields": "username",
   });
   const res = await fetch(`${ENDPOINT}?${params}`, {
     headers: { Authorization: `Bearer ${bearer}` },
   });
   if (!res.ok) throw new Error(`X API HTTP ${res.status}`);
-  const json = (await res.json()) as XResp;
+  const json = (await res.json()) as XResp & {
+    includes?: { users?: { id: string; username: string }[] };
+  };
   await incrementUsage(ID, json.data?.length ?? 0);
+  const usersById = new Map(
+    (json.includes?.users ?? []).map((u) => [u.id, u.username]),
+  );
   return (json.data ?? []).map((t) => ({
     source: "x.com",
     text: t.text,
     url: `https://x.com/i/web/status/${t.id}`,
     publishedAt: t.created_at,
+    author: t.author_id ? usersById.get(t.author_id) ?? t.author_id : undefined,
   }));
 }
 

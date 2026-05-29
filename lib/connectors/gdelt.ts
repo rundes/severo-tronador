@@ -15,7 +15,7 @@ import { mockListenItems } from "@/lib/mock/listening";
 import { log } from "@/lib/logger";
 
 const ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc";
-const MAX_RECORDS = 50;
+const MAX_RECORDS = 250;
 
 interface GdeltArticle {
   title?: string;
@@ -52,6 +52,7 @@ async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
     text: a.title ?? "",
     url: a.url,
     publishedAt: a.seendate,
+    author: a.domain,
   }));
 }
 

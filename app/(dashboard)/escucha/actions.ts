@@ -21,6 +21,8 @@ export async function guardarEscucha(formData: FormData) {
     zona: raw.zona,
     pais: raw.pais,
     radioKm: raw.radioKm,
+    lat: raw.lat,
+    lng: raw.lng,
     keywords,
     fuentes,
   });

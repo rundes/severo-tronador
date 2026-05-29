@@ -4,17 +4,21 @@ export interface ListeningConfig {
   zona: string;
   pais: string;
   radioKm: number | null;
+  lat: number | null;
+  lng: number | null;
   keywords: string[];
   fuentes: string[];
 }
 
 const DEFAULT: ListeningConfig = {
-  zona: "", pais: "AR", radioKm: null, keywords: [], fuentes: [],
+  zona: "", pais: "AR", radioKm: null, lat: null, lng: null, keywords: [], fuentes: [],
 };
 
 interface Row {
   geo: { zona?: string; pais?: string } | null;
   radio: number | null;
+  lat: number | null;
+  lng: number | null;
   keywords: string[] | null;
   fuentes: string[] | null;
 }
@@ -29,6 +33,8 @@ export async function getListeningConfig(): Promise<ListeningConfig> {
     zona: r.geo?.zona ?? "",
     pais: r.geo?.pais ?? "AR",
     radioKm: r.radio ?? null,
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
     keywords: r.keywords ?? [],
     fuentes: r.fuentes ?? [],
   };
@@ -41,6 +47,8 @@ export async function saveListeningConfig(cfg: ListeningConfig): Promise<void> {
       id: 1,
       geo: { zona: cfg.zona, pais: cfg.pais },
       radio: cfg.radioKm,
+      lat: cfg.lat,
+      lng: cfg.lng,
       keywords: cfg.keywords,
       fuentes: cfg.fuentes,
       updated_at: new Date().toISOString(),
