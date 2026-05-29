@@ -4,7 +4,8 @@ import { outreachConnectorFor, OUTREACH_CHANNELS } from "@/lib/campaigns";
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
-import { listTemplates } from "@/lib/templates";
+import { listTemplates, getTemplate } from "@/lib/templates";
+import { ChannelPreview } from "@/components/segmentos/channel-preview";
 
 export const metadata = { title: "Nueva campaña · Severo Tronador" };
 
@@ -45,6 +46,13 @@ export default async function NuevaCampanaPage({
   const connector = outreachConnectorFor(channel)!;
   const quota = await connector.getQuota();
   const templates = await listTemplates(channel);
+  // Preview por canal: leemos la plantilla preseleccionada vía
+  // params.templateId (mismo nombre que el select) — si no hay seleccionada
+  // usamos la primera disponible para mostrar algo accionable.
+  const previewTemplateId = params.templateId || templates[0]?.id;
+  const previewTemplate = previewTemplateId
+    ? await getTemplate(previewTemplateId)
+    : null;
 
   const filterEntries = Object.entries(filter).filter(
     ([, v]) => v !== undefined,
@@ -130,6 +138,13 @@ export default async function NuevaCampanaPage({
             </div>
           )}
         </div>
+      )}
+
+      {previewTemplate && (
+        <ChannelPreview
+          channel={channel}
+          template={{ asunto: previewTemplate.asunto, cuerpo: previewTemplate.cuerpo }}
+        />
       )}
 
       {templates.length === 0 ? (

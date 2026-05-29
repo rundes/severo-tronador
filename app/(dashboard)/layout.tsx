@@ -1,9 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, authConfigured } from "@/lib/auth";
 import { connectors } from "@/lib/connectors/registry";
 import type { OutreachConnector } from "@/lib/connectors/types";
-import { APP_NAME } from "@/lib/config";
 import { VERSION_STRING } from "@/lib/version";
 
 const NAV = [
@@ -40,8 +40,15 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-full flex-1">
       <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 px-4 py-6 dark:border-zinc-800">
-        <Link href="/" className="mb-8 font-mono text-sm tracking-tight">
-          {APP_NAME}
+        <Link href="/" className="mb-8 block">
+          <Image
+            src="/brand/tronador-wordmark.jpeg"
+            alt="Tronador"
+            width={180}
+            height={180}
+            priority
+            className="h-auto w-full"
+          />
         </Link>
         <nav className="flex flex-col gap-1 font-mono text-sm">
           {NAV.map((item) => (
