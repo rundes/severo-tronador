@@ -45,7 +45,11 @@ export default async function Landing({
 
 function NavBar() {
   return (
-    <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
+    <nav
+      className="sticky top-0 z-50 border-b border-[oklch(80%_0.02_80)]/0 backdrop-blur transition-colors duration-200 supports-[backdrop-filter]:bg-[oklch(93%_0.012_80)]/85"
+      style={{ backgroundColor: "oklch(93% 0.012 80 / 0.92)" }}
+    >
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 sm:py-5">
       <Link href="#" className="flex items-center gap-3">
         <Image
           src="/brand/tronador-mark.jpeg"
@@ -90,6 +94,7 @@ function NavBar() {
           Panel
         </Link>
       </div>
+      </div>
     </nav>
   );
 }
@@ -98,30 +103,39 @@ function NavBar() {
 
 function Hero() {
   return (
-    <section className="mx-auto grid max-w-5xl grid-cols-1 gap-12 px-6 pt-16 pb-28 sm:pt-24 sm:pb-40 md:grid-cols-[1.4fr_1fr]">
-      <div className="max-w-[24ch]">
-        <p className="mb-4 font-mono text-xs font-medium uppercase tracking-[0.22em] text-[oklch(55%_0.08_80)]">
+    <section className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-6 pt-14 pb-24 sm:pt-20 sm:pb-32 md:grid-cols-[1.6fr_1fr] md:gap-16">
+      <div className="min-w-0">
+        <p className="mb-5 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[oklch(55%_0.08_80)] sm:text-xs">
           Centro de Estudios Políticos y Electorales
         </p>
-        <h1 className="leading-[0.92] tracking-tight">
-          <span className="block text-4xl font-light text-[oklch(40%_0.04_250)] sm:text-5xl">
+        <h1 className="leading-[0.95] tracking-tight">
+          <span
+            className="block font-light text-[oklch(40%_0.04_250)]"
+            style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)" }}
+          >
             Investigar
           </span>
-          <span className="mt-1 block text-5xl font-medium sm:text-6xl">
+          <span
+            className="mt-1 block font-medium"
+            style={{ fontSize: "clamp(2.75rem, 7vw, 5.5rem)" }}
+          >
             la conversación
           </span>
           <span
-            className="mt-1 block text-6xl font-extrabold sm:text-7xl"
-            style={{ color: "oklch(60% 0.13 80)" }}
+            className="mt-1 block font-extrabold"
+            style={{
+              color: "oklch(60% 0.13 80)",
+              fontSize: "clamp(3.25rem, 8.5vw, 6.5rem)",
+            }}
           >
             pública<span className="text-[oklch(40%_0.04_250)]">.</span>
           </span>
         </h1>
-        <p className="mt-8 max-w-[40ch] text-lg leading-relaxed text-[oklch(40%_0.04_250)]">
+        <p className="mt-8 max-w-prose text-base leading-relaxed text-[oklch(40%_0.04_250)] sm:text-lg">
           Plataforma para observar tendencias y vincularse con la ciudadanía
           mediante estrategias de contacto pensadas para la investigación.
         </p>
-        <div className="mt-10 flex items-center gap-5">
+        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
             href="/conectores"
             className="rounded-full bg-[oklch(28%_0.06_250)] px-6 py-3 text-sm font-medium text-[oklch(96%_0.01_80)] hover:bg-[oklch(20%_0.06_250)]"
@@ -140,9 +154,9 @@ function Hero() {
         <Image
           src="/brand/tronador-mark.jpeg"
           alt="Tronador"
-          width={300}
-          height={300}
-          className="h-auto w-full max-w-[280px] rounded-md"
+          width={560}
+          height={560}
+          className="h-auto w-full max-w-[480px]"
           priority
         />
       </div>
