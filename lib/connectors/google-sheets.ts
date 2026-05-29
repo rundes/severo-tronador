@@ -42,6 +42,69 @@ function rowsToContacts(rows: string[][]): Contact[] {
   });
 }
 
+// Preview: devuelve headers + N filas sample. Para que el UI muestre el
+// shape real del Sheet y el usuario pueda mapear columnas manualmente.
+export interface PadronPreview {
+  headers: string[];
+  sampleRows: string[][];
+  totalRows: number;
+}
+
+export async function readPadronPreview(
+  sampleLimit = 2,
+): Promise<PadronPreview> {
+  const cfg = await getConnectorConfig("google-sheets-padron");
+  if (!cfg.GOOGLE_SERVICE_ACCOUNT_KEY || !cfg.GOOGLE_SHEETS_SHEET_ID) {
+    return { headers: [], sampleRows: [], totalRows: 0 };
+  }
+  const sheets = getSheetsClient(cfg.GOOGLE_SERVICE_ACCOUNT_KEY);
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.GOOGLE_SHEETS_SHEET_ID,
+    range: PADRON_RANGE,
+  });
+  const all = ((res.data.values as string[][]) ?? []).filter((r) => r.length);
+  if (all.length === 0) return { headers: [], sampleRows: [], totalRows: 0 };
+  const headers = all[0].map((h) => String(h ?? "").trim());
+  const rest = all.slice(1);
+  return {
+    headers,
+    sampleRows: rest.slice(0, sampleLimit),
+    totalRows: rest.length,
+  };
+}
+
+// Lectura con mapeo arbitrario: mapping es { contactField: sheetHeaderName }.
+// Campos del Contact sin entrada en mapping quedan vacíos.
+export async function readPadronMapped(
+  mapping: Record<string, string>,
+): Promise<Contact[]> {
+  const cfg = await getConnectorConfig("google-sheets-padron");
+  if (!cfg.GOOGLE_SERVICE_ACCOUNT_KEY || !cfg.GOOGLE_SHEETS_SHEET_ID) {
+    return [];
+  }
+  const sheets = getSheetsClient(cfg.GOOGLE_SERVICE_ACCOUNT_KEY);
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.GOOGLE_SHEETS_SHEET_ID,
+    range: PADRON_RANGE,
+  });
+  const all = ((res.data.values as string[][]) ?? []).filter((r) => r.length);
+  if (all.length < 2) return [];
+  const headers = all[0].map((h) => String(h ?? "").trim());
+  const headerIdx = new Map(headers.map((h, i) => [h, i]));
+  const contactKeys = Object.keys(mapping);
+  return all.slice(1).map((row) => {
+    const out: Record<string, string> = {};
+    for (const key of contactKeys) {
+      const headerName = mapping[key];
+      if (!headerName) continue;
+      const idx = headerIdx.get(headerName);
+      if (idx == null) continue;
+      out[key] = row[idx] ?? "";
+    }
+    return out as unknown as Contact;
+  });
+}
+
 export const googleSheetsConnector: DataConnector = {
   id: "google-sheets-padron",
   name: "Google Sheets · Padrón",

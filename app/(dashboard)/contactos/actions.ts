@@ -3,7 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { importPadron, parsePadronCsv } from "@/lib/db/padron";
-import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
+import {
+  readPadronPreview,
+  readPadronMapped,
+} from "@/lib/connectors/google-sheets";
 import { dbConfigured } from "@/lib/db/supabase";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
@@ -34,31 +37,71 @@ export async function importarCsv(formData: FormData) {
   redirect(`/contactos?ok=csv&n=${n}`);
 }
 
-export async function sincronizarGoogleSheet() {
-  if (!dbConfigured()) {
-    redirect("/contactos?error=no_db");
-  }
+// Step 1 del sync: leer headers + sample rows. Redirige a /contactos
+// con preview encoded para que la UI muestre el mapper.
+export async function previewGoogleSheet() {
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
   try {
-    const rows = await googleSheetsConnector.readPadron();
-    if (rows.length === 0) {
+    const preview = await readPadronPreview(2);
+    if (preview.headers.length === 0) {
       redirect("/contactos?error=empty_sheet");
     }
-    const n = await importPadron(rows, "google-sheets");
+    const encoded = Buffer.from(JSON.stringify(preview), "utf8")
+      .toString("base64")
+      .replace(/=+$/, "");
+    log.info("contactos.preview.gsheet", {
+      headers: preview.headers.length,
+      total_rows: preview.totalRows,
+    });
+    redirect(`/contactos?preview=${encoded}`);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("NEXT_REDIRECT")) throw err;
+    log.error("contactos.preview.gsheet.failed", { msg });
+    redirect(
+      `/contactos?error=gsheet&msg=${encodeURIComponent(msg.slice(0, 200))}`,
+    );
+  }
+}
+
+// Step 2: con el mapeo enviado en formData, leer todo el sheet aplicando
+// la asignación de columnas y persistir.
+export async function importarConMapeo(formData: FormData) {
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const mapping: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) {
+    if (!k.startsWith("map_")) continue;
+    const field = k.slice(4);
+    const headerName = String(v).trim();
+    if (headerName) mapping[field] = headerName;
+  }
+  if (!mapping.dni) {
+    redirect(`/contactos?error=mapping_dni_required`);
+  }
+  try {
+    const rows = await readPadronMapped(mapping);
+    const filtered = rows.filter((r) => r.dni && String(r.dni).trim() !== "");
+    if (filtered.length === 0) {
+      redirect("/contactos?error=empty_after_mapping");
+    }
+    const n = await importPadron(filtered, "google-sheets");
     const session = await auth();
     await logAudit({
       action: "campaign.create",
       actor: session?.user?.email ?? null,
       entity_type: "contactos.gsheet",
-      details: { rows: n },
+      details: { rows: n, fields: Object.keys(mapping) },
     });
-    log.info("contactos.sync.gsheet", { rows: n });
+    log.info("contactos.sync.gsheet.mapped", {
+      rows: n,
+      mapped_fields: Object.keys(mapping).length,
+    });
     revalidatePath("/contactos");
     redirect(`/contactos?ok=gsheet&n=${n}`);
   } catch (err) {
     const msg = (err as Error).message;
-    // Next.js redirect throws — déjalo pasar.
     if (msg.includes("NEXT_REDIRECT")) throw err;
-    log.error("contactos.sync.gsheet.failed", { msg });
+    log.error("contactos.sync.gsheet.mapped.failed", { msg });
     redirect(
       `/contactos?error=gsheet&msg=${encodeURIComponent(msg.slice(0, 200))}`,
     );
