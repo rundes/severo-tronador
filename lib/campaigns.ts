@@ -9,6 +9,7 @@ import { telnyxSmsConnector } from "@/lib/connectors/telnyx-sms";
 import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
+import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { createToken } from "@/lib/survey";
@@ -57,7 +58,11 @@ export interface Campaign {
   nombre: string;
   channel: Channel;
   templateId: string;
-  segmentFilter: SegmentFilter;
+  // segmentFilter (flat) o segmentQuery (tree AND/OR/NOT). Solo uno está
+  // seteado por campaña; el otro queda undefined. Storage como jsonb,
+  // discriminado en runtime por isSegmentQuery().
+  segmentFilter?: SegmentFilter;
+  segmentQuery?: SegmentQuery;
   preguntas: string[];
   createdAt: string;
   estado: CampaignEstado;
@@ -85,7 +90,9 @@ interface CampanaRow {
   nombre: string;
   channel: Channel;
   template_id: string;
-  segment_filter: SegmentFilter;
+  // jsonb: SegmentFilter (flat) o SegmentQuery (tree). El runtime distingue
+  // por presencia de `type: "group"`.
+  segment_filter: SegmentFilter | SegmentQuery;
   preguntas: string[];
   estado: CampaignEstado;
   metrics: Campaign["metrics"];
@@ -130,7 +137,8 @@ function campaignToRow(c: Campaign): CampanaRow {
     nombre: c.nombre,
     channel: c.channel,
     template_id: c.templateId,
-    segment_filter: c.segmentFilter,
+    // Si la campaña es query-based, persistimos el árbol; sino el filter.
+    segment_filter: c.segmentQuery ?? c.segmentFilter ?? {},
     preguntas: c.preguntas,
     estado: c.estado,
     metrics: c.metrics,
@@ -141,12 +149,15 @@ function campaignToRow(c: Campaign): CampanaRow {
 // Mapea una fila `campanas` → Campaign. `envios` se pasa aparte (vacío en la
 // lista; poblado en getCampaign).
 function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
+  const sf = row.segment_filter;
+  const isQuery = typeof sf === "object" && sf !== null && (sf as { type?: string }).type === "group";
   return {
     id: row.id,
     nombre: row.nombre,
     channel: row.channel,
     templateId: row.template_id,
-    segmentFilter: row.segment_filter,
+    segmentFilter: isQuery ? undefined : (sf as SegmentFilter),
+    segmentQuery: isQuery ? (sf as SegmentQuery) : undefined,
     preguntas: row.preguntas,
     createdAt: row.created_at,
     estado: row.estado,
@@ -268,7 +279,9 @@ export type ExecuteInput = {
   nombre: string;
   channel: Channel;
   templateId: string;
-  segmentFilter: SegmentFilter;
+  // Exactamente uno debe estar seteado. Si vienen ambos gana segmentQuery.
+  segmentFilter?: SegmentFilter;
+  segmentQuery?: SegmentQuery;
   preguntas?: string[];
 };
 
@@ -290,7 +303,9 @@ export async function executeCampaign(
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
   const all = await loadContacts();
-  const matched = applySegment(all, input.segmentFilter);
+  const matched = input.segmentQuery
+    ? applyQuery(all, input.segmentQuery)
+    : applySegment(all, input.segmentFilter ?? {});
 
   // Opt-out global cross-channel: regla dura, se consulta ANTES de enviar.
   const opted = await optedOutSet();
@@ -368,7 +383,7 @@ export async function executeCampaign(
       nombre: input.nombre,
       channel: input.channel,
       templateId: input.templateId,
-      segmentFilter: input.segmentFilter,
+      segmentFilter: input.segmentFilter, segmentQuery: input.segmentQuery,
       preguntas,
       createdAt,
       estado: "enviada",
@@ -411,7 +426,7 @@ export async function executeCampaign(
     nombre: input.nombre,
     channel: input.channel,
     templateId: input.templateId,
-    segmentFilter: input.segmentFilter,
+    segmentFilter: input.segmentFilter, segmentQuery: input.segmentQuery,
     preguntas,
     createdAt,
     // Si no hay nada que encolar (todo opted-out o cooling), termina ya.

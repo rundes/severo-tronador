@@ -3,6 +3,7 @@
 // GET /api/segmentos/export?<filter-params>
 // Auth: middleware redirige a signin sin sesión.
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
+import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { healthBand } from "@/lib/relationship";
 
 const COLS = [
@@ -33,9 +34,12 @@ export async function GET(req: Request) {
   const params: Record<string, string | undefined> = {};
   for (const [k, v] of url.searchParams.entries()) params[k] = v;
 
-  const filter = filterFromParams(params);
+  const advancedQuery = params.q ? decodeQuery(params.q) : null;
+  const filter = advancedQuery ? {} : filterFromParams(params);
   const all = await loadContacts();
-  const matched = applySegment(all, filter);
+  const matched = advancedQuery
+    ? applyQuery(all, advancedQuery)
+    : applySegment(all, filter);
 
   const rows: string[] = [COLS.join(",")];
   for (const m of matched) {

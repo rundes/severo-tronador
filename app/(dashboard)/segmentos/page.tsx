@@ -73,12 +73,14 @@ export default async function SegmentosPage({
       if (channelAvailable(m.rel, ch)) available[ch]++;
 
   const total = matched.length;
-  const qs = new URLSearchParams(
+  const qsParams = new URLSearchParams(
     Object.entries(filter).filter(([, v]) => v !== undefined) as [
       string,
       string,
     ][],
-  ).toString();
+  );
+  if (params.q) qsParams.set("q", params.q);
+  const qs = qsParams.toString();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

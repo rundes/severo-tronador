@@ -2,6 +2,7 @@ import Link from "next/link";
 import { crearCampana } from "./actions";
 import { outreachConnectorFor, OUTREACH_CHANNELS } from "@/lib/campaigns";
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
+import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { listTemplates } from "@/lib/templates";
 
@@ -33,9 +34,12 @@ export default async function NuevaCampanaPage({
     params.channel && OUTREACH_CHANNELS.includes(params.channel as Channel)
       ? (params.channel as Channel)
       : "email";
-  const filter = filterFromParams(params);
+  const advancedQuery = params.q ? decodeQuery(params.q) : null;
+  const filter = advancedQuery ? {} : filterFromParams(params);
   const all = await loadContacts();
-  const matched = applySegment(all, filter);
+  const matched = advancedQuery
+    ? applyQuery(all, advancedQuery)
+    : applySegment(all, filter);
   const sendable = matched.filter((m) => channelAvailable(m.rel, channel));
 
   const connector = outreachConnectorFor(channel)!;
@@ -46,10 +50,11 @@ export default async function NuevaCampanaPage({
     ([, v]) => v !== undefined,
   ) as [string, string | number][];
 
-  // Query base (filtros) para los toggles de canal.
+  // Query base (filtros o q) para los toggles de canal.
   const baseQs = new URLSearchParams(
     filterEntries.map(([k, v]) => [k, String(v)]),
   );
+  if (params.q) baseQs.set("q", params.q);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -98,10 +103,13 @@ export default async function NuevaCampanaPage({
           </span>
         </div>
         <div className="mt-2 text-xs text-zinc-400">
-          Filtros:{" "}
-          {filterEntries.length
-            ? filterEntries.map(([k, v]) => `${k}=${v}`).join(" · ")
-            : "ninguno (todo el padrón)"}
+          {advancedQuery
+            ? "Filtros: query avanzada activa (AND/OR/NOT) — editá en /segmentos."
+            : `Filtros: ${
+                filterEntries.length
+                  ? filterEntries.map(([k, v]) => `${k}=${v}`).join(" · ")
+                  : "ninguno (todo el padrón)"
+              }`}
         </div>
       </div>
 
@@ -135,9 +143,13 @@ export default async function NuevaCampanaPage({
       ) : (
         <form action={crearCampana} className="space-y-4">
           <input type="hidden" name="channel" value={channel} />
-          {filterEntries.map(([k, v]) => (
-            <input key={k} type="hidden" name={k} value={String(v)} />
-          ))}
+          {advancedQuery ? (
+            <input type="hidden" name="q" value={params.q ?? ""} />
+          ) : (
+            filterEntries.map(([k, v]) => (
+              <input key={k} type="hidden" name={k} value={String(v)} />
+            ))
+          )}
 
           <label className="flex flex-col gap-1 text-xs text-zinc-500">
             Nombre de la campaña

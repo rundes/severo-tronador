@@ -7,6 +7,7 @@ import {
   formToObject,
   summarizeZodError,
 } from "@/lib/schemas";
+import { decodeQuery } from "@/lib/segment-query";
 
 export async function crearCampana(formData: FormData) {
   const raw = formToObject(formData);
@@ -15,18 +16,26 @@ export async function crearCampana(formData: FormData) {
     .map((p) => p.trim())
     .filter(Boolean);
 
+  // Modo avanzado: si el form trae `q` (encoded SegmentQuery), lo
+  // decodificamos y bypasseamos los filtros planos. La validación zod
+  // sigue corriendo sobre el resto (nombre, templateId, channel).
+  const qParam = typeof raw.q === "string" ? raw.q : undefined;
+  const segmentQuery = qParam ? decodeQuery(qParam) : null;
+
   const parsed = CrearCampanaSchema.safeParse({
     nombre: raw.nombre,
     templateId: raw.templateId,
     channel: raw.channel,
     preguntas,
-    segmentFilter: {
-      sexo: raw.sexo,
-      edadMin: raw.edadMin,
-      edadMax: raw.edadMax,
-      barrio: raw.barrio,
-      healthMin: raw.healthMin,
-    },
+    segmentFilter: segmentQuery
+      ? {} // sin uso cuando hay query
+      : {
+          sexo: raw.sexo,
+          edadMin: raw.edadMin,
+          edadMax: raw.edadMax,
+          barrio: raw.barrio,
+          healthMin: raw.healthMin,
+        },
   });
 
   if (!parsed.success) {
@@ -36,7 +45,10 @@ export async function crearCampana(formData: FormData) {
     redirect(`/campanas/nueva?${params}`);
   }
 
-  const res = await executeCampaign(parsed.data);
+  const res = await executeCampaign({
+    ...parsed.data,
+    segmentQuery: segmentQuery ?? undefined,
+  });
   if (res.ok) redirect(`/campanas/${res.campaign.id}`);
 
   const params = preservedParams(formData);
