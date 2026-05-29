@@ -4,6 +4,7 @@ import { connectors } from "@/lib/connectors/registry";
 import type { OutreachConnector } from "@/lib/connectors/types";
 import { VERSION_STRING } from "@/lib/version";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { cerrarSesion } from "./sign-out-action";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -23,9 +24,20 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  let user: {
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null = null;
+
   if (authConfigured) {
     const session = await auth();
     if (!session) redirect("/signin");
+    user = {
+      name: session.user?.name ?? null,
+      email: session.user?.email ?? null,
+      image: session.user?.image ?? null,
+    };
   }
 
   const outreach = connectors.filter(
@@ -38,17 +50,14 @@ export default async function DashboardLayout({
     }),
   );
 
-  const authLabel = authConfigured
-    ? "auth: Google OAuth"
-    : "auth: dev (sin login)";
-
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
         nav={NAV}
         quotas={quotas}
-        authLabel={authLabel}
+        user={user}
         versionString={VERSION_STRING}
+        signOutAction={cerrarSesion}
       />
       <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8">{children}</main>
     </div>

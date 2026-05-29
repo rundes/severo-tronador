@@ -16,16 +16,24 @@ interface NavItem {
   label: string;
 }
 
+interface UserInfo {
+  name: string | null;
+  email: string | null;
+  image: string | null;
+}
+
 export function Sidebar({
   nav,
   quotas,
-  authLabel,
+  user,
   versionString,
+  signOutAction,
 }: {
   nav: NavItem[];
   quotas: QuotaChip[];
-  authLabel: string;
+  user: UserInfo | null;
   versionString: string;
+  signOutAction: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -121,7 +129,7 @@ export function Sidebar({
             );
           })}
         </nav>
-        <div className="mt-auto space-y-2 pt-6 text-xs text-zinc-400">
+        <div className="mt-auto space-y-3 pt-6 text-xs text-zinc-400">
           {quotas.length > 0 && (
             <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px]">
               🔋
@@ -132,13 +140,93 @@ export function Sidebar({
               ))}
             </div>
           )}
-          <div>{authLabel}</div>
+          <UserPill user={user} signOutAction={signOutAction} />
           <div className="font-mono text-[10px] text-zinc-500">
             {versionString}
           </div>
         </div>
       </aside>
     </>
+  );
+}
+
+function UserPill({
+  user,
+  signOutAction,
+}: {
+  user: UserInfo | null;
+  signOutAction: () => Promise<void>;
+}) {
+  if (!user) {
+    return (
+      <div className="rounded-full border border-dashed border-zinc-300 px-3 py-1.5 text-[11px] text-zinc-500 dark:border-zinc-700">
+        dev (sin login)
+      </div>
+    );
+  }
+  const initials = (user.name ?? user.email ?? "?")
+    .split(" ")
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .slice(0, 2)
+    .join("");
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white p-1 pr-1.5 dark:border-zinc-800 dark:bg-zinc-950">
+      {user.image ? (
+        <Image
+          src={user.image}
+          alt={user.name ?? user.email ?? ""}
+          width={28}
+          height={28}
+          className="h-7 w-7 rounded-full"
+          unoptimized
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 font-mono text-[10px] font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          {initials}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[11px] font-medium leading-tight text-zinc-800 dark:text-zinc-100">
+          {user.name ?? "—"}
+        </div>
+        <div className="truncate text-[10px] leading-tight text-zinc-400">
+          {user.email}
+        </div>
+      </div>
+      <form action={signOutAction}>
+        <button
+          type="submit"
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800"
+        >
+          <SignOutIcon />
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      viewBox="0 0 18 18"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M7 3.5H4.5A1.5 1.5 0 0 0 3 5v8a1.5 1.5 0 0 0 1.5 1.5H7" />
+      <path d="M11 5.5L14.5 9 11 12.5" />
+      <path d="M14.5 9H7.5" />
+    </svg>
   );
 }
 
