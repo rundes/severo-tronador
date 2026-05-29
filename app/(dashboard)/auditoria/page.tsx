@@ -15,6 +15,8 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "connector.config": "Conector configurado",
   "connector.toggle": "Conector toggleado",
   "listening.config": "Config de escucha",
+  "mailbox.provision": "Casilla provisionada",
+  "mailbox.send": "Mail enviado",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -29,6 +31,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "connector.config": "bg-zinc-500",
   "connector.toggle": "bg-zinc-500",
   "listening.config": "bg-zinc-500",
+  "mailbox.provision": "bg-teal-500",
+  "mailbox.send": "bg-teal-500",
 };
 
 function ago(iso: string): string {
