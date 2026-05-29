@@ -1,10 +1,13 @@
 // Middleware de auth — defensa en profundidad sobre el gate del layout
 // (dashboard). Bloquea cualquier ruta no pública si OAuth está configurado y
 // no hay sesión. En prod sin OAuth devuelve 503 (instrumentation ya abortó).
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { auth, authConfigured } from "@/lib/auth";
 
-export default async function middleware(req: Request) {
+const PUBLIC_PATHS = new Set<string>(["/"]);
+
+export default async function middleware(req: NextRequest) {
+  if (PUBLIC_PATHS.has(req.nextUrl.pathname)) return NextResponse.next();
   if (!authConfigured) {
     if (process.env.NODE_ENV !== "production") return NextResponse.next();
     return new NextResponse("Auth no configurada", { status: 503 });
