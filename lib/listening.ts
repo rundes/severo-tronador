@@ -6,6 +6,7 @@ import { connectors } from "@/lib/connectors/registry";
 import type { ListenItem, ListeningConnector, ListenQuery } from "@/lib/connectors/types";
 import { claudeApiConnector, type CodingOutput } from "@/lib/connectors/claude-api";
 import { getListeningConfig } from "@/lib/listening-config";
+import { cacheHasFreshItems, readCachedItems } from "@/lib/listening-cache";
 import {
   aggregateTagsBySentiment,
   classifySentiment,
@@ -77,9 +78,16 @@ export async function runListening(): Promise<ListeningResult> {
     lng: cfg.lng,
   };
 
-  const items: ListenItem[] = (
-    await Promise.all(listeners.map((l) => l.fetch(query)))
-  ).flat();
+  // Cache-first (Plan 05 F5). Si listening_items tiene rows frescas las
+  // leemos de DB en vez de pegarle a las APIs. El cron horario
+  // /api/cron/listening-pull mantiene la cache caliente.
+  let items: ListenItem[];
+  if (await cacheHasFreshItems(7)) {
+    const enabledIds = cfg.fuentes.length > 0 ? cfg.fuentes : undefined;
+    items = await readCachedItems(14, enabledIds);
+  } else {
+    items = (await Promise.all(listeners.map((l) => l.fetch(query)))).flat();
+  }
 
   const coding = (
     await claudeApiConnector.analyze(
