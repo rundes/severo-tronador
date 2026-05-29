@@ -96,12 +96,19 @@ function Hero() {
         <p className="mb-4 font-mono text-xs font-medium uppercase tracking-[0.22em] text-[oklch(55%_0.08_80)]">
           Centro de Estudios Políticos y Electorales
         </p>
-        <h1 className="text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl">
-          Investigar
-          <br />
-          la conversación
-          <br />
-          <span style={{ color: "oklch(60% 0.13 80)" }}>pública.</span>
+        <h1 className="leading-[0.92] tracking-tight">
+          <span className="block text-4xl font-light text-[oklch(40%_0.04_250)] sm:text-5xl">
+            Investigar
+          </span>
+          <span className="mt-1 block text-5xl font-medium sm:text-6xl">
+            la conversación
+          </span>
+          <span
+            className="mt-1 block text-6xl font-extrabold sm:text-7xl"
+            style={{ color: "oklch(60% 0.13 80)" }}
+          >
+            pública<span className="text-[oklch(40%_0.04_250)]">.</span>
+          </span>
         </h1>
         <p className="mt-8 max-w-[40ch] text-lg leading-relaxed text-[oklch(40%_0.04_250)]">
           Plataforma para observar tendencias y vincularse con la ciudadanía
