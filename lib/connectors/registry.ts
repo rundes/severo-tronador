@@ -3,6 +3,7 @@
 // siguiente suma un conector con un import + una línea acá, sin tocar el core.
 import type { Connector } from "./types";
 import { googleSheetsConnector } from "./google-sheets";
+import { googleSheetsArchiveConnector } from "./google-sheets-archive";
 import { googleOAuthConnector } from "./google-oauth";
 import { resendConnector } from "./resend";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
@@ -15,6 +16,7 @@ import { redditApiConnector } from "./reddit-api";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
+  googleSheetsArchiveConnector,
   googleOAuthConnector,
   resendConnector,
   metaWaCloudConnector,

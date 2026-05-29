@@ -1,7 +1,9 @@
-// Conector de datos: Google Sheets (padrón). Categoría `data`.
-// F1: si no hay credenciales reales (service account + sheet id), sirve el
-// padrón mock de 100 filas. Cuando se setean las env vars, lee el Sheet real
-// — el cambio es de config, no de código (ver PLAN.md §Bloqueantes).
+// Conector de datos: Google Sheets — IMPORTACIÓN DEL PADRÓN.
+// Solo lectura. Si el Sheet con DNIs/nombres/etc no está configurado,
+// sirve el padrón mock de 100 filas para iterar sin credenciales.
+//
+// Es uno de los dos conceptos en que se separó la integración con Sheets.
+// Ver google-sheets-archive para el write-behind de preservación.
 import { google } from "googleapis";
 import type {
   Config,
@@ -41,11 +43,12 @@ function rowsToContacts(rows: string[][]): Contact[] {
 }
 
 export const googleSheetsConnector: DataConnector = {
-  id: "google-sheets",
-  name: "Google Sheets",
+  id: "google-sheets-padron",
+  name: "Google Sheets · Padrón",
   vendor: "Google LLC",
   category: "data",
-  description: "Padrón enriquecido como base de datos (lectura).",
+  description:
+    "Lee el padrón de ciudadanos desde un Google Sheet (solo lectura).",
   docsUrl: "https://developers.google.com/sheets/api",
   iconEmoji: "📊",
 
@@ -73,7 +76,7 @@ export const googleSheetsConnector: DataConnector = {
   ],
 
   async test(config?: Config): Promise<TestResult> {
-    const cfg = config ?? await getConnectorConfig("google-sheets");
+    const cfg = config ?? await getConnectorConfig("google-sheets-padron");
     const hasRealCreds = Boolean(cfg.GOOGLE_SERVICE_ACCOUNT_KEY && cfg.GOOGLE_SHEETS_SHEET_ID);
     if (!hasRealCreds) {
       return {
@@ -114,7 +117,7 @@ export const googleSheetsConnector: DataConnector = {
 
   async readPadron(_config, opts): Promise<Contact[]> {
     const limit = opts?.limit;
-    const cfg = await getConnectorConfig("google-sheets");
+    const cfg = await getConnectorConfig("google-sheets-padron");
     const hasRealCreds = Boolean(cfg.GOOGLE_SERVICE_ACCOUNT_KEY && cfg.GOOGLE_SHEETS_SHEET_ID);
     if (!hasRealCreds) {
       return limit ? mockPadron.slice(0, limit) : mockPadron;
