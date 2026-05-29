@@ -34,6 +34,7 @@ export default async function Landing({
       <About />
       <DataEthics />
       <ApiSection />
+      <AccessSection />
       <Contact state={params.contacto} />
       <Footer />
     </main>
@@ -69,6 +70,12 @@ function NavBar() {
           className="hidden text-[oklch(40%_0.04_250)] hover:text-[oklch(20%_0.06_250)] sm:inline"
         >
           Datos
+        </Link>
+        <Link
+          href="#acceso"
+          className="hidden text-[oklch(40%_0.04_250)] hover:text-[oklch(20%_0.06_250)] sm:inline"
+        >
+          Acceso
         </Link>
         <Link
           href="#contacto"
@@ -283,6 +290,92 @@ function ApiSection() {
   );
 }
 
+// ─── Access ───────────────────────────────────────────────────────────
+
+function AccessSection() {
+  return (
+    <section
+      id="acceso"
+      style={{ backgroundColor: "oklch(96% 0.012 80)" }}
+      className="border-t border-[oklch(80%_0.02_80)]/60"
+    >
+      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 py-24 md:grid-cols-[1fr_2fr]">
+        <SectionLabel n="04" title="Acceso" />
+        <div className="space-y-6">
+          <p className="max-w-[55ch] text-lg leading-relaxed">
+            El panel queda reservado para el equipo del Centro y
+            colaboradores autorizados. El ingreso es con cuenta de Google y
+            una allowlist explícita de mails: cada acceso queda
+            identificado, sin auto-registro.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <Link
+              href="/conectores"
+              className="inline-flex items-center gap-2 rounded-full bg-[oklch(28%_0.06_250)] px-6 py-3 text-sm font-medium text-[oklch(96%_0.01_80)] hover:bg-[oklch(20%_0.06_250)]"
+            >
+              <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="currentColor"
+              >
+                <path d="M21.35 11.1H12v2.9h5.35c-.23 1.4-1.66 4.1-5.35 4.1-3.22 0-5.85-2.66-5.85-5.95S8.78 6.2 12 6.2c1.84 0 3.07.78 3.77 1.45l2.57-2.48C16.71 3.6 14.55 2.7 12 2.7 6.92 2.7 2.8 6.8 2.8 12s4.12 9.3 9.2 9.3c5.32 0 8.83-3.74 8.83-9 0-.6-.07-1.05-.15-1.5z" />
+              </svg>
+              Ingresar con Google
+            </Link>
+            <Link
+              href="#contacto"
+              className="text-sm font-medium text-[oklch(30%_0.06_250)] underline-offset-4 hover:underline"
+            >
+              No tengo acceso, escribir
+            </Link>
+          </div>
+
+          <ul className="grid max-w-[55ch] grid-cols-1 gap-x-8 gap-y-3 pt-3 text-sm text-[oklch(40%_0.04_250)] sm:grid-cols-2">
+            <li className="flex items-baseline gap-3">
+              <span
+                aria-hidden
+                className="font-mono text-[10px] text-[oklch(60%_0.13_80)]"
+              >
+                ▸
+              </span>
+              <span>Login con Google · sin contraseñas propias</span>
+            </li>
+            <li className="flex items-baseline gap-3">
+              <span
+                aria-hidden
+                className="font-mono text-[10px] text-[oklch(60%_0.13_80)]"
+              >
+                ▸
+              </span>
+              <span>Allowlist por mail · sin auto-registro</span>
+            </li>
+            <li className="flex items-baseline gap-3">
+              <span
+                aria-hidden
+                className="font-mono text-[10px] text-[oklch(60%_0.13_80)]"
+              >
+                ▸
+              </span>
+              <span>Sesión auditada · queda registro de cada acción</span>
+            </li>
+            <li className="flex items-baseline gap-3">
+              <span
+                aria-hidden
+                className="font-mono text-[10px] text-[oklch(60%_0.13_80)]"
+              >
+                ▸
+              </span>
+              <span>Credenciales encriptadas en reposo (AES-GCM)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Endpoint({
   method,
   path,
@@ -326,7 +419,7 @@ function Contact({ state }: { state?: string }) {
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 py-24 md:grid-cols-[1fr_2fr]">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-[oklch(70%_0.08_80)]">
-            04 / Contacto
+            05 / Contacto
           </p>
           <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
             Escribinos.
