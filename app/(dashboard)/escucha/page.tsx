@@ -142,8 +142,11 @@ export default async function EscuchaPage() {
       </div>
 
       <p className="text-xs text-zinc-400">
-        Mock: GDELT/X/Reddit simulados. Con credenciales, los conectores de
-        listening traen menciones reales geo-filtradas a tu territorio.
+        GDELT trae prensa real (sin auth, geo-filtrada por país). X API trae
+        tweets reales si <code>X_API_BEARER_TOKEN</code> está configurado;
+        sin token cae a mock. Reddit sigue mock — falta wire del OAuth
+        client-credentials. Todos fallback a mock si la API real falla,
+        para no romper el dashboard.
       </p>
     </div>
   );
