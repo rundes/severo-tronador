@@ -6,6 +6,7 @@ import { VERSION_STRING } from "@/lib/version";
 import { Sidebar } from "@/components/dashboard/sidebar";
 
 const NAV = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/padron", label: "Padrón" },
   { href: "/escucha", label: "Escucha" },
   { href: "/segmentos", label: "Segmentos" },

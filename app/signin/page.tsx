@@ -15,7 +15,7 @@ export const metadata = {
 
 async function loginGoogle(formData: FormData) {
   "use server";
-  const callbackUrl = String(formData.get("callbackUrl") ?? "/conectores");
+  const callbackUrl = String(formData.get("callbackUrl") ?? "/dashboard");
   await signIn("google", { redirectTo: callbackUrl });
 }
 
@@ -37,7 +37,7 @@ export default async function SignInPage({
   const params = (await searchParams) ?? {};
   // Si ya hay sesión, redirigir al panel para no quedarnos en /signin.
   const session = await auth();
-  if (session) redirect(params.callbackUrl ?? "/conectores");
+  if (session) redirect(params.callbackUrl ?? "/dashboard");
 
   const errorKey = params.error;
   const errorMsg = errorKey ? ERRORS[errorKey] ?? "No pudimos completar el ingreso. Probá de nuevo." : null;
@@ -82,7 +82,7 @@ export default async function SignInPage({
           <input
             type="hidden"
             name="callbackUrl"
-            value={params.callbackUrl ?? "/conectores"}
+            value={params.callbackUrl ?? "/dashboard"}
           />
           <button
             type="submit"
