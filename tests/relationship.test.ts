@@ -177,6 +177,7 @@ describe("deriveRelationship — status", () => {
         { channel: "whatsapp", at: "x" },
         { channel: "sms", at: "x" },
         { channel: "voice", at: "x" },
+        { channel: "telegram", at: "x" },
       ],
     };
     const rel = deriveRelationship("1", raw, NOW);
@@ -209,6 +210,7 @@ describe("deriveRelationship — status", () => {
         ev({ channel: "whatsapp", contactedAt: recent, respondedAt: recent }),
         ev({ channel: "sms", contactedAt: recent, respondedAt: recent }),
         ev({ channel: "voice", contactedAt: recent, respondedAt: recent }),
+        ev({ channel: "telegram", contactedAt: recent, respondedAt: recent }),
       ],
       optOuts: [],
     };

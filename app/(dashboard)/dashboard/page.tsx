@@ -9,7 +9,7 @@ const CHANNEL_ICON: Record<Channel, string> = {
   email: "📧",
   whatsapp: "💬",
   sms: "📱",
-  voice: "☎️",
+  voice: "☎️", telegram: "✈️",
 };
 
 const WINDOWS: { days: WindowDays; label: string }[] = [

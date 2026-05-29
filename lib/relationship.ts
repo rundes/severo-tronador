@@ -3,15 +3,16 @@
 // reales, así que el historial sale del mock (lib/mock/relaciones.ts); la
 // maquinaria de cálculo es la definitiva.
 
-export type Channel = "email" | "whatsapp" | "sms" | "voice";
+export type Channel = "email" | "whatsapp" | "sms" | "voice" | "telegram";
 
-export const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice"];
+export const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice", "telegram"];
 
 // Cooldown mínimo entre contactos por canal, en días (§5.2). Se reduce a la
 // mitad si la persona respondió al último contacto del canal.
 export const COOLDOWN_DAYS: Record<Channel, number> = {
   email: 14,
   whatsapp: 30,
+  telegram: 7,
   sms: 30,
   voice: 60,
 };

@@ -12,7 +12,7 @@ const VOICE_MINUTES_PER_CALL = 2;
 // Connectors con free tier real: cost solo cuando se supera. Los demás
 // (telnyx-sms, telnyx-voice) cobran por unidad desde la primera; el limit
 // de la quota es un guardarraíl de gasto, no un free tier.
-const FREE_TIER_IDS = new Set<string>(["resend", "meta-wa-cloud"]);
+const FREE_TIER_IDS = new Set<string>(["resend", "meta-wa-cloud", "telegram-bot"]);
 
 export interface ChannelCost {
   channel: Channel;

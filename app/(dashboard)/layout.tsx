@@ -8,7 +8,7 @@ import { cerrarSesion } from "./sign-out-action";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/padron", label: "Padrón" },
+  { href: "/contactos", label: "Contactos" },
   { href: "/escucha", label: "Escucha" },
   { href: "/segmentos", label: "Segmentos" },
   { href: "/campanas", label: "Campañas" },

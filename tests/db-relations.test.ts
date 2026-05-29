@@ -123,13 +123,19 @@ describe("loadRawRelationships", () => {
     expect(r.get("1")?.events).toHaveLength(0);
   });
 
-  it("opt_out global expande a los 4 canales", async () => {
+  it("opt_out global expande a todos los canales", async () => {
     tables.opt_outs.push({ dni: "1", at: "2026-04-01T00:00:00Z", reason: "x" });
     const r = await load(["1"]);
     const channels = r.get("1")?.optOuts.map((o) => o.channel) ?? [];
     expect(channels).toEqual(
-      expect.arrayContaining(["email", "whatsapp", "sms", "voice"]),
+      expect.arrayContaining([
+        "email",
+        "whatsapp",
+        "sms",
+        "voice",
+        "telegram",
+      ]),
     );
-    expect(channels).toHaveLength(4);
+    expect(channels).toHaveLength(5);
   });
 });

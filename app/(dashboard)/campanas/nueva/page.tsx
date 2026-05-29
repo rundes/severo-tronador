@@ -16,7 +16,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   email: "📧 Email",
   whatsapp: "💬 WhatsApp",
   sms: "📱 SMS",
-  voice: "☎️ Voz",
+  voice: "☎️ Voz", telegram: "✈️ Telegram",
 };
 
 const ERROR_MSG: Record<string, string> = {

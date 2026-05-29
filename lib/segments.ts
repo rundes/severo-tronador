@@ -35,7 +35,7 @@ export interface SegmentFilter {
   // Contactabilidad
   hasEmail?: boolean;
   hasTelefono?: boolean;
-  preferredChannel?: "email" | "whatsapp" | "sms" | "voice";
+  preferredChannel?: "email" | "whatsapp" | "sms" | "voice" | "telegram";
 }
 
 export interface ContactWithRelationship {

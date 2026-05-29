@@ -2,10 +2,16 @@ import { describe, it, expect } from "vitest";
 import { estimateAllChannels } from "@/lib/segments-cost";
 
 describe("estimateAllChannels (Plan 02 F1.6)", () => {
-  it("devuelve 4 canales con shape esperado", async () => {
+  it("devuelve todos los canales con shape esperado", async () => {
     const costs = await estimateAllChannels(100);
     const channels = costs.map((c) => c.channel).sort();
-    expect(channels).toEqual(["email", "sms", "voice", "whatsapp"]);
+    expect(channels).toEqual([
+      "email",
+      "sms",
+      "telegram",
+      "voice",
+      "whatsapp",
+    ]);
     for (const c of costs) {
       expect(c.count).toBe(100);
       expect(c.unit).toBeTypeOf("string");

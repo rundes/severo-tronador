@@ -9,6 +9,7 @@ import { resendConnector } from "./resend";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
 import { telnyxSmsConnector } from "./telnyx-sms";
 import { telnyxVoiceConnector } from "./telnyx-voice";
+import { telegramBotConnector } from "./telegram-bot";
 import { claudeApiConnector } from "./claude-api";
 import { gdeltConnector } from "./gdelt";
 import { xApiConnector } from "./x-api";
@@ -22,6 +23,7 @@ export const connectors: Connector[] = [
   metaWaCloudConnector,
   telnyxSmsConnector,
   telnyxVoiceConnector,
+  telegramBotConnector,
   claudeApiConnector,
   gdeltConnector,
   xApiConnector,

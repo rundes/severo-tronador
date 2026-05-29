@@ -20,7 +20,7 @@ export interface SavedFilters {
   notContactedDays?: number;
   hasEmail?: boolean;
   hasTelefono?: boolean;
-  preferredChannel?: "email" | "whatsapp" | "sms" | "voice";
+  preferredChannel?: "email" | "whatsapp" | "sms" | "voice" | "telegram";
 }
 
 export interface SavedSegment {

@@ -16,6 +16,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   whatsapp: "WhatsApp",
   sms: "SMS",
   voice: "Voz",
+  telegram: "Telegram",
 };
 
 const OUTCOME_LABEL: Record<string, string> = Object.fromEntries(

@@ -90,6 +90,7 @@ function zeroChannelMap<T>(filler: () => T): Record<Channel, T> {
     whatsapp: filler(),
     sms: filler(),
     voice: filler(),
+    telegram: filler(),
   };
 }
 

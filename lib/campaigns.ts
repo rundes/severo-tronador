@@ -7,6 +7,7 @@ import { resendConnector } from "@/lib/connectors/resend";
 import { metaWaCloudConnector } from "@/lib/connectors/meta-wa-cloud";
 import { telnyxSmsConnector } from "@/lib/connectors/telnyx-sms";
 import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
+import { telegramBotConnector } from "@/lib/connectors/telegram-bot";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
@@ -279,6 +280,7 @@ const CONNECTOR_BY_CHANNEL: Partial<Record<Channel, OutreachConnector>> = {
   whatsapp: metaWaCloudConnector,
   sms: telnyxSmsConnector,
   voice: telnyxVoiceConnector,
+  telegram: telegramBotConnector,
 };
 
 export function outreachConnectorFor(

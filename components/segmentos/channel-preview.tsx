@@ -26,7 +26,29 @@ export function ChannelPreview({
       return <SmsPreview template={template} />;
     case "voice":
       return <VoicePreview template={template} />;
+    case "telegram":
+      return <TelegramPreview template={template} />;
   }
+}
+
+function TelegramPreview({ template }: { template: Template }) {
+  return (
+    <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        ✈️ Telegram
+      </div>
+      <div className="space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+        <div>Cuerpo (HTML básico permitido: &lt;b&gt;, &lt;i&gt;, &lt;a href&gt;):</div>
+        <pre className="whitespace-pre-wrap font-mono text-xs">
+          {template.cuerpo}
+        </pre>
+        <div className="text-zinc-400">
+          Solo destinatarios opt-in (tabla telegram_chats). Gratis, ilimitado
+          dentro del rate-limit de Telegram (30 msg/s).
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function EmailPreview({ template }: { template: Template }) {

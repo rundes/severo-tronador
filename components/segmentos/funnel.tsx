@@ -8,7 +8,7 @@ const CHANNEL_ICON: Record<Channel, string> = {
   email: "📧",
   whatsapp: "💬",
   sms: "📱",
-  voice: "☎️",
+  voice: "☎️", telegram: "✈️",
 };
 
 function pct(part: number, total: number): number {

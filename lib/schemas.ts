@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 // ── Enums compartidos ─────────────────────────────────────────────────────
-export const ChannelEnum = z.enum(["email", "whatsapp", "sms", "voice"]);
+export const ChannelEnum = z.enum(["email", "whatsapp", "sms", "voice", "telegram"]);
 
 export const SexoEnum = z.enum(["F", "M"]);
 
