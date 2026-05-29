@@ -1,17 +1,30 @@
 import { nuevaPlantilla } from "./actions";
 import { listTemplates, templateVars } from "@/lib/templates";
-import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
+import { SUPPORTED_VARS, buildVarMap } from "@/lib/interpolate-vars";
+import { loadContacts } from "@/lib/segments";
+import { TemplateEditor } from "@/components/templates/template-editor";
+import type { Contact } from "@/lib/connectors/types";
 
-export const metadata = { title: "Plantillas · Severo Tronador" };
-
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+export const metadata = { title: "Plantillas · Tronador" };
 
 const CHANNEL_ICON: Record<string, string> = {
   email: "📧",
   whatsapp: "💬",
   sms: "📱",
   voice: "☎️",
+};
+
+// Contacto de muestra para que el preview tenga datos reales si el padrón
+// está cargado, sino un demo razonable.
+const DEMO_CONTACT: Contact = {
+  dni: "demo",
+  nombre: "María",
+  apellido: "González",
+  barrio: "Centro",
+  circuito: "12",
+  mesa: "0034",
+  email: "maria@example.com",
+  telefono: "+5491155555555",
 };
 
 export default async function TemplatesPage({
@@ -22,18 +35,37 @@ export default async function TemplatesPage({
   const params = (await searchParams) ?? {};
   const templates = await listTemplates();
 
+  // Sample contact para el preview. Tomamos el primero del padrón para
+  // mantener el render puro (sin Math.random/Date.now de regla react/purity).
+  let sample: Contact = DEMO_CONTACT;
+  try {
+    const all = await loadContacts();
+    if (all.length > 0) sample = all[0].contact;
+  } catch {
+    // Fallback al demo si el padrón no carga.
+  }
+  const sampleLabel =
+    `${sample.nombre ?? ""} ${sample.apellido ?? ""}`.trim() || "demo";
+
+  // now anclado al día actual a mediodía UTC (estable dentro de un mismo día).
+  const now = new Date();
+  now.setUTCHours(12, 0, 0, 0);
+  const varMap = buildVarMap(sample, {
+    now: now.getTime(),
+    surveyUrl: "https://tronador.net.ar/encuesta/abc123",
+  });
+
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+    <div className="mx-auto max-w-5xl space-y-8">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Plantillas
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Mensajes por canal con variables. Se interpolan por destinatario al
-          enviar; las que no existen en el contacto caen a fallback seguro o
-          quedan vacías.
+        <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
+          Mensajes por canal con variables. Editor con preview lado a lado,
+          autocomplete y validación.
         </p>
-      </div>
+      </header>
 
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 hover:text-zinc-700">
@@ -41,10 +73,7 @@ export default async function TemplatesPage({
         </summary>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
           {SUPPORTED_VARS.map((v) => (
-            <div
-              key={v.key}
-              className="flex items-baseline gap-2 text-sm"
-            >
+            <div key={v.key} className="flex items-baseline gap-2 text-sm">
               <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {`{{${v.key}}}`}
               </code>
@@ -54,81 +83,70 @@ export default async function TemplatesPage({
         </dl>
       </details>
 
-      <div className="space-y-3">
-        {templates.map((t) => (
-          <div
-            key={t.id}
-            className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                {t.nombre}
-              </span>
-              <span className="font-mono text-xs text-zinc-400">
-                {CHANNEL_ICON[t.channel]} {t.channel} · {t.estado}
-              </span>
-            </div>
-            {t.asunto && (
-              <div className="mt-1 text-sm text-zinc-500">
-                Asunto: {t.asunto}
-              </div>
-            )}
-            <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">
-              {t.cuerpo}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {templateVars(`${t.asunto ?? ""} ${t.cuerpo}`).map((v) => (
-                <span
-                  key={v}
-                  className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-500 dark:bg-zinc-800"
-                >
-                  {`{{${v}}}`}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {params.error === "campos" && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
-          Completá nombre y cuerpo de la plantilla.
-        </div>
-      )}
-
-      <form
-        action={nuevaPlantilla}
-        className="space-y-3 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700"
-      >
-        <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+      {/* Nueva plantilla — editor rich */}
+      <section className="rounded-lg border border-dashed border-zinc-300 p-5 dark:border-zinc-700">
+        <h2 className="mb-4 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
           Nueva plantilla
-        </div>
-        <select name="channel" defaultValue="email" className={`w-full ${inputCls}`}>
-          <option value="email">📧 Email</option>
-          <option value="whatsapp">💬 WhatsApp</option>
-          <option value="sms">📱 SMS</option>
-          <option value="voice">☎️ Voz (guion IVR)</option>
-        </select>
-        <input name="nombre" required placeholder="Nombre interno" className={`w-full ${inputCls}`} />
-        <input
-          name="asunto"
-          placeholder="Asunto (solo email; admite variables)"
-          className={`w-full ${inputCls}`}
+        </h2>
+        {params.error === "campos" && (
+          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
+            Completá nombre y cuerpo de la plantilla.
+          </div>
+        )}
+        <TemplateEditor
+          action={nuevaPlantilla}
+          varMap={varMap}
+          sampleContactLabel={sampleLabel}
         />
-        <textarea
-          name="cuerpo"
-          required
-          rows={4}
-          placeholder="Cuerpo del mensaje. Usá {{nombre}}, {{barrio}}…"
-          className={`w-full ${inputCls}`}
-        />
-        <button
-          type="submit"
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Guardar plantilla
-        </button>
-      </form>
+      </section>
+
+      {/* Existentes */}
+      <section>
+        <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Existentes ({templates.length})
+        </h2>
+        {templates.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+            Sin plantillas guardadas.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {templates.map((t) => (
+              <li
+                key={t.id}
+                className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {t.nombre}
+                  </span>
+                  <span className="font-mono text-xs text-zinc-400">
+                    {CHANNEL_ICON[t.channel]} {t.channel} · {t.estado}
+                  </span>
+                </div>
+                {t.asunto && (
+                  <div className="mt-1 text-sm text-zinc-500">
+                    Asunto: {t.asunto}
+                  </div>
+                )}
+                <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">
+                  {t.cuerpo}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {templateVars(`${t.asunto ?? ""} ${t.cuerpo}`).map((v) => (
+                    <span
+                      key={v}
+                      className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-500 dark:bg-zinc-800"
+                    >
+                      {`{{${v}}}`}
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

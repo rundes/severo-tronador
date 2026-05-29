@@ -107,3 +107,49 @@ export const SUPPORTED_VARS: { key: string; desc: string }[] = [
   { key: "org", desc: "Nombre de la organización" },
   { key: "app", desc: "Nombre del producto" },
 ];
+
+// Set lookup eficiente de variables soportadas.
+export const SUPPORTED_VAR_KEYS = new Set(SUPPORTED_VARS.map((v) => v.key));
+
+// ── Helpers para UI cliente ──────────────────────────────────────────────
+
+// Pre-resuelve TODAS las variables soportadas para un contacto+context.
+// Útil para pasar al cliente como Record<string,string> y que el editor
+// haga preview sin acceder a process.env ni recalcular en cada keystroke.
+export function buildVarMap(
+  contact: Contact,
+  ctx: InterpolationContext = {},
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const v of SUPPORTED_VARS) {
+    const derived = resolveDerived(v.key, contact, ctx);
+    if (derived != null && derived !== "") {
+      out[v.key] = derived;
+      continue;
+    }
+    const direct = (contact as unknown as Record<string, unknown>)[v.key];
+    if (direct != null && direct !== "") {
+      out[v.key] = String(direct);
+      continue;
+    }
+    out[v.key] = FALLBACKS[v.key] ?? "";
+  }
+  return out;
+}
+
+// Pure: interpola usando un map pre-resuelto. Safe para cliente.
+export function interpolateWithMap(
+  text: string,
+  vars: Record<string, string>,
+): string {
+  return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {
+    return vars[key] ?? "";
+  });
+}
+
+// Extrae las variables que el texto referencia.
+export function extractUsedVars(text: string): string[] {
+  return Array.from(
+    new Set([...text.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1])),
+  );
+}
