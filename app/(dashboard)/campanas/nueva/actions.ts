@@ -8,6 +8,8 @@ import {
   summarizeZodError,
 } from "@/lib/schemas";
 import { decodeQuery } from "@/lib/segment-query";
+import { logAudit } from "@/lib/audit";
+import { auth } from "@/lib/auth";
 
 export async function crearCampana(formData: FormData) {
   const raw = formToObject(formData);
@@ -49,7 +51,21 @@ export async function crearCampana(formData: FormData) {
     ...parsed.data,
     segmentQuery: segmentQuery ?? undefined,
   });
-  if (res.ok) redirect(`/campanas/${res.campaign.id}`);
+  if (res.ok) {
+    const session = await auth();
+    await logAudit({
+      action: "campaign.create",
+      actor: session?.user?.email ?? null,
+      entity_type: "campaign",
+      entity_id: res.campaign.id,
+      details: {
+        nombre: res.campaign.nombre,
+        channel: res.campaign.channel,
+        total: res.campaign.metrics.total,
+      },
+    });
+    redirect(`/campanas/${res.campaign.id}`);
+  }
 
   const params = preservedParams(formData);
   params.set("error", res.reason);

@@ -14,6 +14,7 @@ const NAV = [
   { href: "/respuestas", label: "Respuestas" },
   { href: "/templates", label: "Plantillas" },
   { href: "/conectores", label: "Conectores" },
+  { href: "/auditoria", label: "Auditoría" },
 ];
 
 export default async function DashboardLayout({

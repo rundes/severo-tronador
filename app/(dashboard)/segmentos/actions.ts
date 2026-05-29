@@ -14,6 +14,7 @@ import {
   getSavedSegment,
   saveSegment,
 } from "@/lib/segments-store";
+import { logAudit } from "@/lib/audit";
 
 const GuardarSegmentoSchema = z.object({
   nombre: z.string().trim().min(1, "Nombre requerido").max(120),
@@ -51,7 +52,14 @@ export async function guardarSegmento(formData: FormData) {
 
   const session = await auth();
   const email = session?.user?.email ?? null;
-  await saveSegment(parsed.data.nombre, parsed.data.filtros, email ?? undefined);
+  const saved = await saveSegment(parsed.data.nombre, parsed.data.filtros, email ?? undefined);
+  await logAudit({
+    action: "segment.save",
+    actor: email,
+    entity_type: "segment",
+    entity_id: saved.id,
+    details: { nombre: saved.nombre },
+  });
   revalidatePath("/segmentos");
   redirect("/segmentos?guardado=1");
 }
@@ -62,5 +70,13 @@ export async function borrarSegmento(formData: FormData) {
   const seg = await getSavedSegment(id);
   if (!seg) return;
   await deleteSegment(id);
+  const session = await auth();
+  await logAudit({
+    action: "segment.delete",
+    actor: session?.user?.email ?? null,
+    entity_type: "segment",
+    entity_id: id,
+    details: { nombre: seg.nombre },
+  });
   revalidatePath("/segmentos");
 }

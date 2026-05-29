@@ -1,0 +1,99 @@
+// Audit log — registra acciones del usuario en el panel (Plan 02 F6).
+// Memory fallback para dev sin Supabase.
+
+import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { log } from "@/lib/logger";
+
+export type AuditAction =
+  | "campaign.create"
+  | "campaign.executed"
+  | "flow.create"
+  | "flow.start"
+  | "flow.delete"
+  | "segment.save"
+  | "segment.delete"
+  | "template.create"
+  | "connector.config"
+  | "connector.toggle"
+  | "listening.config";
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  actor: string | null;
+  action: AuditAction;
+  entity_type: string | null;
+  entity_id: string | null;
+  details: Record<string, unknown>;
+}
+
+interface MemStore {
+  __audit?: AuditEntry[];
+}
+const g = globalThis as unknown as MemStore;
+const mem = (g.__audit ??= []);
+
+export interface LogAuditInput {
+  action: AuditAction;
+  actor?: string | null;
+  entity_type?: string;
+  entity_id?: string;
+  details?: Record<string, unknown>;
+}
+
+// Fire-and-forget — no bloquea la action si falla el log.
+export async function logAudit(input: LogAuditInput): Promise<void> {
+  const entry = {
+    actor: input.actor ?? null,
+    action: input.action,
+    entity_type: input.entity_type ?? null,
+    entity_id: input.entity_id ?? null,
+    details: input.details ?? {},
+  };
+  if (!dbConfigured()) {
+    mem.push({
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      ...entry,
+    });
+    return;
+  }
+  try {
+    const { error } = await getSupabase().from("audit_log").insert(entry);
+    if (error) {
+      log.warn("audit.insert_failed", { error: error.message, action: input.action });
+    }
+  } catch (e) {
+    log.warn("audit.exception", { msg: (e as Error).message });
+  }
+}
+
+export interface ListAuditOptions {
+  limit?: number;
+  action?: AuditAction;
+  actor?: string;
+}
+
+export async function listAudit(
+  opts: ListAuditOptions = {},
+): Promise<AuditEntry[]> {
+  const limit = opts.limit ?? 100;
+  if (!dbConfigured()) {
+    let out = [...mem];
+    if (opts.action) out = out.filter((e) => e.action === opts.action);
+    if (opts.actor) out = out.filter((e) => e.actor === opts.actor);
+    return out
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, limit);
+  }
+  let q = getSupabase()
+    .from("audit_log")
+    .select("*")
+    .order("at", { ascending: false })
+    .limit(limit);
+  if (opts.action) q = q.eq("action", opts.action);
+  if (opts.actor) q = q.eq("actor", opts.actor);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as AuditEntry[];
+}

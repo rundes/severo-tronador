@@ -10,6 +10,7 @@ import {
   startFlow,
   type ConditionKind,
 } from "@/lib/flows";
+import { logAudit } from "@/lib/audit";
 import { ChannelEnum, SegmentFilterSchema } from "@/lib/schemas";
 import { decodeQuery } from "@/lib/segment-query";
 
@@ -85,7 +86,7 @@ export async function crearFlow(formData: FormData) {
   const segment_filter =
     advancedQuery ?? (parsedFilter && parsedFilter.success ? parsedFilter.data : {});
 
-  await createFlow({
+  const flow = await createFlow({
     nombre: parsed.data.nombre,
     segment_filter,
     steps: parsed.data.steps.map((s) => ({
@@ -93,11 +94,18 @@ export async function crearFlow(formData: FormData) {
       channel: s.channel,
       template_id: s.template_id,
       condition_kind: s.condition_kind as ConditionKind,
-      position: 0, // sobrescrito en createFlow
+      position: 0,
     })),
     created_by: session?.user?.email ?? undefined,
     send_window_start_hour: parsed.data.send_window_start_hour ?? null,
     send_window_end_hour: parsed.data.send_window_end_hour ?? null,
+  });
+  await logAudit({
+    action: "flow.create",
+    actor: session?.user?.email ?? null,
+    entity_type: "flow",
+    entity_id: flow.id,
+    details: { nombre: flow.nombre, steps: flow.steps.length },
   });
   revalidatePath("/campanas/flows");
   redirect("/campanas/flows?creado=1");
@@ -110,6 +118,14 @@ export async function iniciarFlow(formData: FormData) {
   if (!res.ok) {
     redirect(`/campanas/flows?error=${res.reason}`);
   }
+  const session = await auth();
+  await logAudit({
+    action: "flow.start",
+    actor: session?.user?.email ?? null,
+    entity_type: "flow",
+    entity_id: id,
+    details: { enqueued: res.enqueued },
+  });
   revalidatePath("/campanas/flows");
   redirect(`/campanas/flows?iniciado=1`);
 }
@@ -118,5 +134,12 @@ export async function borrarFlow(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   await deleteFlow(id);
+  const session = await auth();
+  await logAudit({
+    action: "flow.delete",
+    actor: session?.user?.email ?? null,
+    entity_type: "flow",
+    entity_id: id,
+  });
   revalidatePath("/campanas/flows");
 }
