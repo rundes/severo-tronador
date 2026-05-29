@@ -321,27 +321,50 @@ export default async function EscuchaPage({
 
       {emerging.length > 0 && (
         <div className="space-y-2">
-          {emerging.map((t) => (
-            <div
-              key={t.label}
-              className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-950/30"
-            >
-              <div>
-                <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                  Tema emergente: <strong>{t.label}</strong>
-                </div>
-                <div className="text-xs text-amber-700 dark:text-amber-300">
-                  {t.recent} esta semana vs {t.prior} la previa.
-                </div>
-              </div>
-              <Link
-                href={`/campanas/nueva?tema=${encodeURIComponent(t.label)}`}
-                className="shrink-0 rounded bg-amber-900 px-3 py-1.5 text-sm text-amber-50 hover:bg-amber-800 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-200"
+          {emerging.map((t) => {
+            const sourceBreakdown = Object.entries(t.bySource ?? {})
+              .filter(([, v]) => v.recent > 0)
+              .sort(([, a], [, b]) => b.recent - a.recent);
+            return (
+              <div
+                key={t.label}
+                className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-950/30"
               >
-                Diseñar encuesta →
-              </Link>
-            </div>
-          ))}
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                      Tema emergente: <strong>{t.label}</strong>
+                    </div>
+                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                      {t.recent} esta semana vs {t.prior} la previa.
+                    </div>
+                  </div>
+                  <Link
+                    href={`/campanas/nueva?tema=${encodeURIComponent(t.label)}`}
+                    className="shrink-0 rounded bg-amber-900 px-3 py-1.5 text-sm text-amber-50 hover:bg-amber-800 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-200"
+                  >
+                    Diseñar encuesta →
+                  </Link>
+                </div>
+                {sourceBreakdown.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                    {sourceBreakdown.map(([src, v]) => (
+                      <span
+                        key={src}
+                        className="rounded bg-amber-100 px-1.5 py-0.5 font-mono uppercase tracking-wider text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                        title={`${v.recent} recent · ${v.prior} prior`}
+                      >
+                        {src} · {v.recent}
+                        {v.prior > 0 && (
+                          <span className="opacity-60"> / {v.prior}</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

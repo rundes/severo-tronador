@@ -8,6 +8,12 @@ import { claudeApiConnector, type CodingOutput } from "@/lib/connectors/claude-a
 import { getListeningConfig } from "@/lib/listening-config";
 import { cacheHasFreshItems, readCachedItems } from "@/lib/listening-cache";
 import {
+  DEFAULT_EMERGENCE,
+  detectEmerging,
+  sortByEmergence,
+  type TopicBreakdown,
+} from "@/lib/emergence";
+import {
   aggregateTagsBySentiment,
   classifySentiment,
   type Sentiment,
@@ -16,15 +22,17 @@ import {
 
 // Anclado al dataset mock (2026-05-26). El real usaría Date.now().
 const NOW = Date.UTC(2026, 4, 26);
-const DAY = 24 * 60 * 60 * 1000;
-const WINDOW = 7 * DAY;
 
 export interface Topic {
   label: string;
-  recent: number; // últimos 7 días
-  prior: number; // 7–14 días atrás (baseline)
-  emerging: boolean; // recent >= 3× baseline
+  recent: number;
+  prior: number;
+  emerging: boolean;
   examples: string[];
+  // Plan 05 F6: breakdown por fuente (source). Permite ver dónde está
+  // creciendo cada tema (ej "inseguridad" emerge en Meta CL pero no en
+  // GDELT). bySource agrupa por item.source crudo (meta-ig, x-api, etc).
+  bySource: Record<string, TopicBreakdown>;
 }
 
 export interface FeedItem {
@@ -96,27 +104,13 @@ export async function runListening(): Promise<ListeningResult> {
     )
   ).output as CodingOutput;
 
-  const topics: Topic[] = coding.themes
-    .map((t) => {
-      const withTheme = items.filter((i) =>
-        i.text.toLowerCase().includes(t.label),
-      );
-      const age = (i: ListenItem) =>
-        i.publishedAt ? NOW - +new Date(i.publishedAt) : Infinity;
-      const recent = withTheme.filter((i) => age(i) <= WINDOW).length;
-      const prior = withTheme.filter(
-        (i) => age(i) > WINDOW && age(i) <= 2 * WINDOW,
-      ).length;
-      const emerging = recent >= 3 && (prior === 0 || recent / prior >= 3);
-      return {
-        label: t.label,
-        recent,
-        prior,
-        emerging,
-        examples: withTheme.slice(0, 2).map((i) => i.text),
-      };
-    })
-    .sort((a, b) => Number(b.emerging) - Number(a.emerging) || b.recent - a.recent);
+  const topics: Topic[] = sortByEmergence(
+    detectEmerging(
+      coding.themes.map((t) => t.label),
+      items,
+      { ...DEFAULT_EMERGENCE, now: NOW },
+    ),
+  );
 
   const bySource: Record<string, number> = {};
   for (const i of items) bySource[i.source] = (bySource[i.source] ?? 0) + 1;
