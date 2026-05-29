@@ -29,7 +29,8 @@ export const telnyxVoiceConnector: OutreachConnector = {
   iconEmoji: "☎️",
 
   capabilities: [
-    { id: "voice.outbound_call", label: "Llamada saliente" },
+    // ~$0.004/min outbound a fijos AR. La estimación de costo asume 2min/llamada.
+    { id: "voice.outbound_call", label: "Llamada saliente", costPerUnit: 0.004 },
     { id: "voice.ivr_flow", label: "Flujo IVR" },
   ],
 

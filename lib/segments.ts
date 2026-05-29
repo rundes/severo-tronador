@@ -125,6 +125,75 @@ export function applySegment(
   });
 }
 
+// ── Embudo progresivo (Plan 02 — F1.4) ───────────────────────────────────
+// Aplica cada filtro acumulativamente y devuelve cuántos sobreviven en cada
+// paso. La UI lo renderiza para mostrar dónde se cae la audiencia y permite
+// detectar filtros demasiado agresivos.
+export interface FunnelStep {
+  key: string; // ej "sexo", "edadMin", "barrio", "healthBands"
+  label: string; // descripción legible
+  count: number; // contactos restantes después de aplicar este filtro
+  delta: number; // cuántos cayeron en este paso (relativo al anterior)
+}
+
+// Orden en que se evalúan los filtros para el embudo. Va de cuts grandes
+// (demografía) a cuts finos (actividad).
+const FUNNEL_ORDER: { key: keyof SegmentFilter; label: (v: unknown) => string }[] = [
+  { key: "sexo", label: (v) => `sexo = ${v}` },
+  { key: "edadMin", label: (v) => `edad ≥ ${v}` },
+  { key: "edadMax", label: (v) => `edad ≤ ${v}` },
+  { key: "barrio", label: (v) => `barrio = ${v}` },
+  { key: "circuito", label: (v) => `circuito = ${v}` },
+  { key: "mesa", label: (v) => `mesa = ${v}` },
+  { key: "healthMin", label: (v) => `salud ≥ ${v}` },
+  {
+    key: "healthBands",
+    label: (v) => `banda ∈ {${(v as string[]).join(", ")}}`,
+  },
+  {
+    key: "respondedWithinDays",
+    label: (v) => `respondió últimos ${v}d`,
+  },
+  {
+    key: "notContactedDays",
+    label: (v) => `sin contacto hace ≥ ${v}d`,
+  },
+  { key: "hasEmail", label: (v) => (v === true ? "tiene email" : "sin email") },
+  {
+    key: "hasTelefono",
+    label: (v) => (v === true ? "tiene teléfono" : "sin teléfono"),
+  },
+  {
+    key: "preferredChannel",
+    label: (v) => `prefiere ${v}`,
+  },
+];
+
+export function buildFunnel(
+  all: ContactWithRelationship[],
+  filter: SegmentFilter,
+  now = Date.now(),
+): FunnelStep[] {
+  const steps: FunnelStep[] = [];
+  let prev = all.length;
+  let accumulated: SegmentFilter = {};
+  for (const { key, label } of FUNNEL_ORDER) {
+    const value = filter[key];
+    if (value == null || value === "" || (Array.isArray(value) && value.length === 0))
+      continue;
+    accumulated = { ...accumulated, [key]: value };
+    const remaining = applySegment(all, accumulated, now).length;
+    steps.push({
+      key: key as string,
+      label: label(value),
+      count: remaining,
+      delta: prev - remaining,
+    });
+    prev = remaining;
+  }
+  return steps;
+}
+
 export function barriosDisponibles(all: ContactWithRelationship[]): string[] {
   return Array.from(
     new Set(all.map((c) => c.contact.barrio).filter(Boolean) as string[]),

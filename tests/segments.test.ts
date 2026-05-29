@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applySegment,
   barriosDisponibles,
+  buildFunnel,
   edadDe,
   filterFromParams,
   loadContacts,
@@ -286,6 +287,43 @@ describe("barriosDisponibles", () => {
       row({ dni: "3", barrio: undefined }),
     ];
     expect(barriosDisponibles(all)).toEqual(["Centro"]);
+  });
+});
+
+describe("buildFunnel (Plan 02 F1.4)", () => {
+  const all = [
+    row({ dni: "1", sexo: "F", barrio: "Centro", fecha_nac: "1990-01-15" }),
+    row({ dni: "2", sexo: "M", barrio: "Norte", fecha_nac: "2000-01-01" }),
+    row({ dni: "3", sexo: "F", barrio: "Centro", fecha_nac: "1970-01-01" }, 50),
+    row({ dni: "4", sexo: "M", barrio: "Sur" }, 30),
+  ];
+
+  it("sin filtros → [] vacío", () => {
+    expect(buildFunnel(all, {})).toEqual([]);
+  });
+
+  it("filtro único → 1 step con delta = caídas", () => {
+    const out = buildFunnel(all, { sexo: "F" });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ key: "sexo", count: 2, delta: 2 });
+  });
+
+  it("múltiples filtros se acumulan con delta correcto", () => {
+    const out = buildFunnel(all, { sexo: "F", barrio: "Centro" });
+    expect(out.map((s) => s.key)).toEqual(["sexo", "barrio"]);
+    // sexo=F: 4 → 2 (cae 2). barrio=Centro: 2 → 2 (las dos F son Centro).
+    expect(out[0]).toMatchObject({ count: 2, delta: 2 });
+    expect(out[1]).toMatchObject({ count: 2, delta: 0 });
+  });
+
+  it("ignora arrays vacíos como filtro inactivo", () => {
+    expect(buildFunnel(all, { healthBands: [] })).toEqual([]);
+  });
+
+  it("label legible por filtro", () => {
+    const out = buildFunnel(all, { sexo: "F", barrio: "Centro" });
+    expect(out[0].label).toBe("sexo = F");
+    expect(out[1].label).toBe("barrio = Centro");
   });
 });
 

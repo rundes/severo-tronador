@@ -33,7 +33,9 @@ export const metaWaCloudConnector: OutreachConnector = {
   iconEmoji: "💬",
 
   capabilities: [
-    { id: "wa.send_template", label: "Enviar plantilla aprobada" },
+    // 1k conversations/mes free. Después ~$0.01-0.05 según país/categoría;
+    // usamos $0.02 como estimación AR business-initiated.
+    { id: "wa.send_template", label: "Enviar plantilla aprobada", costPerUnit: 0.02 },
     { id: "wa.send_freeform_in_24h_window", label: "Texto libre (ventana 24h)" },
   ],
 

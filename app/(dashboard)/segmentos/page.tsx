@@ -5,9 +5,12 @@ import { HealthBadge } from "@/components/health-badge";
 import {
   applySegment,
   barriosDisponibles,
+  buildFunnel,
   filterFromParams,
   loadContacts,
 } from "@/lib/segments";
+import { estimateAllChannels } from "@/lib/segments-cost";
+import { CostPreview, FunnelView } from "@/components/segmentos/funnel";
 import {
   CHANNELS,
   channelAvailable,
@@ -47,6 +50,8 @@ export default async function SegmentosPage({
   const all = await loadContacts();
   const matched = applySegment(all, filter);
   const saved = await listSavedSegments();
+  const funnel = buildFunnel(all, filter);
+  const costs = matched.length > 0 ? await estimateAllChannels(matched.length) : [];
 
   const bands = { green: 0, yellow: 0, red: 0 };
   for (const m of matched) bands[healthBand(m.rel.healthScore)]++;
@@ -172,6 +177,8 @@ export default async function SegmentosPage({
         </button>
       </form>
 
+      <FunnelView total={all.length} steps={funnel} />
+
       <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <div className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
           {total}{" "}
@@ -235,6 +242,8 @@ export default async function SegmentosPage({
           </div>
         )}
       </div>
+
+      {costs.length > 0 && <CostPreview costs={costs} />}
 
       <div>
         <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
