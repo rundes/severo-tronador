@@ -36,6 +36,7 @@ interface PendingRow {
   flow_id: string | null;
   flow_step_position: number | null;
   condition_kind: ConditionKind | null;
+  variant_id: string | null;
 }
 
 function backoffMs(attempt: number): number {
@@ -191,6 +192,7 @@ export async function GET(req: Request) {
         provider_message_id: result.providerMessageId ?? null,
         delivery: null,
         token: row.token,
+        variant_id: row.variant_id ?? null,
         created_at: new Date().toISOString(),
       };
       const { error: envErr } = await db.from("envios").insert(envioRow);

@@ -14,6 +14,7 @@ import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
+import { pickVariant, type Variant } from "@/lib/ab-test";
 import { optedOutSet } from "@/lib/optout";
 import { isEnabled } from "@/lib/connectors/config";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
@@ -32,6 +33,8 @@ export interface Envio {
   token?: string;
   // Estado de entrega que llega por webhook del provider (F4+).
   delivery?: "delivered" | "read" | "failed";
+  // A/B testing: id de la variante con la que se envió (F5).
+  variantId?: string;
 }
 
 function baseUrl(): string {
@@ -64,6 +67,10 @@ export interface Campaign {
   // discriminado en runtime por isSegmentQuery().
   segmentFilter?: SegmentFilter;
   segmentQuery?: SegmentQuery;
+  // A/B testing (F5): si está vacío, single variant (usa templateId).
+  // Si tiene 2+, executeCampaign hace pickVariant per destinatario y
+  // persiste variant_id en envios.
+  variants: Variant[];
   preguntas: string[];
   createdAt: string;
   estado: CampaignEstado;
@@ -94,6 +101,7 @@ interface CampanaRow {
   // jsonb: SegmentFilter (flat) o SegmentQuery (tree). El runtime distingue
   // por presencia de `type: "group"`.
   segment_filter: SegmentFilter | SegmentQuery;
+  variants: Variant[];
   preguntas: string[];
   estado: CampaignEstado;
   metrics: Campaign["metrics"];
@@ -129,6 +137,7 @@ interface EnvioRow {
   provider_message_id: string | null;
   delivery: NonNullable<Envio["delivery"]> | null;
   token: string | null;
+  variant_id: string | null;
   created_at: string;
 }
 
@@ -140,6 +149,7 @@ function campaignToRow(c: Campaign): CampanaRow {
     template_id: c.templateId,
     // Si la campaña es query-based, persistimos el árbol; sino el filter.
     segment_filter: c.segmentQuery ?? c.segmentFilter ?? {},
+    variants: c.variants ?? [],
     preguntas: c.preguntas,
     estado: c.estado,
     metrics: c.metrics,
@@ -159,6 +169,7 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
     templateId: row.template_id,
     segmentFilter: isQuery ? undefined : (sf as SegmentFilter),
     segmentQuery: isQuery ? (sf as SegmentQuery) : undefined,
+    variants: Array.isArray(row.variants) ? row.variants : [],
     preguntas: row.preguntas,
     createdAt: row.created_at,
     estado: row.estado,
@@ -178,6 +189,7 @@ function envioToRow(e: Envio, campaignId: string, createdAt: string): EnvioRow {
     provider_message_id: e.providerMessageId ?? null,
     delivery: e.delivery ?? null,
     token: e.token ?? null,
+    variant_id: e.variantId ?? null,
     created_at: createdAt,
   };
 }
@@ -193,6 +205,7 @@ function rowToEnvio(row: EnvioRow): Envio {
     providerMessageId: row.provider_message_id ?? undefined,
     token: row.token ?? undefined,
     delivery: row.delivery ?? undefined,
+    variantId: row.variant_id ?? undefined,
   };
 }
 
@@ -284,6 +297,10 @@ export type ExecuteInput = {
   segmentFilter?: SegmentFilter;
   segmentQuery?: SegmentQuery;
   preguntas?: string[];
+  // A/B testing: si trae 2+ variantes, executeCampaign hace pickVariant
+  // por destinatario. Cada variante apunta a su propio template_id (puede
+  // ser el mismo templateId del input para una variante baseline).
+  variants?: Variant[];
 };
 
 export type ExecuteResult =
@@ -299,11 +316,35 @@ export async function executeCampaign(
   // No enviar por un conector desactivado desde el panel.
   if (!(await isEnabled(connector.id))) return { ok: false, reason: "no_connector" };
 
-  const template = await getTemplate(input.templateId);
-  if (!template) return { ok: false, reason: "no_template" };
+  const baseTemplate = await getTemplate(input.templateId);
+  if (!baseTemplate) return { ok: false, reason: "no_template" };
+  type Tpl = NonNullable<typeof baseTemplate>;
+  const safeBase: Tpl = baseTemplate;
+
+  // A/B testing: resolver templates de cada variante. Mismo input.templateId
+  // sirve como baseline si la variante no lo override. Si alguna variante
+  // referencia un template_id que no existe → fallar antes de tocar nada.
+  const variants = input.variants ?? [];
+  const variantTemplates = new Map<string, Tpl>();
+  variantTemplates.set(input.templateId, safeBase);
+  for (const v of variants) {
+    if (!variantTemplates.has(v.template_id)) {
+      const t = await getTemplate(v.template_id);
+      if (!t) return { ok: false, reason: "no_template" };
+      variantTemplates.set(v.template_id, t);
+    }
+  }
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
   const all = await loadContacts();
+
+  // Helper local: resuelve template + variantId para un contacto.
+  function resolveFor(dni: string): { tpl: Tpl; variantId?: string } {
+    if (variants.length === 0) return { tpl: safeBase };
+    const v = pickVariant(variants, dni, campaignId);
+    if (!v) return { tpl: safeBase };
+    return { tpl: variantTemplates.get(v.template_id) ?? safeBase, variantId: v.id };
+  }
   const matched = input.segmentQuery
     ? applyQuery(all, input.segmentQuery)
     : applySegment(all, input.segmentFilter ?? {});
@@ -358,14 +399,13 @@ export async function executeCampaign(
   // ── Memory path (dev, sin Supabase): envío inline síncrono.
   if (!dbConfigured()) {
     for (const m of sendable) {
+      const { tpl, variantId } = resolveFor(m.contact.dni);
       const token = await createToken(campaignId, m.contact.dni);
       const url = `${baseUrl()}/encuesta/${token}`;
       const result = await connector.send(
         {
-          subject: template.asunto
-            ? interpolate(template.asunto, m.contact)
-            : undefined,
-          body: buildBody(template.cuerpo, m.contact, url),
+          subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : undefined,
+          body: buildBody(tpl.cuerpo, m.contact, url),
         },
         m.contact,
       );
@@ -377,6 +417,7 @@ export async function executeCampaign(
         reason: result.error,
         providerMessageId: result.providerMessageId,
         token,
+        variantId,
       });
     }
     const campaign: Campaign = {
@@ -384,7 +425,9 @@ export async function executeCampaign(
       nombre: input.nombre,
       channel: input.channel,
       templateId: input.templateId,
-      segmentFilter: input.segmentFilter, segmentQuery: input.segmentQuery,
+      segmentFilter: input.segmentFilter,
+      segmentQuery: input.segmentQuery,
+      variants,
       preguntas,
       createdAt,
       estado: "enviada",
@@ -402,8 +445,9 @@ export async function executeCampaign(
 
   // ── DB path: encolar sendable en envio_queue. El cron
   // /api/cron/send-queue procesa async respetando rate limit por provider.
-  const queueRows: EnvioQueueRow[] = [];
+  const queueRows: (EnvioQueueRow & { variant_id?: string | null })[] = [];
   for (const m of sendable) {
+    const { tpl, variantId } = resolveFor(m.contact.dni);
     const token = await createToken(campaignId, m.contact.dni);
     const url = `${baseUrl()}/encuesta/${token}`;
     queueRows.push({
@@ -412,12 +456,11 @@ export async function executeCampaign(
       connector_id: connector.id,
       contact: m.contact,
       template: {
-        subject: template.asunto
-          ? interpolate(template.asunto, m.contact)
-          : null,
-        body: buildBody(template.cuerpo, m.contact, url),
+        subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : null,
+        body: buildBody(tpl.cuerpo, m.contact, url),
       },
       token,
+      variant_id: variantId ?? null,
     });
   }
 
@@ -427,7 +470,9 @@ export async function executeCampaign(
     nombre: input.nombre,
     channel: input.channel,
     templateId: input.templateId,
-    segmentFilter: input.segmentFilter, segmentQuery: input.segmentQuery,
+    segmentFilter: input.segmentFilter,
+    segmentQuery: input.segmentQuery,
+    variants,
     preguntas,
     createdAt,
     // Si no hay nada que encolar (todo opted-out o cooling), termina ya.

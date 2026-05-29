@@ -47,9 +47,30 @@ export async function crearCampana(formData: FormData) {
     redirect(`/campanas/nueva?${params}`);
   }
 
+  // A/B testing: si el form trae variant_b_template, armamos array de
+  // variantes con pesos. Mantenemos el templateId como A.
+  const variantBTemplate = String(formData.get("variant_b_template") ?? "").trim();
+  const weightA = Number(formData.get("variant_a_weight") ?? 50);
+  const weightB = Number(formData.get("variant_b_weight") ?? 50);
+  const variants = variantBTemplate
+    ? [
+        {
+          id: "A",
+          template_id: parsed.data.templateId,
+          weight: Number.isFinite(weightA) ? weightA : 50,
+        },
+        {
+          id: "B",
+          template_id: variantBTemplate,
+          weight: Number.isFinite(weightB) ? weightB : 50,
+        },
+      ]
+    : undefined;
+
   const res = await executeCampaign({
     ...parsed.data,
     segmentQuery: segmentQuery ?? undefined,
+    variants,
   });
   if (res.ok) {
     const session = await auth();

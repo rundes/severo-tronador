@@ -196,6 +196,58 @@ export default async function NuevaCampanaPage({
             </select>
           </label>
 
+          <details className="rounded-lg border border-dashed border-zinc-300 p-3 text-xs dark:border-zinc-700">
+            <summary className="cursor-pointer font-medium uppercase tracking-[0.18em] text-zinc-500">
+              A/B testing (opcional)
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-zinc-500">
+                Activá la variante B con otra plantilla. Los destinatarios se
+                reparten determinísticamente por hash de DNI; el mismo contacto
+                cae siempre en la misma variante.
+              </p>
+              <label className="flex flex-col gap-1 text-zinc-500">
+                Plantilla variante B
+                <select
+                  name="variant_b_template"
+                  defaultValue=""
+                  className={inputCls}
+                >
+                  <option value="">— sin A/B —</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-zinc-500">
+                  Peso A (%)
+                  <input
+                    type="number"
+                    name="variant_a_weight"
+                    min={1}
+                    max={99}
+                    defaultValue={50}
+                    className={inputCls}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-zinc-500">
+                  Peso B (%)
+                  <input
+                    type="number"
+                    name="variant_b_weight"
+                    min={1}
+                    max={99}
+                    defaultValue={50}
+                    className={inputCls}
+                  />
+                </label>
+              </div>
+            </div>
+          </details>
+
           <label className="flex flex-col gap-1 text-xs text-zinc-500">
             Preguntas de la encuesta (una por línea)
             <textarea
