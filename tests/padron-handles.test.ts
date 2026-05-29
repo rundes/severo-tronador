@@ -13,6 +13,15 @@ describe("padron-handles", () => {
     expect(normalizeHandle("anaperez")).toBe("anaperez");
     expect(normalizeHandle(undefined)).toBe("");
     expect(normalizeHandle("")).toBe("");
+    // URLs (formato común en sheets reales)
+    expect(normalizeHandle("https://twitter.com/jcastorga")).toBe(
+      "jcastorga",
+    );
+    expect(normalizeHandle("https://x.com/Marcos_K")).toBe("marcos_k");
+    expect(normalizeHandle("www.twitter.com/ana_p?ref=share")).toBe(
+      "ana_p",
+    );
+    expect(normalizeHandle("https://twitter.com/santi")).toBe("santi");
   });
 
   it("getMappedXHandles devuelve [] sin DB", async () => {

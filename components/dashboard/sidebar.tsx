@@ -5,12 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-export interface QuotaChip {
-  icon: string;
-  used: number;
-  limit: number;
-}
-
 interface NavItem {
   href: string;
   label: string;
@@ -24,13 +18,11 @@ interface UserInfo {
 
 export function Sidebar({
   nav,
-  quotas,
   user,
   versionString,
   signOutAction,
 }: {
   nav: NavItem[];
-  quotas: QuotaChip[];
   user: UserInfo | null;
   versionString: string;
   signOutAction: () => Promise<void>;
@@ -93,13 +85,19 @@ export function Sidebar({
         />
       )}
 
-      {/* Sidebar — desktop sticky, mobile drawer */}
+      {/* Sidebar — desktop sticky, mobile drawer.
+          Layout en 3 zonas:
+            · brand fija arriba
+            · nav scrollea independiente (overflow-y-auto)
+            · user pill + version fijas abajo (mt-auto + shrink-0)
+          La aside es md:sticky → preservada por App Router entre navegaciones,
+          su scroll interno no se pierde al cambiar de pantalla. */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[oklch(96%_0.005_80)] px-4 py-6 transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:w-56 md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[oklch(96%_0.005_80)] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:w-56 md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <Link href="/" className="mb-8 block">
+        <Link href="/" className="block shrink-0 px-4 pb-4 pt-6">
           <Image
             src="/brand/tronador-wordmark.jpeg"
             alt="Tronador"
@@ -109,37 +107,30 @@ export function Sidebar({
             className="h-auto w-full"
           />
         </Link>
-        <nav className="flex flex-col gap-0.5 font-mono text-sm">
-          {nav.map((item) => {
-            const active =
-              pathname === item.href ||
-              (item.href !== "/" && pathname?.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded px-2 py-1.5 transition-colors ${
-                  active
-                    ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
-                }`}
-              >
-                ▸ {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-4 font-mono text-sm">
+          <ul className="flex flex-col gap-0.5">
+            {nav.map((item) => {
+              const active =
+                pathname === item.href ||
+                (item.href !== "/" && pathname?.startsWith(item.href));
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`block rounded px-2 py-1.5 transition-colors ${
+                      active
+                        ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                    }`}
+                  >
+                    ▸ {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
-        <div className="mt-auto space-y-3 pt-6 text-xs text-zinc-400">
-          {quotas.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px]">
-              🔋
-              {quotas.map(({ icon, used, limit }) => (
-                <span key={icon}>
-                  {icon} {used}/{limit}
-                </span>
-              ))}
-            </div>
-          )}
+        <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[oklch(96%_0.005_80)] px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <UserPill user={user} signOutAction={signOutAction} />
           <div className="font-mono text-[10px] text-zinc-500">
             {versionString}
