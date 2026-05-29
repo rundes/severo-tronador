@@ -83,12 +83,20 @@ export default async function CampanaPage({
             {respuestas} respuestas
           </Link>
         </p>
-        <Link
-          href={`/campanas/${campaign.id}/cierre`}
-          className="mt-2 inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Ver dashboard de cierre →
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/campanas/${campaign.id}/cierre`}
+            className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            Ver dashboard de cierre →
+          </Link>
+          <a
+            href={`/api/campanas/${campaign.id}/pdf`}
+            className="inline-flex items-center gap-1.5 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+          >
+            ⬇️ PDF
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3 text-center">
