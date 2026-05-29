@@ -1,0 +1,16 @@
+{
+  "name": "tronador-mail-inbound-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Email Worker: recibe mail @tronador.net.ar y lo postea al webhook Vercel.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^3.114.0"
+  }
+}

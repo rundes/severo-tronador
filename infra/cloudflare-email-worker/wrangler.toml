@@ -1,0 +1,17 @@
+# Cloudflare Worker config. Deploy:
+#   cd infra/cloudflare-email-worker
+#   npm install
+#   npx wrangler login
+#   npx wrangler secret put MAIL_INBOUND_SECRET   # paste el secret
+#   npx wrangler deploy
+
+name = "tronador-mail-inbound"
+main = "src/worker.ts"
+compatibility_date = "2026-05-01"
+
+[vars]
+# URL del webhook Vercel. Override en dashboard si cambia el dominio.
+VERCEL_WEBHOOK_URL = "https://severo-tronador.vercel.app/api/webhooks/mail-in"
+
+# MAIL_INBOUND_SECRET se setea como Secret encrypted, no acá.
+# wrangler secret put MAIL_INBOUND_SECRET

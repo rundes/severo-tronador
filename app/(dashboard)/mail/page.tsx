@@ -120,6 +120,7 @@ export default async function MailPage({
         hasRepliesCreds={Boolean(
           process.env.MAIL_REPLIES_USER && process.env.MAIL_REPLIES_PASSWORD,
         )}
+        hasInboundSecret={Boolean(process.env.MAIL_INBOUND_SECRET)}
         hasCronSecret={Boolean(process.env.CRON_SECRET)}
         hasConfigKey={Boolean(process.env.CONFIG_MASTER_KEY)}
       />
