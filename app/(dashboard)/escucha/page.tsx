@@ -8,6 +8,7 @@ import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
 import { Feed } from "@/components/escucha/feed";
 import { MapPicker } from "@/components/escucha/map-picker";
+import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 // Revalida cada 60s para el "tiempo real" sin sobrecargar las APIs externas.
 export const revalidate = 60;
@@ -159,24 +160,6 @@ export default async function EscuchaPage({
         </dl>
       </section>
 
-      {/* Banners de acción del form. */}
-      {params.error === "no_db" && (
-        <Banner tone="amber">
-          No se pudo guardar: Supabase no está configurado. Editá los campos
-          igual para ver cómo correría la consulta, pero los cambios no
-          persisten.
-        </Banner>
-      )}
-      {params.error === "validacion" && (
-        <Banner tone="red">
-          Datos inválidos. Revisá los campos.
-        </Banner>
-      )}
-      {params.guardado === "1" && (
-        <Banner tone="emerald">
-          Configuración guardada. La próxima escucha usa estos parámetros.
-        </Banner>
-      )}
 
       <form
         action={guardarEscucha}
@@ -193,37 +176,36 @@ export default async function EscuchaPage({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1fr_220px]">
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Zona">
-                <input
-                  name="zona"
-                  defaultValue={cfg.zona}
-                  placeholder="ej: La Plata"
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="País">
-                <input
-                  name="pais"
-                  defaultValue={cfg.pais}
-                  maxLength={2}
-                  className={`${inputCls} uppercase`}
-                />
-              </Field>
-            </div>
-            <p className="text-xs text-zinc-500">
-              El mapa de la derecha fija un pin con lat/lng. X API usa esas
-              coordenadas con el radio como filtro <code>point_radius</code>;
-              GDELT usa <code>sourcecountry</code>; Reddit ignora geo.
-            </p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Zona">
+              <input
+                name="zona"
+                defaultValue={cfg.zona}
+                placeholder="ej: La Plata"
+                className={inputCls}
+              />
+            </Field>
+            <Field label="País">
+              <input
+                name="pais"
+                defaultValue={cfg.pais}
+                maxLength={2}
+                className={`${inputCls} uppercase`}
+              />
+            </Field>
           </div>
           <MapPicker
             defaultLat={cfg.lat}
             defaultLng={cfg.lng}
             defaultRadio={cfg.radioKm}
           />
+          <p className="text-xs text-zinc-500">
+            Click en el mapa o usá el buscador para fijar lat/lng. X API
+            usa esas coordenadas con el radio como filtro{" "}
+            <code>point_radius</code>; GDELT usa <code>sourcecountry</code>;
+            Reddit ignora geo.
+          </p>
         </div>
 
         <Field label="Keywords (una por línea)">
@@ -270,28 +252,30 @@ export default async function EscuchaPage({
           </div>
         </fieldset>
 
-        <div className="flex items-center justify-between pt-1">
-          <button
-            type="submit"
-            disabled={!persistOk}
-            className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
-              persistOk
-                ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                : "cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
-            }`}
-            title={
-              persistOk
-                ? "Guardar configuración"
-                : "Necesitás Supabase configurado para persistir"
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <SubmitButton
+              disabled={!persistOk}
+              pendingLabel="Guardando…"
+            >
+              {persistOk ? "Guardar escucha" : "Guardar (deshabilitado)"}
+            </SubmitButton>
+            {!persistOk && (
+              <span className="text-xs text-zinc-400">
+                SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY en env
+              </span>
+            )}
+          </div>
+          <FormStatus
+            ok={params.guardado === "1" ? "Configuración guardada. La próxima escucha usa estos parámetros." : null}
+            error={
+              params.error === "no_db"
+                ? "Supabase no configurado. Los cambios no se guardaron."
+                : params.error === "validacion"
+                  ? "Datos inválidos. Revisá los campos."
+                  : null
             }
-          >
-            {persistOk ? "Guardar escucha" : "Guardar (deshabilitado)"}
-          </button>
-          {!persistOk && (
-            <span className="text-xs text-zinc-400">
-              SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY en env
-            </span>
-          )}
+          />
         </div>
       </form>
 
@@ -499,20 +483,3 @@ function Field({
   );
 }
 
-function Banner({
-  tone,
-  children,
-}: {
-  tone: "amber" | "red" | "emerald";
-  children: React.ReactNode;
-}) {
-  const toneCls =
-    tone === "amber"
-      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200"
-      : tone === "red"
-        ? "border-red-300 bg-red-50 text-red-800 dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-200"
-        : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-200";
-  return (
-    <div className={`rounded-lg border p-3 text-sm ${toneCls}`}>{children}</div>
-  );
-}

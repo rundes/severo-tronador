@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn, auth, allowedEmails } from "@/lib/auth";
+import { GoogleSignInButton } from "@/components/signin/google-button";
 
 export const metadata = {
   title: "Ingresar · Tronador",
@@ -84,15 +85,7 @@ export default async function SignInPage({
             name="callbackUrl"
             value={params.callbackUrl ?? "/dashboard"}
           />
-          <button
-            type="submit"
-            className="flex w-full items-center justify-center gap-3 rounded-full bg-[oklch(28%_0.06_250)] px-6 py-3.5 text-sm font-medium text-[oklch(96%_0.01_80)] shadow-sm hover:bg-[oklch(20%_0.06_250)] active:scale-[0.99]"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
-              <path d="M21.35 11.1H12v2.9h5.35c-.23 1.4-1.66 4.1-5.35 4.1-3.22 0-5.85-2.66-5.85-5.95S8.78 6.2 12 6.2c1.84 0 3.07.78 3.77 1.45l2.57-2.48C16.71 3.6 14.55 2.7 12 2.7 6.92 2.7 2.8 6.8 2.8 12s4.12 9.3 9.2 9.3c5.32 0 8.83-3.74 8.83-9 0-.6-.07-1.05-.15-1.5z" />
-            </svg>
-            Continuar con Google
-          </button>
+          <GoogleSignInButton />
         </form>
 
         <div className="mt-10 space-y-3 text-center text-xs text-[oklch(45%_0.04_250)]">

@@ -7,6 +7,7 @@ import {
   extractUsedVars,
   interpolateWithMap,
 } from "@/lib/interpolate-vars";
+import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 interface VarOption {
   key: string;
@@ -27,10 +28,14 @@ export function TemplateEditor({
   action,
   varMap,
   sampleContactLabel,
+  statusOk,
+  statusError,
 }: {
   action: (formData: FormData) => Promise<void>;
   varMap: Record<string, string>;
   sampleContactLabel: string;
+  statusOk?: string | null;
+  statusError?: string | null;
 }) {
   const [channel, setChannel] = useState<string>("email");
   const [nombre, setNombre] = useState("");
@@ -270,12 +275,10 @@ export function TemplateEditor({
           </div>
         )}
 
-        <button
-          type="submit"
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Guardar plantilla
-        </button>
+        <div className="space-y-2">
+          <SubmitButton pendingLabel="Guardando…">Guardar plantilla</SubmitButton>
+          <FormStatus ok={statusOk} error={statusError} />
+        </div>
       </div>
 
       {/* ── Preview ────────────────────────────────────────────────────── */}

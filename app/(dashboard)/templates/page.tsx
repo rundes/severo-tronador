@@ -88,15 +88,15 @@ export default async function TemplatesPage({
         <h2 className="mb-4 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
           Nueva plantilla
         </h2>
-        {params.error === "campos" && (
-          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
-            Completá nombre y cuerpo de la plantilla.
-          </div>
-        )}
         <TemplateEditor
           action={nuevaPlantilla}
           varMap={varMap}
           sampleContactLabel={sampleLabel}
+          statusError={
+            params.error === "campos"
+              ? "Completá nombre y cuerpo de la plantilla."
+              : null
+          }
         />
       </section>
 

@@ -21,6 +21,7 @@ import {
 } from "@/lib/relationship";
 import { listSavedSegments } from "@/lib/segments-store";
 import { borrarSegmento, guardarSegmento } from "./actions";
+import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 export const metadata = { title: "Segmentos · Severo Tronador" };
 
@@ -94,22 +95,6 @@ export default async function SegmentosPage({
         </p>
       </div>
 
-      {params.error === "validacion" && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
-          <div>Datos inválidos. Revisá los campos.</div>
-          {params.detalle && (
-            <div className="mt-1 font-mono text-xs text-red-600">
-              {params.detalle}
-            </div>
-          )}
-        </div>
-      )}
-      {params.guardado === "1" && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-800 dark:bg-emerald-950/30">
-          Segmento guardado.
-        </div>
-      )}
-
       {advanced ? (
         <>
           <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -151,8 +136,9 @@ export default async function SegmentosPage({
 
       <form
         action={guardarSegmento}
-        className="flex items-end gap-2 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700"
+        className="space-y-2 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700"
       >
+        <div className="flex items-end gap-2">
         <input type="hidden" name="sexo" value={filter.sexo ?? ""} />
         <input type="hidden" name="edadMin" value={filter.edadMin ?? ""} />
         <input type="hidden" name="edadMax" value={filter.edadMax ?? ""} />
@@ -205,12 +191,13 @@ export default async function SegmentosPage({
             className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
           />
         </label>
-        <button
-          type="submit"
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Guardar
-        </button>
+        <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
+        </div>
+        <FormStatus
+          ok={params.guardado === "1" ? "Segmento guardado." : null}
+          error={params.error === "validacion" ? "Datos inválidos. Revisá los campos." : null}
+          detalle={params.detalle ?? null}
+        />
       </form>
 
       <FunnelView total={all.length} steps={funnel} />
