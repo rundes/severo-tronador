@@ -11,6 +11,8 @@ import {
 } from "@/lib/segments";
 import { estimateAllChannels } from "@/lib/segments-cost";
 import { CostPreview, FunnelView } from "@/components/segmentos/funnel";
+import { QueryBuilder } from "@/components/segmentos/query-builder";
+import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import {
   CHANNELS,
   channelAvailable,
@@ -46,11 +48,15 @@ export default async function SegmentosPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
-  const filter = filterFromParams(params);
+  const advancedQuery = params.q ? decodeQuery(params.q) : null;
+  const advanced = Boolean(advancedQuery);
+  const filter = advanced ? {} : filterFromParams(params);
   const all = await loadContacts();
-  const matched = applySegment(all, filter);
+  const matched = advancedQuery
+    ? applyQuery(all, advancedQuery)
+    : applySegment(all, filter);
   const saved = await listSavedSegments();
-  const funnel = buildFunnel(all, filter);
+  const funnel = advanced ? [] : buildFunnel(all, filter);
   const costs = matched.length > 0 ? await estimateAllChannels(matched.length) : [];
 
   const bands = { green: 0, yellow: 0, red: 0 };
@@ -102,7 +108,35 @@ export default async function SegmentosPage({
         </div>
       )}
 
-      <FilterForm barrios={barriosDisponibles(all)} />
+      {advanced ? (
+        <>
+          <div className="flex items-center justify-between text-xs text-zinc-500">
+            <span>Modo avanzado activo (AND/OR + NOT).</span>
+            <Link
+              href="/segmentos"
+              className="rounded border border-zinc-300 px-2 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            >
+              ← Volver a modo simple
+            </Link>
+          </div>
+          <QueryBuilder
+            initial={advancedQuery ?? undefined}
+            barrios={barriosDisponibles(all)}
+          />
+        </>
+      ) : (
+        <>
+          <FilterForm barrios={barriosDisponibles(all)} />
+          <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
+              Modo avanzado (AND/OR)
+            </summary>
+            <div className="mt-3">
+              <QueryBuilder barrios={barriosDisponibles(all)} />
+            </div>
+          </details>
+        </>
+      )}
 
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400">
