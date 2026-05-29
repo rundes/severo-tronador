@@ -120,6 +120,10 @@ export interface OutreachMessage {
     // Parámetros que reemplazan {{1}}, {{2}}… en el template aprobado.
     params?: string[];
   };
+  // Reply-To opcional para que respuestas vuelvan al mailbox @tronador.
+  // Email connector lo setea como header; canales sin reply concept
+  // (SMS, voz) lo ignoran.
+  replyTo?: string;
 }
 
 export interface SendResult {

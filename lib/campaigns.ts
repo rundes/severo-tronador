@@ -20,6 +20,7 @@ import { optedOutSet } from "@/lib/optout";
 import { isEnabled } from "@/lib/connectors/config";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { enqueueSheetSync } from "@/lib/db/mirror";
+import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
 
 export interface Envio {
   // PK uuid en la tabla `envios`; opcional porque el fallback en memoria no lo usa.
@@ -408,6 +409,7 @@ export async function executeCampaign(
         {
           subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : undefined,
           body: buildBody(tpl.cuerpo, m.contact, url),
+          replyTo: isRepliesConfigured() ? buildReplyTo(token) : undefined,
         },
         m.contact,
       );

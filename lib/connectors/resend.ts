@@ -110,6 +110,7 @@ export const resendConnector: OutreachConnector = {
           to: recipient.email,
           subject: message.subject ?? "",
           html: message.body,
+          ...(message.replyTo ? { reply_to: message.replyTo } : {}),
         }),
       });
       if (!res.ok) {

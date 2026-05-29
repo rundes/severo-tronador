@@ -218,6 +218,31 @@ export async function getMessage(
   };
 }
 
+// ── Mark read (Plan 04 F5: cron de routing de replies) ────────────────
+
+export async function markRead(
+  emailId: string,
+  creds?: Credentials,
+): Promise<boolean> {
+  if (!isLiveMode() || !creds) {
+    const m = mockMessageById(emailId);
+    if (m) m.isUnread = false;
+    return Boolean(m);
+  }
+  try {
+    await jmapCall(creds, [
+      [
+        "Email/set",
+        { update: { [emailId]: { "keywords/$seen": true } } },
+        "0",
+      ],
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Compose / send ─────────────────────────────────────────────────────
 
 export async function sendMail(

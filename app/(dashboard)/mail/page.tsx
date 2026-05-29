@@ -13,6 +13,7 @@ import {
   listMessages,
 } from "@/lib/mailbox/jmap-client";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
+import { MailSetupChecklist } from "@/components/mail/setup-checklist";
 import { provisionMyMailbox } from "./actions";
 import type { Mailbox } from "@/lib/mailbox/types";
 
@@ -111,6 +112,17 @@ export default async function MailPage({
       </header>
 
       <FormStatus ok={okMsg} error={errMsg} />
+
+      <MailSetupChecklist
+        hasStalwart={Boolean(process.env.STALWART_URL)}
+        hasStalwartAdmin={Boolean(process.env.STALWART_ADMIN_TOKEN)}
+        hasRepliesEnabled={Boolean(process.env.MAIL_REPLIES_ENABLED)}
+        hasRepliesCreds={Boolean(
+          process.env.MAIL_REPLIES_USER && process.env.MAIL_REPLIES_PASSWORD,
+        )}
+        hasCronSecret={Boolean(process.env.CRON_SECRET)}
+        hasConfigKey={Boolean(process.env.CONFIG_MASTER_KEY)}
+      />
 
       {!cred && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">

@@ -20,6 +20,7 @@ import { enqueueSheetSync } from "@/lib/db/mirror";
 import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
+import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
 
 const BATCH = 20;
 const MAX_ATTEMPTS = 3;
@@ -174,6 +175,10 @@ export async function GET(req: Request) {
         {
           subject: row.template.subject ?? undefined,
           body: row.template.body,
+          replyTo:
+            row.channel === "email" && isRepliesConfigured()
+              ? buildReplyTo(row.token)
+              : undefined,
         },
         row.contact,
       );
