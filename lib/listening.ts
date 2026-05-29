@@ -33,6 +33,10 @@ export interface FeedItem {
   author?: string;
   publishedAt?: string;
   sentiment: Sentiment;
+  // Threading (Plan 05 F4): cuando un item es un comment Meta CL o reply
+  // X, parentUrl referencia al post padre. La UI agrupa visualmente.
+  kind?: "post" | "reel" | "comment" | "tweet" | "reply";
+  parentUrl?: string;
 }
 
 export interface AuthorRanking {

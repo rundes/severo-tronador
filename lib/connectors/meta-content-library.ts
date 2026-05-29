@@ -15,7 +15,7 @@ import type {
   ListeningConnector,
   TestResult,
 } from "./types";
-import { META_MOCK_RAW, mockMetaItems } from "@/lib/mock/listening-meta";
+import { META_MOCK_PARENTS, mockMetaItems } from "@/lib/mock/listening-meta";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
 
@@ -65,19 +65,26 @@ function matchesKeywords(text: string, q: ListenQuery): boolean {
 }
 
 // Aplica geo-fence sobre items mock (la API real ya filtra server-side).
+// El parent declara lat/lng. Comments heredan la posición del padre vía
+// parentUrl — entran si el parent entra.
 function filterMockByGeo(
   items: ListenItem[],
   query: ListenQuery,
 ): ListenItem[] {
   if (query.lat == null || query.lng == null) return items;
   const radius = query.radioKm ?? 25;
-  const inGeo = new Set<string>();
-  for (const raw of META_MOCK_RAW) {
-    if (raw.lat == null || raw.lng == null) continue;
-    const d = haversineKm(query.lat, query.lng, raw.lat, raw.lng);
-    if (d <= radius) inGeo.add(raw.text);
+  const allowedParentUrls = new Set<string>();
+  for (const p of META_MOCK_PARENTS) {
+    if (p.lat == null || p.lng == null) continue;
+    const d = haversineKm(query.lat, query.lng, p.lat, p.lng);
+    if (d <= radius) {
+      allowedParentUrls.add(`https://example.com/${p.source}/${p.id}`);
+    }
   }
-  return items.filter((i) => inGeo.has(i.text));
+  return items.filter((i) => {
+    const parentUrl = i.parentUrl ?? i.url;
+    return parentUrl ? allowedParentUrls.has(parentUrl) : false;
+  });
 }
 
 function mapApiResult(r: MetaApiResult): ListenItem | null {
@@ -85,12 +92,23 @@ function mapApiResult(r: MetaApiResult): ListenItem | null {
   if (!text) return null;
   const author =
     r.creator_handle ?? r.page_name ?? r.commenter_handle ?? undefined;
-  const url = r.post_url ?? r.reel_url ?? r.parent_post_url;
+  const isComment = r.content_type === "comment";
+  const url = isComment
+    ? r.parent_post_url
+    : (r.post_url ?? r.reel_url ?? r.parent_post_url);
   const platform = r.platform === "facebook" ? "meta-fb" : "meta-ig";
+  const kind =
+    r.content_type === "reel"
+      ? "reel"
+      : r.content_type === "comment"
+        ? "comment"
+        : "post";
   return {
     source: platform,
     text,
     url,
+    kind,
+    parentUrl: isComment ? r.parent_post_url : undefined,
     publishedAt: r.created_at,
     author,
   };
@@ -106,6 +124,9 @@ async function fetchReal(
   url.searchParams.set("content_type", "post,reel,comment");
   url.searchParams.set("date_range", "last_7_days");
   url.searchParams.set("limit", "200");
+  // F4: pedir threaded comments (top 50 por post). Cada comment llega
+  // como item independiente con parent_post_url referenciando al padre.
+  url.searchParams.set("include_comments", "top_50");
   if (query.lat != null && query.lng != null) {
     url.searchParams.set("lat", String(query.lat));
     url.searchParams.set("lng", String(query.lng));

@@ -153,6 +153,12 @@ export interface ListenItem {
   // Autor cuando el provider lo expone (handle X, dominio GDELT, etc).
   // Se usa para rankings de "más conversan".
   author?: string;
+  // Tipo de contenido (Meta CL: post|reel|comment, X: tweet|reply, etc).
+  // Permite threading + métricas separadas en /escucha.
+  kind?: "post" | "reel" | "comment" | "tweet" | "reply";
+  // URL del post padre cuando el item es un comentario / reply. Habilita
+  // agrupado threaded en el feed cuando ambos están en la misma corrida.
+  parentUrl?: string;
 }
 
 export interface ListeningConnector extends Connector {
