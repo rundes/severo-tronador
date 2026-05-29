@@ -4,7 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth, authConfigured } from "@/lib/auth";
 
-const PUBLIC_PATHS = new Set<string>(["/"]);
+const PUBLIC_PATHS = new Set<string>(["/", "/signin"]);
 
 export default async function middleware(req: NextRequest) {
   if (PUBLIC_PATHS.has(req.nextUrl.pathname)) return NextResponse.next();

@@ -14,6 +14,10 @@ export {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+  pages: {
+    signIn: "/signin",
+    error: "/signin",
+  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
