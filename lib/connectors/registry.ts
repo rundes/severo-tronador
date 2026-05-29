@@ -14,6 +14,7 @@ import { claudeApiConnector } from "./claude-api";
 import { gdeltConnector } from "./gdelt";
 import { xApiConnector } from "./x-api";
 import { redditApiConnector } from "./reddit-api";
+import { metaContentLibraryConnector } from "./meta-content-library";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -28,6 +29,7 @@ export const connectors: Connector[] = [
   gdeltConnector,
   xApiConnector,
   redditApiConnector,
+  metaContentLibraryConnector,
 ];
 
 export function getConnector(id: string): Connector | undefined {

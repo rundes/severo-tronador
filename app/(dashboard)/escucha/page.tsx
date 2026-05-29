@@ -26,6 +26,9 @@ interface SourceStatus {
   label: string;
   real: boolean;
   reason: string;
+  // Algunos conectores agregan varias sub-fuentes en items (ej. Meta CL
+  // emite meta-ig y meta-fb). countIds suma el total mostrado.
+  countIds?: string[];
 }
 
 function sourceStatuses(): SourceStatus[] {
@@ -33,6 +36,7 @@ function sourceStatuses(): SourceStatus[] {
   const reddit = Boolean(
     process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET,
   );
+  const metaCl = Boolean(process.env.META_CL_TOKEN);
   return [
     { id: "gdelt", label: "GDELT", real: true, reason: "sin auth" },
     {
@@ -47,7 +51,19 @@ function sourceStatuses(): SourceStatus[] {
       real: reddit,
       reason: reddit ? "creds presentes" : "OAuth pendiente",
     },
+    {
+      id: "meta-content-library",
+      label: "Meta CL (FB + IG)",
+      real: metaCl,
+      reason: metaCl ? "token research presente" : "aprobación pendiente",
+      countIds: ["meta-fb", "meta-ig"],
+    },
   ];
+}
+
+function countFor(s: SourceStatus, bySource: Record<string, number>): number {
+  const ids = s.countIds ?? [s.id];
+  return ids.reduce((sum, id) => sum + (bySource[id] ?? 0), 0);
 }
 
 export default async function EscuchaPage({
@@ -131,7 +147,7 @@ export default async function EscuchaPage({
                   {s.real ? "real" : "mock"} · {s.reason}
                 </span>
                 <span className="font-mono text-zinc-400">
-                  {bySource[s.id] ?? 0} menciones
+                  {countFor(s, bySource)} menciones
                 </span>
               </dd>
             </div>
