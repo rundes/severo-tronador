@@ -16,7 +16,10 @@ import type {
 import { mockPadron } from "@/lib/mock/padron";
 import { getConnectorConfig } from "./config";
 
-const PADRON_RANGE = "padron!A1:Z";
+// A1:ZZ cubre 702 columnas (26 + 26·26). El rango anterior "A1:Z" cortaba
+// a la columna 26 silenciosamente y dejaba afuera los headers que estaban
+// más a la derecha. Sheets con muchas columnas perdían su mapeo.
+const PADRON_RANGE = "padron!A1:ZZ";
 
 function getSheetsClient(keyB64: string) {
   const credentials = JSON.parse(

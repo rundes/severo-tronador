@@ -97,6 +97,9 @@ export interface Contact {
   mesa?: string;
   telefono?: string;
   email?: string;
+  // Handle X (Twitter) sin "@". Permite mapear contenido específico del
+  // ciudadano en /escucha vía X API. Opcional.
+  x_handle?: string;
 }
 
 export interface DataConnector extends Connector {

@@ -125,7 +125,7 @@ export default async function ContactosPage({
           contactos. La hoja debe llamarse <code>padron</code> con
           encabezados en la primera fila: <code>dni, nombre, apellido,
           fecha_nac, sexo, domicilio, barrio, circuito, mesa, telefono,
-          email</code>.
+          email, x_handle</code>.
         </p>
         {preview ? (
           <ColumnMapper preview={preview} />
@@ -163,7 +163,7 @@ export default async function ContactosPage({
           Encabezados esperados:{" "}
           <code className="break-all">
             dni, nombre, apellido, fecha_nac, sexo, domicilio, barrio,
-            circuito, mesa, telefono, email
+            circuito, mesa, telefono, email, x_handle
           </code>
           . Las columnas extra se ignoran.
         </p>
@@ -204,6 +204,7 @@ const CONTACT_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: "barrio", label: "Barrio" },
   { key: "circuito", label: "Circuito electoral" },
   { key: "mesa", label: "Mesa electoral" },
+  { key: "x_handle", label: "Cuenta de X (Twitter)" },
 ];
 
 function bestGuess(field: string, headers: string[]): string {
@@ -226,6 +227,17 @@ function bestGuess(field: string, headers: string[]): string {
     mesa: ["mesa"],
     sexo: ["sexo", "genero", "gender", "sex"],
     barrio: ["barrio", "neighborhood", "zona"],
+    x_handle: [
+      "xhandle",
+      "twitter",
+      "twitterhandle",
+      "twitteruser",
+      "twitterusername",
+      "usuariox",
+      "usuariotwitter",
+      "handlex",
+      "arroba",
+    ],
   };
   const aliasList = (aliases[field] ?? [target]).map(normalize);
   for (const h of headers) {

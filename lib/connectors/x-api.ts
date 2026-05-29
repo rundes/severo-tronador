@@ -14,6 +14,7 @@ import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { mockListenItems } from "@/lib/mock/listening";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
+import { getMappedXHandles } from "@/lib/padron-handles";
 
 const ID = "x-api";
 const FREE_LIMIT = 1500;
@@ -40,12 +41,21 @@ function matches(item: ListenItem, q: ListenQuery): boolean {
 async function fetchReal(
   query: ListenQuery,
   bearer: string,
+  handles: string[] = [],
 ): Promise<ListenItem[]> {
   // Combina keywords + geo + lang. point_radius requiere lat/lng/km.
   const keywordPart = query.keywords.length
     ? `(${query.keywords.join(" OR ")})`
     : "*";
   let q = `${keywordPart} lang:es -is:retweet`;
+  // Si hay handles mapeados desde el padrón, los sumamos con OR para
+  // traer también el contenido de esos usuarios. X query tiene techo
+  // de 512 chars → recortamos si excede.
+  if (handles.length > 0) {
+    const fromClause = handles.map((h) => `from:${h}`).join(" OR ");
+    const candidate = `${q} OR (${fromClause})`;
+    q = candidate.length <= 512 ? candidate : q;
+  }
   if (query.lat != null && query.lng != null) {
     const radio = query.radioKm ?? 25;
     q += ` point_radius:[${query.lng} ${query.lat} ${radio}km]`;
@@ -119,8 +129,12 @@ export const xApiConnector: ListeningConnector = {
       return mockListenItems("x-api").filter((i) => matches(i, query));
     }
     try {
-      const real = await fetchReal(query, cfg.X_API_BEARER_TOKEN);
-      log.debug("listening.x_api.fetch", { count: real.length });
+      const handles = await getMappedXHandles();
+      const real = await fetchReal(query, cfg.X_API_BEARER_TOKEN, handles);
+      log.debug("listening.x_api.fetch", {
+        count: real.length,
+        handles: handles.length,
+      });
       return real.filter((i) => matches(i, query));
     } catch (e) {
       log.warn("listening.x_api.fallback_mock", {
