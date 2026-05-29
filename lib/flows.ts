@@ -9,6 +9,7 @@ import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-query";
 import { interpolate, getTemplate } from "@/lib/templates";
+import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
 import { optedOutSet } from "@/lib/optout";
 import { outreachConnectorFor } from "@/lib/campaigns";
@@ -43,6 +44,10 @@ export interface Flow {
   created_by: string | null;
   created_at: string;
   started_at: string | null;
+  // Send window UTC opcional. Si están seteados (0-23), el cron solo
+  // despacha entre [start, end). start > end = ventana cruza medianoche.
+  send_window_start_hour: number | null;
+  send_window_end_hour: number | null;
   steps: FlowStep[];
 }
 
@@ -58,7 +63,7 @@ function baseUrl(): string {
 }
 
 function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): string {
-  return interpolate(cuerpo.split("{{encuesta_url}}").join(encuestaUrl), contact);
+  return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -108,6 +113,8 @@ export interface CreateFlowInput {
   segment_filter: SegmentFilter | SegmentQuery;
   steps: Omit<FlowStep, "id" | "flow_id">[];
   created_by?: string;
+  send_window_start_hour?: number | null;
+  send_window_end_hour?: number | null;
 }
 
 export async function createFlow(input: CreateFlowInput): Promise<Flow> {
@@ -121,6 +128,8 @@ export async function createFlow(input: CreateFlowInput): Promise<Flow> {
       created_by: input.created_by ?? null,
       created_at: new Date().toISOString(),
       started_at: null,
+      send_window_start_hour: input.send_window_start_hour ?? null,
+      send_window_end_hour: input.send_window_end_hour ?? null,
       steps: input.steps.map((s, i) => ({ ...s, position: i })),
     };
     mem.push(flow);
@@ -133,6 +142,8 @@ export async function createFlow(input: CreateFlowInput): Promise<Flow> {
       nombre: input.nombre,
       segment_filter: input.segment_filter,
       created_by: input.created_by ?? null,
+      send_window_start_hour: input.send_window_start_hour ?? null,
+      send_window_end_hour: input.send_window_end_hour ?? null,
     })
     .select()
     .single();

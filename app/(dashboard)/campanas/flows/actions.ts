@@ -26,9 +26,20 @@ const StepSchema = z.object({
   condition_kind: ConditionEnum,
 });
 
+const HourOptional = z.preprocess(
+  (v) => {
+    if (v == null || v === "") return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  },
+  z.number().int().min(0).max(23).optional(),
+);
+
 const FlowSchema = z.object({
   nombre: z.string().trim().min(1).max(120),
   steps: z.array(StepSchema).min(1).max(20),
+  send_window_start_hour: HourOptional,
+  send_window_end_hour: HourOptional,
 });
 
 export async function crearFlow(formData: FormData) {
@@ -62,7 +73,12 @@ export async function crearFlow(formData: FormData) {
     ? null
     : SegmentFilterSchema.safeParse(flatRaw);
 
-  const parsed = FlowSchema.safeParse({ nombre, steps });
+  const parsed = FlowSchema.safeParse({
+    nombre,
+    steps,
+    send_window_start_hour: formData.get("send_window_start_hour"),
+    send_window_end_hour: formData.get("send_window_end_hour"),
+  });
   if (!parsed.success) redirect("/campanas/flows/nueva?error=validacion");
 
   const session = await auth();
@@ -80,6 +96,8 @@ export async function crearFlow(formData: FormData) {
       position: 0, // sobrescrito en createFlow
     })),
     created_by: session?.user?.email ?? undefined,
+    send_window_start_hour: parsed.data.send_window_start_hour ?? null,
+    send_window_end_hour: parsed.data.send_window_end_hour ?? null,
   });
   revalidatePath("/campanas/flows");
   redirect("/campanas/flows?creado=1");

@@ -74,7 +74,7 @@ export function FlowBuilder({
 
   return (
     <form action={action} className="space-y-6">
-      <div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
         <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
           Nombre del flow
           <input
@@ -82,6 +82,28 @@ export function FlowBuilder({
             required
             maxLength={120}
             placeholder="ej: Sondeo transporte — secuencia 3 toques"
+            className={inputCls}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          Window inicio (UTC)
+          <input
+            type="number"
+            name="send_window_start_hour"
+            min={0}
+            max={23}
+            placeholder="ej 12"
+            className={inputCls}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          Window fin (UTC)
+          <input
+            type="number"
+            name="send_window_end_hour"
+            min={0}
+            max={23}
+            placeholder="ej 22"
             className={inputCls}
           />
         </label>

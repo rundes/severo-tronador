@@ -12,6 +12,7 @@ import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
+import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
 import { optedOutSet } from "@/lib/optout";
 import { isEnabled } from "@/lib/connectors/config";
@@ -42,7 +43,7 @@ const DEFAULT_PREGUNTAS = ["¿Qué es lo que más te preocupa hoy de tu barrio?"
 
 // Cuerpo final: inyecta el link de encuesta y luego interpola variables.
 function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): string {
-  return interpolate(cuerpo.split("{{encuesta_url}}").join(encuestaUrl), contact);
+  return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
 }
 
 // Dato de contacto que usa cada canal.

@@ -19,6 +19,7 @@ import type { Channel } from "@/lib/relationship";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
+import { isInWindow, nextWindowStart } from "@/lib/send-window";
 
 const BATCH = 20;
 const MAX_ATTEMPTS = 3;
@@ -74,7 +75,45 @@ export async function GET(req: Request) {
   const touchedCampaigns = new Set<string>();
 
   let skippedByCondition = 0;
+  let rescheduledByWindow = 0;
+
+  // Cache de send-window por flow_id para no consultar N veces.
+  const windowCache = new Map<
+    string,
+    { startHour: number | null; endHour: number | null }
+  >();
+  async function getWindow(flowId: string) {
+    if (windowCache.has(flowId)) return windowCache.get(flowId)!;
+    const { data } = await db
+      .from("flows")
+      .select("send_window_start_hour, send_window_end_hour")
+      .eq("id", flowId)
+      .maybeSingle();
+    const w = {
+      startHour: (data as { send_window_start_hour?: number | null } | null)?.send_window_start_hour ?? null,
+      endHour: (data as { send_window_end_hour?: number | null } | null)?.send_window_end_hour ?? null,
+    };
+    windowCache.set(flowId, w);
+    return w;
+  }
+
   for (const row of pending) {
+    // Send-window del flow: si está fuera, reschedule al próximo inicio.
+    if (row.flow_id) {
+      const win = await getWindow(row.flow_id);
+      if (win.startHour != null && win.endHour != null && !isInWindow(win)) {
+        const next = nextWindowStart(win);
+        await db
+          .from("envio_queue")
+          .update({
+            scheduled_at: next,
+            last_error: "out_of_window",
+          })
+          .eq("id", row.id);
+        rescheduledByWindow++;
+        continue;
+      }
+    }
     // Drip flows: si el step tiene condición sobre respuestas previas, la
     // evaluamos antes de tocar el connector. Si no pasa, marcamos done con
     // status especial y seguimos.
@@ -207,6 +246,7 @@ export async function GET(req: Request) {
     done,
     failed,
     rescheduled,
+    rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
     batch: pending.length,
     campaigns_touched: touchedCampaigns.size,
@@ -215,6 +255,7 @@ export async function GET(req: Request) {
     done,
     failed,
     rescheduled,
+    rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
     batch: pending.length,
   });

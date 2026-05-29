@@ -1,5 +1,6 @@
 import { nuevaPlantilla } from "./actions";
 import { listTemplates, templateVars } from "@/lib/templates";
+import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
 
 export const metadata = { title: "Plantillas · Severo Tronador" };
 
@@ -28,10 +29,30 @@ export default async function TemplatesPage({
           Plantillas
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Mensajes por canal con variables <code>{"{{nombre}}"}</code>,{" "}
-          <code>{"{{barrio}}"}</code>. Se interpolan por destinatario al enviar.
+          Mensajes por canal con variables. Se interpolan por destinatario al
+          enviar; las que no existen en el contacto caen a fallback seguro o
+          quedan vacías.
         </p>
       </div>
+
+      <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 hover:text-zinc-700">
+          Variables disponibles ({SUPPORTED_VARS.length})
+        </summary>
+        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+          {SUPPORTED_VARS.map((v) => (
+            <div
+              key={v.key}
+              className="flex items-baseline gap-2 text-sm"
+            >
+              <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {`{{${v.key}}}`}
+              </code>
+              <span className="text-xs text-zinc-500">{v.desc}</span>
+            </div>
+          ))}
+        </dl>
+      </details>
 
       <div className="space-y-3">
         {templates.map((t) => (
