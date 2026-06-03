@@ -11,6 +11,18 @@ import { dbConfigured } from "@/lib/db/supabase";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { log } from "@/lib/logger";
+import { enqueueXHandles } from "@/lib/x-timeline";
+
+// Encola los handles de X importados para que el cron de timelines traiga
+// los últimos posteos de cada uno (escucha activa). Best-effort: un fallo
+// acá no rompe el import.
+async function enqueueImportedHandles(rows: { x_handle?: string }[]) {
+  try {
+    await enqueueXHandles(rows.map((r) => r.x_handle));
+  } catch (e) {
+    log.warn("contactos.enqueue_x.failed", { error: (e as Error).message });
+  }
+}
 
 export async function importarCsv(formData: FormData) {
   const file = formData.get("csv");
@@ -26,6 +38,7 @@ export async function importarCsv(formData: FormData) {
     redirect("/contactos?error=no_db");
   }
   const n = await importPadron(rows, "csv");
+  await enqueueImportedHandles(rows as { x_handle?: string }[]);
   const session = await auth();
   await logAudit({
     action: "campaign.create", // reuse existing enum; entity_type discriminates
@@ -85,6 +98,7 @@ export async function importarConMapeo(formData: FormData) {
       redirect("/contactos?error=empty_after_mapping");
     }
     const n = await importPadron(filtered, "google-sheets");
+    await enqueueImportedHandles(filtered as { x_handle?: string }[]);
     const session = await auth();
     await logAudit({
       action: "campaign.create",
