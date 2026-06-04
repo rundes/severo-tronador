@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadDashboard, type WindowDays } from "@/lib/analytics";
+import { requireProject } from "@/lib/workspace";
 import type { Channel } from "@/lib/relationship";
 
 export const metadata = { title: "Dashboard · Tronador" };
@@ -38,8 +39,9 @@ export default async function DashboardPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const window = parseWindow(params.window);
-  const data = await loadDashboard(window);
+  const data = await loadDashboard(projectId, window);
   const { kpis, campaigns, timeSeries, health } = data;
 
   return (

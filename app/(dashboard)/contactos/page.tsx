@@ -3,6 +3,7 @@ import { importarCsv, previewGoogleSheet, importarConMapeo } from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
 import { padronCount } from "@/lib/db/padron";
 import { getConnectorConfig } from "@/lib/connectors/config";
+import { requireProject } from "@/lib/workspace";
 import {
   SubmitButton,
   FormStatus,
@@ -19,8 +20,9 @@ export default async function ContactosPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
-  const count = persistOk ? await padronCount() : 0;
+  const count = persistOk ? await padronCount(projectId) : 0;
 
   // Detectar si Google Sheets está configurado para habilitar el botón.
   const gsCfg = persistOk

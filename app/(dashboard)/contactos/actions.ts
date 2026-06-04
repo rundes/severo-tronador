@@ -12,16 +12,17 @@ import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { log } from "@/lib/logger";
 import { enqueueXHandles } from "@/lib/x-timeline";
-import { DEFAULT_PROJECT_ID } from "@/lib/projects";
+import { requireMember } from "@/lib/workspace";
 
 // Encola los handles de X importados para que el cron de timelines traiga
 // los últimos posteos de cada uno (escucha activa). Best-effort: un fallo
 // acá no rompe el import.
-// TODO(3c): usar el proyecto activo (requireProject) cuando contactos se
-// scopee por proyecto; por ahora el padrón vive en el proyecto default.
-async function enqueueImportedHandles(rows: { x_handle?: string }[]) {
+async function enqueueImportedHandles(
+  projectId: string,
+  rows: { x_handle?: string }[],
+) {
   try {
-    await enqueueXHandles(DEFAULT_PROJECT_ID, rows.map((r) => r.x_handle));
+    await enqueueXHandles(projectId, rows.map((r) => r.x_handle));
   } catch (e) {
     log.warn("contactos.enqueue_x.failed", { error: (e as Error).message });
   }
@@ -40,8 +41,9 @@ export async function importarCsv(formData: FormData) {
   if (!dbConfigured()) {
     redirect("/contactos?error=no_db");
   }
-  const n = await importPadron(rows, "csv");
-  await enqueueImportedHandles(rows as { x_handle?: string }[]);
+  const { id: projectId } = await requireMember("editor");
+  const n = await importPadron(projectId, rows, "csv");
+  await enqueueImportedHandles(projectId, rows as { x_handle?: string }[]);
   const session = await auth();
   await logAudit({
     action: "campaign.create", // reuse existing enum; entity_type discriminates
@@ -100,8 +102,9 @@ export async function importarConMapeo(formData: FormData) {
     if (filtered.length === 0) {
       redirect("/contactos?error=empty_after_mapping");
     }
-    const n = await importPadron(filtered, "google-sheets");
-    await enqueueImportedHandles(filtered as { x_handle?: string }[]);
+    const { id: projectId } = await requireMember("editor");
+    const n = await importPadron(projectId, filtered, "google-sheets");
+    await enqueueImportedHandles(projectId, filtered as { x_handle?: string }[]);
     const session = await auth();
     await logAudit({
       action: "campaign.create",

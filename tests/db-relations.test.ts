@@ -10,6 +10,7 @@ const tables: Record<string, Row[]> = {
 
 interface Builder {
   select: () => Builder;
+  eq: (col: string, val: unknown) => Builder;
   in: (col: string, vals: unknown[]) => Builder;
   then: (resolve: (v: unknown) => unknown) => unknown;
 }
@@ -18,6 +19,9 @@ function makeBuilder(name: string): Builder {
   let inFilter: { col: string; vals: unknown[] } | null = null;
   const builder: Builder = {
     select: () => builder,
+    // project_id scoping: no-op en el mock (el aislamiento por proyecto se
+    // cubre en otros tests); mantiene la cadena fluida.
+    eq: () => builder,
     in(col, vals) {
       inFilter = { col, vals };
       return builder;
@@ -53,7 +57,7 @@ beforeEach(() => {
 
 async function load(dnis: string[]) {
   const { loadRawRelationships } = await import("@/lib/db/relations");
-  return loadRawRelationships(dnis);
+  return loadRawRelationships("p1", dnis);
 }
 
 describe("loadRawRelationships", () => {

@@ -55,7 +55,9 @@ export function edadDe(fechaNac?: string, now = Date.now()): number | null {
   return age;
 }
 
-export async function loadContacts(): Promise<ContactWithRelationship[]> {
+export async function loadContacts(
+  projectId: string,
+): Promise<ContactWithRelationship[]> {
   if (!dbConfigured()) {
     return mockPadron.map((contact) => ({
       contact,
@@ -64,8 +66,11 @@ export async function loadContacts(): Promise<ContactWithRelationship[]> {
     }));
   }
   // Path real: padron + ficha de relación derivada de envios/respuestas/opt_outs.
-  const contacts = await readPadronFromDb();
-  const rels = await loadRawRelationships(contacts.map((c) => c.dni));
+  const contacts = await readPadronFromDb(projectId);
+  const rels = await loadRawRelationships(
+    projectId,
+    contacts.map((c) => c.dni),
+  );
   return contacts.map((contact) => ({
     contact,
     rel: deriveRelationship(contact.dni, rels.get(contact.dni)),
