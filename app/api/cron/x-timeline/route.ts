@@ -4,7 +4,8 @@
 // (.github/workflows/x-timeline.yml). Respeta el free tier de X.
 import { NextResponse } from "next/server";
 import { dbConfigured } from "@/lib/db/supabase";
-import { processXHandleQueue } from "@/lib/x-timeline";
+import { processXHandleQueue, type XTimelineSummary } from "@/lib/x-timeline";
+import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
 
 export async function GET(req: Request) {
@@ -23,10 +24,18 @@ export async function GET(req: Request) {
 
   const t0 = Date.now();
   try {
-    const summary = await processXHandleQueue();
+    // Itera todos los proyectos activos; cada uno drena su propia cola.
+    const projects = await listActiveProjects();
+    const byProject: Record<string, XTimelineSummary> = {};
+    let posts = 0;
+    for (const p of projects) {
+      const summary = await processXHandleQueue(p.id);
+      byProject[p.id] = summary;
+      posts += summary.posts;
+    }
     const ms = Date.now() - t0;
-    log.info("x_timeline.cron.ok", { ms, ...summary });
-    return NextResponse.json({ ok: true, ms, ...summary });
+    log.info("x_timeline.cron.ok", { ms, posts, projects: projects.length });
+    return NextResponse.json({ ok: true, ms, posts, projects: projects.length, byProject });
   } catch (e) {
     log.error("x_timeline.cron.failed", { error: (e as Error).message });
     return NextResponse.json(

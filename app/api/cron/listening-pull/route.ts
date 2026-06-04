@@ -3,7 +3,8 @@
 // Actions (cada 1h en .github/workflows/cron.yml).
 import { NextResponse } from "next/server";
 import { dbConfigured } from "@/lib/db/supabase";
-import { pullAllSources } from "@/lib/listening-cache";
+import { pullAllSources, type PullSummary } from "@/lib/listening-cache";
+import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
 
 export async function GET(req: Request) {
@@ -22,10 +23,18 @@ export async function GET(req: Request) {
 
   const t0 = Date.now();
   try {
-    const summary = await pullAllSources();
+    // Itera todos los proyectos activos; cada uno con su config de escucha.
+    const projects = await listActiveProjects();
+    const byProject: Record<string, PullSummary> = {};
+    let total = 0;
+    for (const p of projects) {
+      const summary = await pullAllSources(p.id);
+      byProject[p.id] = summary;
+      total += summary.total;
+    }
     const ms = Date.now() - t0;
-    log.info("listening.pull.ok", { total: summary.total, ms });
-    return NextResponse.json({ ok: true, ms, ...summary });
+    log.info("listening.pull.ok", { total, projects: projects.length, ms });
+    return NextResponse.json({ ok: true, ms, total, projects: projects.length, byProject });
   } catch (e) {
     log.error("listening.pull.failed", { error: (e as Error).message });
     return NextResponse.json(

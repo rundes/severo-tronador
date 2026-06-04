@@ -68,8 +68,10 @@ export interface ListeningResult {
   feed: FeedItem[];
 }
 
-export async function runListening(): Promise<ListeningResult> {
-  const cfg = await getListeningConfig();
+export async function runListening(
+  projectId: string,
+): Promise<ListeningResult> {
+  const cfg = await getListeningConfig(projectId);
 
   const listeners = (connectors.filter(
     (c) => c.category === "listening",
@@ -90,9 +92,9 @@ export async function runListening(): Promise<ListeningResult> {
   // leemos de DB en vez de pegarle a las APIs. El cron horario
   // /api/cron/listening-pull mantiene la cache caliente.
   let items: ListenItem[];
-  if (await cacheHasFreshItems(7)) {
+  if (await cacheHasFreshItems(projectId, 7)) {
     const enabledIds = cfg.fuentes.length > 0 ? cfg.fuentes : undefined;
-    items = await readCachedItems(14, enabledIds);
+    items = await readCachedItems(projectId, 14, enabledIds);
   } else {
     items = (await Promise.all(listeners.map((l) => l.fetch(query)))).flat();
   }

@@ -27,6 +27,7 @@ const DEFAULT_BATCH = 50;
 // entran 'pending'; los ya existentes (done/error) se re-encolan para
 // refrescar. Best-effort: nunca tira.
 export async function enqueueXHandles(
+  projectId: string,
   raw: (string | null | undefined)[],
 ): Promise<number> {
   if (!dbConfigured()) return 0;
@@ -40,8 +41,8 @@ export async function enqueueXHandles(
   const { error: insErr } = await sb
     .from("x_handle_queue")
     .upsert(
-      handles.map((h) => ({ handle: h })),
-      { onConflict: "handle", ignoreDuplicates: true },
+      handles.map((h) => ({ project_id: projectId, handle: h })),
+      { onConflict: "project_id,handle", ignoreDuplicates: true },
     );
   if (insErr) {
     log.warn("x_timeline.enqueue.insert_failed", { error: insErr.message });
@@ -52,6 +53,7 @@ export async function enqueueXHandles(
   const { error: updErr } = await sb
     .from("x_handle_queue")
     .update({ status: "pending", enqueued_at: nowIso, updated_at: nowIso })
+    .eq("project_id", projectId)
     .in("handle", handles)
     .neq("status", "pending");
   if (updErr) {
@@ -81,7 +83,9 @@ const EMPTY: XTimelineSummary = {
 
 // Drena la cola hasta el menor de: batch configurado, capacidad de cuota,
 // pendientes. Lo que sobra queda 'pending' y se loguea como dropped.
-export async function processXHandleQueue(): Promise<XTimelineSummary> {
+export async function processXHandleQueue(
+  projectId: string,
+): Promise<XTimelineSummary> {
   if (!dbConfigured()) return { ...EMPTY, skipped: "no db" };
   const cfg = await getConnectorConfig(X_ID);
   const bearer = cfg.X_API_BEARER_TOKEN;
@@ -91,12 +95,13 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
   const { count: pendingCount } = await sb
     .from("x_handle_queue")
     .select("*", { count: "exact", head: true })
+    .eq("project_id", projectId)
     .eq("status", "pending");
   const totalPending = pendingCount ?? 0;
   if (totalPending === 0) return { ...EMPTY };
 
   // Capacidad por cuota: cada handle consume hasta COST_PER_HANDLE tweets.
-  const used = await getUsage(X_ID);
+  const used = await getUsage(X_ID, projectId);
   const quotaRemaining = Math.max(0, X_FREE_LIMIT - used);
   const maxByQuota = Math.floor(quotaRemaining / COST_PER_HANDLE);
   const batch = Number(cfg.X_TIMELINE_BATCH) || DEFAULT_BATCH;
@@ -114,6 +119,7 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
   const { data, error } = await sb
     .from("x_handle_queue")
     .select("handle")
+    .eq("project_id", projectId)
     .eq("status", "pending")
     .order("enqueued_at", { ascending: true })
     .limit(limit);
@@ -131,9 +137,9 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
     const nowIso = new Date().toISOString();
     try {
       const { items, raw } = await fetchXRecentByHandle(row.handle, bearer);
-      await upsertItems(X_ID, items);
+      await upsertItems(projectId, X_ID, items);
       // Presupuestamos por lo que devolvió la API (raw), no por lo guardado.
-      if (raw > 0) await incrementUsage(X_ID, raw);
+      if (raw > 0) await incrementUsage(X_ID, raw, projectId);
       posts += items.length;
       processed += 1;
       await sb
@@ -146,6 +152,7 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
           last_error: null,
           updated_at: nowIso,
         })
+        .eq("project_id", projectId)
         .eq("handle", row.handle);
     } catch (e) {
       errors += 1;
@@ -158,6 +165,7 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
           last_error: msg.slice(0, 300),
           updated_at: nowIso,
         })
+        .eq("project_id", projectId)
         .eq("handle", row.handle);
     }
   }

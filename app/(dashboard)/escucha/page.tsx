@@ -3,6 +3,7 @@ import { runListening } from "@/lib/listening";
 import { TERRITORY } from "@/lib/config";
 import { getListeningConfig } from "@/lib/listening-config";
 import { dbConfigured } from "@/lib/db/supabase";
+import { requireProject } from "@/lib/workspace";
 import { guardarEscucha } from "./actions";
 import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
@@ -72,9 +73,10 @@ export default async function EscuchaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const [result, cfg] = await Promise.all([
-    runListening(),
-    getListeningConfig(),
+    runListening(projectId),
+    getListeningConfig(projectId),
   ]);
   const {
     totalItems,

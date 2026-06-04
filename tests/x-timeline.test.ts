@@ -77,12 +77,12 @@ describe("x-timeline: fetchXRecentByHandle (stub global fetch)", () => {
 describe("x-timeline: cola sin Supabase", () => {
   it("enqueueXHandles devuelve 0 sin DB", async () => {
     const { enqueueXHandles } = await import("@/lib/x-timeline");
-    expect(await enqueueXHandles(["@vecino", "x.com/marcos"])).toBe(0);
+    expect(await enqueueXHandles("p1", ["@vecino", "x.com/marcos"])).toBe(0);
   });
 
   it("processXHandleQueue se salta sin DB", async () => {
     const { processXHandleQueue } = await import("@/lib/x-timeline");
-    const res = await processXHandleQueue();
+    const res = await processXHandleQueue("p1");
     expect(res.skipped).toBe("no db");
     expect(res.processed).toBe(0);
   });

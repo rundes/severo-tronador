@@ -8,17 +8,17 @@ beforeAll(() => {
 describe("listening-cache (no db configurado)", () => {
   it("readCachedItems devuelve [] sin Supabase", async () => {
     const { readCachedItems } = await import("@/lib/listening-cache");
-    expect(await readCachedItems()).toEqual([]);
+    expect(await readCachedItems("p1")).toEqual([]);
   });
 
   it("cacheHasFreshItems devuelve false sin Supabase", async () => {
     const { cacheHasFreshItems } = await import("@/lib/listening-cache");
-    expect(await cacheHasFreshItems()).toBe(false);
+    expect(await cacheHasFreshItems("p1")).toBe(false);
   });
 
   it("upsertItems salta cuando no hay DB", async () => {
     const { upsertItems } = await import("@/lib/listening-cache");
-    const res = await upsertItems("meta-content-library", [
+    const res = await upsertItems("p1", "meta-content-library", [
       { source: "meta-ig", text: "demo", url: "https://example.com/x" },
     ]);
     expect(res.inserted).toBe(0);
@@ -27,7 +27,7 @@ describe("listening-cache (no db configurado)", () => {
 
   it("pullAllSources ejecuta connectors aunque no haya DB y upsertea 0", async () => {
     const { pullAllSources } = await import("@/lib/listening-cache");
-    const summary = await pullAllSources();
+    const summary = await pullAllSources("p1");
     expect(summary.bySource).toBeTruthy();
     expect(typeof summary.total).toBe("number");
     // Cada source upserted = 0 (sin DB), pero fetched > 0 si el connector

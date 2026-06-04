@@ -7,6 +7,10 @@
 // La resolución del proyecto activo (cookie + sesión) vive en lib/workspace.ts.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 
+// Proyecto default (creado en migración 0017): aloja la data single-tenant
+// previa y es el fallback cuando un caller aún no thread-ea project_id.
+export const DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
+
 export type Role = "owner" | "editor" | "viewer";
 
 export const ROLE_RANK: Record<Role, number> = {

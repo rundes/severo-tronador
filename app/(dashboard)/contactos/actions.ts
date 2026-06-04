@@ -12,13 +12,16 @@ import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { log } from "@/lib/logger";
 import { enqueueXHandles } from "@/lib/x-timeline";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 
 // Encola los handles de X importados para que el cron de timelines traiga
 // los últimos posteos de cada uno (escucha activa). Best-effort: un fallo
 // acá no rompe el import.
+// TODO(3c): usar el proyecto activo (requireProject) cuando contactos se
+// scopee por proyecto; por ahora el padrón vive en el proyecto default.
 async function enqueueImportedHandles(rows: { x_handle?: string }[]) {
   try {
-    await enqueueXHandles(rows.map((r) => r.x_handle));
+    await enqueueXHandles(DEFAULT_PROJECT_ID, rows.map((r) => r.x_handle));
   } catch (e) {
     log.warn("contactos.enqueue_x.failed", { error: (e as Error).message });
   }

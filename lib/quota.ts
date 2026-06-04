@@ -1,15 +1,20 @@
-// Tracking de cuotas — las cuotas son ciudadanos de primera clase (ARCHITECTURE
-// §4). La cola chequea cuota ANTES de cada envío, no después.
+// Tracking de cuotas POR PROYECTO — las cuotas son ciudadanos de primera clase
+// (ARCHITECTURE §4). La cola chequea cuota ANTES de cada envío, no después.
 //
-// Sub-task 9.2: persiste en Supabase `cuotas` cuando la DB está configurada;
-// cae a un Map en memoria (globalThis, sobrevive al HMR de dev) cuando no.
-// La tabla cuotas usa connector_id como PK, por lo que se llama a getSupabase()
-// directamente en lugar de pasar por supabaseRepo.
-
+// Persiste en Supabase `cuotas` (PK compuesta project_id + connector_id) cuando
+// la DB está configurada; cae a un Map en memoria (globalThis) cuando no.
+//
+// `projectId` es el último parámetro y opcional (default = proyecto default):
+// los conectores que aún no thread-ean proyecto (envío) siguen compilando y
+// acumulan bajo el proyecto default hasta que se les pase explícito (Fase 3c/4).
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 
 const g = globalThis as unknown as { __quotaMem?: Map<string, number> };
 const mem = (g.__quotaMem ??= new Map());
+
+const key = (projectId: string, connectorId: string) =>
+  `${projectId}:${connectorId}`;
 
 // Primer día del mes siguiente (UTC) — reset del free tier mensual.
 export function nextMonthlyReset(now = Date.now()): string {
@@ -17,26 +22,35 @@ export function nextMonthlyReset(now = Date.now()): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
 }
 
-export async function getUsage(connectorId: string): Promise<number> {
-  if (!dbConfigured()) return mem.get(connectorId) ?? 0;
+export async function getUsage(
+  connectorId: string,
+  projectId: string = DEFAULT_PROJECT_ID,
+): Promise<number> {
+  if (!dbConfigured()) return mem.get(key(projectId, connectorId)) ?? 0;
   const { data } = await getSupabase()
     .from("cuotas")
     .select("used")
+    .eq("project_id", projectId)
     .eq("connector_id", connectorId)
     .maybeSingle();
   return data?.used ?? 0;
 }
 
-export async function incrementUsage(connectorId: string, n = 1): Promise<number> {
+export async function incrementUsage(
+  connectorId: string,
+  n = 1,
+  projectId: string = DEFAULT_PROJECT_ID,
+): Promise<number> {
   if (!dbConfigured()) {
-    const v = (mem.get(connectorId) ?? 0) + n;
-    mem.set(connectorId, v);
+    const k = key(projectId, connectorId);
+    const v = (mem.get(k) ?? 0) + n;
+    mem.set(k, v);
     return v;
   }
-  // Atómico: RPC con INSERT ... ON CONFLICT DO UPDATE SET used = used + n
-  // RETURNING used (#10 STABILIZATION). Reemplaza el read-then-write que
-  // perdía counts bajo envíos concurrentes y podía pasarse del free tier.
+  // Atómico: RPC INSERT ... ON CONFLICT (project_id, connector_id) DO UPDATE
+  // SET used = used + n RETURNING used (#10 STABILIZATION).
   const { data, error } = await getSupabase().rpc("increment_quota", {
+    p_project_id: projectId,
     p_connector_id: connectorId,
     p_n: n,
   });
@@ -44,15 +58,23 @@ export async function incrementUsage(connectorId: string, n = 1): Promise<number
   return Number(data);
 }
 
-export async function resetUsage(connectorId: string): Promise<void> {
+export async function resetUsage(
+  connectorId: string,
+  projectId: string = DEFAULT_PROJECT_ID,
+): Promise<void> {
   if (!dbConfigured()) {
-    mem.set(connectorId, 0);
+    mem.set(key(projectId, connectorId), 0);
     return;
   }
   await getSupabase()
     .from("cuotas")
     .upsert(
-      { connector_id: connectorId, used: 0, updated_at: new Date().toISOString() },
-      { onConflict: "connector_id" },
+      {
+        project_id: projectId,
+        connector_id: connectorId,
+        used: 0,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "project_id,connector_id" },
     );
 }
