@@ -20,4 +20,16 @@ describe("quota", () => {
     // Mismo connector, otro proyecto → cuenta independiente
     expect(await getUsage("cx", "pB")).toBe(0);
   });
+
+  it("getOrgUsage suma el uso de todos los proyectos del connector", async () => {
+    const { getOrgUsage } = await import("@/lib/quota");
+    await resetUsage("org-c", "p1");
+    await resetUsage("org-c", "p2");
+    await incrementUsage("org-c", 4, "p1");
+    await incrementUsage("org-c", 6, "p2");
+    expect(await getOrgUsage("org-c")).toBe(10);
+    // No mezcla otros connectors.
+    await incrementUsage("otra-c", 99, "p1");
+    expect(await getOrgUsage("org-c")).toBe(10);
+  });
 });
