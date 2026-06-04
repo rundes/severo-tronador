@@ -17,7 +17,8 @@ export type AuditAction =
   | "connector.toggle"
   | "listening.config"
   | "mailbox.provision"
-  | "mailbox.send";
+  | "mailbox.send"
+  | "mailbox.address.update";
 
 export interface AuditEntry {
   id: string;

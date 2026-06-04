@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getCredentialFor } from "@/lib/mailbox/credentials";
 import { getMessage, markRead } from "@/lib/mailbox/jmap-client";
+import { sanitizeEmailHtml } from "@/lib/mailbox/sanitize";
 import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Mensaje · Mail · Tronador" };
@@ -42,6 +43,8 @@ export default async function MessageDetailPage({
   if (!message) notFound();
   // Marcar leído al abrir.
   await markRead(id, creds, projectId);
+
+  const safeHtml = message.bodyHtml ? sanitizeEmailHtml(message.bodyHtml) : null;
 
   const replyHref = `/mail/compose?to=${encodeURIComponent(
     message.from.email,
@@ -101,10 +104,10 @@ export default async function MessageDetailPage({
       </header>
 
       <section>
-        {message.bodyHtml ? (
+        {safeHtml ? (
           <div
             className="prose prose-sm max-w-none text-sm dark:prose-invert"
-            dangerouslySetInnerHTML={{ __html: message.bodyHtml }}
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
           />
         ) : (
           <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">

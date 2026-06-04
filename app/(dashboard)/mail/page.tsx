@@ -15,7 +15,8 @@ import {
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { MailSetupChecklist } from "@/components/mail/setup-checklist";
-import { provisionMyMailbox } from "./actions";
+import { Dismissible } from "@/components/mail/dismissible";
+import { provisionMyMailbox, updateMyMailboxAddress } from "./actions";
 import type { Mailbox } from "@/lib/mailbox/types";
 
 export const metadata = { title: "Mail · Tronador" };
@@ -75,10 +76,15 @@ export default async function MailPage({
         ? `Casilla creada en Stalwart.`
         : `Casilla provisionada en modo mock (sin Stalwart conectado).`,
     sent: "Mensaje enviado.",
+    address: "Dirección de casilla actualizada.",
   };
   const errMap: Record<string, string> = {
     provision: `No se pudo provisionar: ${params.msg ?? ""}`,
     send: `Error enviando: ${params.msg ?? ""}`,
+    no_mailbox: "Primero tenés que crear tu casilla.",
+    bad_address: "Dirección inválida. Usá letras, números, punto, guion.",
+    reserved_address: "Ese nombre está reservado. Elegí otro.",
+    address_taken: "Esa dirección ya la usa otro usuario.",
   };
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMsg = params.error ? errMap[params.error] ?? params.error : null;
@@ -116,17 +122,45 @@ export default async function MailPage({
 
       <FormStatus ok={okMsg} error={errMsg} />
 
-      <MailSetupChecklist
-        hasStalwart={Boolean(process.env.STALWART_URL)}
-        hasStalwartAdmin={Boolean(process.env.STALWART_ADMIN_TOKEN)}
-        hasRepliesEnabled={Boolean(process.env.MAIL_REPLIES_ENABLED)}
-        hasRepliesCreds={Boolean(
-          process.env.MAIL_REPLIES_USER && process.env.MAIL_REPLIES_PASSWORD,
-        )}
-        hasInboundSecret={Boolean(process.env.MAIL_INBOUND_SECRET)}
-        hasCronSecret={Boolean(process.env.CRON_SECRET)}
-        hasConfigKey={Boolean(process.env.CONFIG_MASTER_KEY)}
-      />
+      {cred && (
+        <details className="rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800">
+          <summary className="cursor-pointer select-none text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Editar dirección
+          </summary>
+          <form
+            action={updateMyMailboxAddress}
+            className="mt-3 flex flex-wrap items-center gap-2"
+          >
+            <input
+              type="text"
+              name="local"
+              defaultValue={cred.address.split("@")[0]}
+              aria-label="Parte local de la dirección"
+              className="w-48 rounded border border-zinc-300 bg-white px-2 py-1 font-mono text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <span className="font-mono text-sm text-zinc-500">@tronador.net.ar</span>
+            <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
+          </form>
+          <p className="mt-2 text-xs text-zinc-500">
+            Es el remitente de tus envíos. En modo Resend cualquier nombre del
+            dominio sirve; no hace falta recrear la casilla.
+          </p>
+        </details>
+      )}
+
+      <Dismissible id="setup-checklist">
+        <MailSetupChecklist
+          hasStalwart={Boolean(process.env.STALWART_URL)}
+          hasStalwartAdmin={Boolean(process.env.STALWART_ADMIN_TOKEN)}
+          hasRepliesEnabled={Boolean(process.env.MAIL_REPLIES_ENABLED)}
+          hasRepliesCreds={Boolean(
+            process.env.MAIL_REPLIES_USER && process.env.MAIL_REPLIES_PASSWORD,
+          )}
+          hasInboundSecret={Boolean(process.env.MAIL_INBOUND_SECRET)}
+          hasCronSecret={Boolean(process.env.CRON_SECRET)}
+          hasConfigKey={Boolean(process.env.CONFIG_MASTER_KEY)}
+        />
+      </Dismissible>
 
       {!cred && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
@@ -158,10 +192,12 @@ export default async function MailPage({
         </div>
       )}
       {mode === "resend" && cred && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
-          ✓ Modo Cloudflare+Resend: envío real por Resend, bandeja in-app con
-          los entrantes ruteados por Cloudflare.
-        </div>
+        <Dismissible id="resend-banner">
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 pr-8 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+            ✓ Modo Cloudflare+Resend: envío real por Resend, bandeja in-app con
+            los entrantes ruteados por Cloudflare.
+          </div>
+        </Dismissible>
       )}
 
       <div className="grid gap-5 md:grid-cols-[200px_1fr]">
@@ -239,7 +275,9 @@ export default async function MailPage({
                           : "text-zinc-600 dark:text-zinc-400"
                       }`}
                     >
-                      {m.from.name ?? m.from.email}
+                      {currentBox?.role === "sent"
+                        ? `→ ${m.to[0]?.email ?? "—"}`
+                        : m.from.name ?? m.from.email}
                     </span>
                     <span className="flex-1 truncate text-sm">
                       <span

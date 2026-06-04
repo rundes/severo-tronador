@@ -66,6 +66,55 @@ export async function saveCredential(input: {
   if (error) throw new Error(error.message);
 }
 
+// Cambia la dirección @tronador.net.ar de una casilla ya provisionada
+// (preserva password y timestamps). En modo Resend cualquier local-part del
+// dominio verificado sirve como from:, no requiere recrear cuenta.
+export async function updateAddress(
+  userEmail: string,
+  address: string,
+): Promise<void> {
+  if (!dbConfigured()) {
+    const existing = memory.get(userEmail);
+    if (existing) existing.mailbox_address = address;
+    return;
+  }
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("mailbox_credentials")
+    .update({ mailbox_address: address })
+    .eq("user_email", userEmail);
+  if (error) throw new Error(error.message);
+}
+
+// True si OTRO usuario ya tiene esta dirección @tronador (evita spoofing:
+// dos personas no pueden enviar como la misma casilla). Case-insensitive.
+export async function isAddressTakenByOther(
+  address: string,
+  userEmail: string,
+): Promise<boolean> {
+  const addr = address.toLowerCase();
+  if (!dbConfigured()) {
+    for (const row of memory.values()) {
+      if (
+        row.mailbox_address.toLowerCase() === addr &&
+        row.user_email !== userEmail
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("mailbox_credentials")
+    .select("user_email")
+    .ilike("mailbox_address", addr)
+    .neq("user_email", userEmail)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
+}
+
 export async function touchLastLogin(userEmail: string): Promise<void> {
   const now = new Date().toISOString();
   if (!dbConfigured()) {

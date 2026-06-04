@@ -18,6 +18,7 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "listening.config": "Config de escucha",
   "mailbox.provision": "Casilla provisionada",
   "mailbox.send": "Mail enviado",
+  "mailbox.address.update": "Dirección de casilla cambiada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -34,6 +35,7 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "listening.config": "bg-zinc-500",
   "mailbox.provision": "bg-teal-500",
   "mailbox.send": "bg-teal-500",
+  "mailbox.address.update": "bg-teal-500",
 };
 
 function ago(iso: string): string {

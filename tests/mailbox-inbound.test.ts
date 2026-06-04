@@ -45,6 +45,90 @@ describe("inbound-parser · postal-mime", () => {
   });
 });
 
+const RELATED_MIME = [
+  "From: A <a@example.com>",
+  "To: b@tronador.net.ar",
+  "Subject: Con imagen inline",
+  'Content-Type: multipart/related; boundary="BOUND"',
+  "",
+  "--BOUND",
+  "Content-Type: text/html; charset=utf-8",
+  "",
+  '<p>Hola <img src="cid:img1"></p>',
+  "--BOUND",
+  "Content-Type: image/gif",
+  "Content-Transfer-Encoding: base64",
+  "Content-ID: <img1>",
+  "",
+  "R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=",
+  "--BOUND--",
+  "",
+].join("\r\n");
+
+describe("inbound-parser · imágenes inline (cid)", () => {
+  it("reemplaza cid: por data: URI en el HTML", async () => {
+    const { parseRawEmail } = await import("@/lib/mailbox/inbound-parser");
+    const email = await parseRawEmail(RELATED_MIME);
+    expect(email.bodyHtml).toBeDefined();
+    expect(email.bodyHtml).toContain("data:image/gif;base64,");
+    expect(email.bodyHtml).not.toContain("cid:img1");
+    expect(email.hasAttachment).toBe(true);
+  });
+});
+
+const SVG_RELATED_MIME = [
+  "From: A <a@example.com>",
+  "To: b@tronador.net.ar",
+  "Subject: SVG inline",
+  'Content-Type: multipart/related; boundary="B"',
+  "",
+  "--B",
+  "Content-Type: text/html; charset=utf-8",
+  "",
+  '<p><img src="cid:s1"></p>',
+  "--B",
+  "Content-Type: image/svg+xml",
+  "Content-Transfer-Encoding: base64",
+  "Content-ID: <s1>",
+  "",
+  "PHN2Zz48L3N2Zz4=",
+  "--B--",
+  "",
+].join("\r\n");
+
+describe("inbound-parser · seguridad", () => {
+  it("no inlina mimeType fuera del allowlist (svg+xml queda como cid)", async () => {
+    const { parseRawEmail } = await import("@/lib/mailbox/inbound-parser");
+    const email = await parseRawEmail(SVG_RELATED_MIME);
+    expect(email.bodyHtml).toContain("cid:s1");
+    expect(email.bodyHtml).not.toContain("data:image/svg");
+  });
+});
+
+describe("sanitizeEmailHtml", () => {
+  it("quita script, handlers on* y javascript:", async () => {
+    const { sanitizeEmailHtml } = await import("@/lib/mailbox/sanitize");
+    const dirty =
+      '<p>hola</p><script>alert(1)</script>' +
+      '<img src="x" onerror="alert(1)">' +
+      '<a href="javascript:alert(1)">click</a>';
+    const clean = sanitizeEmailHtml(dirty);
+    expect(clean).toContain("hola");
+    expect(clean).not.toContain("<script");
+    expect(clean).not.toContain("onerror");
+    expect(clean).not.toContain("javascript:");
+  });
+
+  it("preserva imágenes data: y http", async () => {
+    const { sanitizeEmailHtml } = await import("@/lib/mailbox/sanitize");
+    const clean = sanitizeEmailHtml(
+      '<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><img src="https://x/y.png">',
+    );
+    expect(clean).toContain("data:image/gif;base64,");
+    expect(clean).toContain("https://x/y.png");
+  });
+});
+
 describe("webhook /api/webhooks/mail-in", () => {
   it("503 sin MAIL_INBOUND_SECRET", async () => {
     const { POST } = await import("@/app/api/webhooks/mail-in/route");

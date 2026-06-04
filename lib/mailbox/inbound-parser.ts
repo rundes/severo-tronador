@@ -11,6 +11,15 @@ interface PostalAddress {
   name?: string;
 }
 
+interface PostalAttachment {
+  filename?: string | null;
+  mimeType?: string;
+  disposition?: "attachment" | "inline" | null;
+  contentId?: string;
+  content?: ArrayBuffer | Uint8Array | string;
+  encoding?: "base64" | "utf8";
+}
+
 interface PostalEmail {
   from?: PostalAddress | PostalAddress[];
   to?: PostalAddress[];
@@ -20,7 +29,52 @@ interface PostalEmail {
   text?: string;
   html?: string;
   messageId?: string;
-  attachments?: { filename?: string }[];
+  attachments?: PostalAttachment[];
+}
+
+// Tope para imágenes inline embebidas como data: URI (evita filas gigantes en
+// inbound_emails). ~2 MB por imagen; las más grandes se dejan como cid roto.
+const MAX_INLINE_BYTES = 2_000_000;
+
+function toBase64(
+  content: ArrayBuffer | Uint8Array | string,
+  encoding?: "base64" | "utf8",
+): string {
+  if (typeof content === "string") {
+    return encoding === "base64"
+      ? content
+      : Buffer.from(content, "utf8").toString("base64");
+  }
+  const u8 = content instanceof Uint8Array ? content : new Uint8Array(content);
+  return Buffer.from(u8).toString("base64");
+}
+
+// Allowlist de tipos de imagen embebibles. Excluye svg+xml (vector con script
+// potencial) y cualquier mimeType arbitrario, que el remitente controla y
+// podría usar para romper el atributo src="" (XSS por attribute breakout).
+const INLINE_IMG_MIME = /^image\/(png|jpe?g|gif|webp|bmp)$/i;
+// contentId también es atacante-controlado: solo chars seguros para el src.
+const SAFE_CID = /^[A-Za-z0-9._@-]+$/;
+
+// Reemplaza <img src="cid:xxx"> por data: URIs usando los adjuntos inline, así
+// las imágenes embebidas (típico de Gmail/Outlook) se ven en la bandeja in-app
+// sin tener que almacenar/servir adjuntos por separado. El HTML resultante se
+// sanitiza aguas abajo (render) — acá validamos mimeType/contentId como defensa
+// en profundidad para que el data: URI inyectado no rompa el atributo.
+function inlineCidImages(html: string, attachments: PostalAttachment[]): string {
+  let out = html;
+  for (const att of attachments) {
+    if (!att.contentId || !att.content) continue;
+    if (!att.mimeType || !INLINE_IMG_MIME.test(att.mimeType)) continue;
+    const id = att.contentId.replace(/^<|>$/g, "");
+    if (!SAFE_CID.test(id)) continue;
+    const b64 = toBase64(att.content, att.encoding);
+    if (b64.length > (MAX_INLINE_BYTES * 4) / 3) continue; // base64 ~ 4/3 bytes
+    if (!/^[A-Za-z0-9+/=]+$/.test(b64)) continue; // base64 puro, sin sorpresas
+    const mime = att.mimeType.toLowerCase();
+    out = out.split(`cid:${id}`).join(`data:${mime};base64,${b64}`);
+  }
+  return out;
 }
 
 function asAddress(a: PostalAddress | undefined): EmailAddress {
@@ -41,6 +95,9 @@ export async function parseRawEmail(raw: string | Uint8Array): Promise<EmailFull
     ? parsed.from[0]
     : parsed.from;
   const text = parsed.text ?? stripHtml(parsed.html ?? "");
+  const html = parsed.html
+    ? inlineCidImages(parsed.html, parsed.attachments ?? [])
+    : undefined;
   return {
     id: parsed.messageId ?? cryptoRandomId(),
     threadId: parsed.messageId ?? cryptoRandomId(),
@@ -54,7 +111,7 @@ export async function parseRawEmail(raw: string | Uint8Array): Promise<EmailFull
     isUnread: true,
     hasAttachment: (parsed.attachments ?? []).length > 0,
     bodyText: text,
-    bodyHtml: parsed.html,
+    bodyHtml: html,
   };
 }
 

@@ -17,6 +17,8 @@ import {
   getInbound,
   markInboundRead,
   inboxUnreadCount,
+  outboundCount,
+  storeOutbound,
 } from "./inbox-store";
 import { dbConfigured } from "@/lib/db/supabase";
 import type {
@@ -164,6 +166,13 @@ export async function listMailboxes(
         unreadCount: await inboxUnreadCount(projectId),
         totalCount: 0,
       },
+      {
+        id: "sent",
+        name: "Enviados",
+        role: "sent",
+        unreadCount: 0,
+        totalCount: await outboundCount(projectId),
+      },
     ];
   }
   if (mode !== "stalwart" || !creds) return MOCK_MAILBOXES;
@@ -190,7 +199,9 @@ export async function listMessages(
   projectId?: string,
 ): Promise<EmailListItem[]> {
   const mode = mailMode();
-  if (mode === "resend" && projectId) return listInbound(projectId);
+  if (mode === "resend" && projectId) {
+    return listInbound(projectId, mailboxId === "sent" ? "out" : "in");
+  }
   if (mode !== "stalwart" || !creds) return mockMessagesInMailbox(mailboxId);
 
   const response = (await jmapCall(creds, [
@@ -334,6 +345,7 @@ export async function markRead(
 export async function sendMail(
   input: ComposeInput,
   creds?: Credentials,
+  projectId?: string,
 ): Promise<SendResult> {
   const mode = mailMode();
   // Modo resend: enviar vía Resend desde la casilla @tronador del usuario.
@@ -341,7 +353,20 @@ export async function sendMail(
     if (!creds?.address) {
       return { ok: false, error: "Provisioná tu casilla antes de enviar" };
     }
-    return resendSend(input, creds.address);
+    const result = await resendSend(input, creds.address);
+    // Registrar en Enviados (carpeta in-app) si salió OK.
+    if (result.ok && projectId) {
+      await storeOutbound({
+        projectId,
+        messageId: result.messageId ?? null,
+        fromEmail: creds.address,
+        toEmail: input.to.map((t) => t.email).join(", "),
+        subject: input.subject,
+        bodyText: input.bodyText,
+        bodyHtml: input.bodyHtml ?? null,
+      });
+    }
+    return result;
   }
   if (mode !== "stalwart" || !creds) {
     // Mock: simula que se mandó OK.
