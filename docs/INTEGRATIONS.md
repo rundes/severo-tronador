@@ -246,20 +246,27 @@ X_API_BEARER_TOKEN=...
 X_TIMELINE_BATCH=50   # handles por corrida del cron de timelines (opcional)
 ```
 
-**Timelines por contacto (escucha activa).** Al importar contactos, cada
+**Posteos por contacto (escucha activa).** Al importar contactos, cada
 `x_handle` se encola en `x_handle_queue`. El cron `/api/cron/x-timeline`
 (GitHub Actions cada 6h, `.github/workflows/x-timeline.yml`) drena la cola:
-por cada handle resuelve el id (cacheado tras el primer lookup), trae los
-**últimos 5 posteos** vía `/2/users/:id/tweets` y los upserta en
-`listening_items` (`kind="tweet"`, dedupe por url). Respeta el free tier
-(1.500 tweets/mes, compartido con la búsqueda): consume hasta 5 tweets por
-handle, procesa `X_TIMELINE_BATCH` por corrida (default 50) y deja el resto
+por cada handle trae sus **últimos 5 posteos** vía `search/recent` con
+`from:handle` y los upserta en `listening_items` (`kind="tweet"`, dedupe por
+url). Cubre los **últimos ~7 días** (límite de recent search).
+
+> **Por qué search/recent y no el timeline del usuario.** Los endpoints
+> `/2/users/by/username` y `/2/users/:id/tweets` (que darían los últimos N sin
+> importar la fecha) exigen plan **pago** — con el token free devuelven
+> `HTTP 402`. `search/recent` es el endpoint del free tier. Si en el futuro se
+> contrata un plan superior, se puede volver al timeline para ventana
+> ilimitada.
+
+Respeta el free tier (1.500 tweets/mes, compartido con la búsqueda):
+presupuesta hasta 10 tweets por handle (mínimo de recent search; guarda 5),
+procesa `X_TIMELINE_BATCH` handles por corrida (default 50) y deja el resto
 `pending` para la próxima — los descartados por cuota se loguean
-(`x_timeline.quota_exhausted`). Sin token, la cola no se procesa (no hay mock
-de timelines, a diferencia de la búsqueda).
+(`x_timeline.quota_exhausted`). Sin token, la cola no se procesa.
 
 Ref: [X API v2 · recent search](https://developer.x.com/en/docs/x-api/tweets/search/introduction)
-· [user tweets timeline](https://developer.x.com/en/docs/x-api/tweets/timelines/introduction)
 
 ---
 
