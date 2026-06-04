@@ -102,7 +102,7 @@ describe("meta-content-library connector (mock mode)", () => {
 describe("meta-content-library en runListening", () => {
   it("agrega items meta-ig/meta-fb al bySource", async () => {
     const { runListening } = await import("@/lib/listening");
-    const result = await runListening();
+    const result = await runListening("p1");
     const igCount = result.bySource["meta-ig"] ?? 0;
     const fbCount = result.bySource["meta-fb"] ?? 0;
     expect(igCount + fbCount).toBeGreaterThan(0);

@@ -11,4 +11,13 @@ describe("quota", () => {
     await resetUsage("c1");
     expect(await getUsage("c1")).toBe(0);
   });
+
+  it("cuota aislada por proyecto", async () => {
+    await resetUsage("cx", "pA");
+    await resetUsage("cx", "pB");
+    await incrementUsage("cx", 5, "pA");
+    expect(await getUsage("cx", "pA")).toBe(5);
+    // Mismo connector, otro proyecto → cuenta independiente
+    expect(await getUsage("cx", "pB")).toBe(0);
+  });
 });

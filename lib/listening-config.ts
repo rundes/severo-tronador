@@ -23,10 +23,17 @@ interface Row {
   fuentes: string[] | null;
 }
 
-export async function getListeningConfig(): Promise<ListeningConfig> {
+// Config de escucha POR PROYECTO. La tabla listening_config tiene PK project_id
+// (migración 0020); cada proyecto tiene su propia fila (o el DEFAULT si no hay).
+export async function getListeningConfig(
+  projectId: string,
+): Promise<ListeningConfig> {
   if (!dbConfigured()) return { ...DEFAULT };
   const { data } = await getSupabase()
-    .from("listening_config").select("*").eq("id", 1).maybeSingle();
+    .from("listening_config")
+    .select("*")
+    .eq("project_id", projectId)
+    .maybeSingle();
   if (!data) return { ...DEFAULT };
   const r = data as Row;
   return {
@@ -40,11 +47,17 @@ export async function getListeningConfig(): Promise<ListeningConfig> {
   };
 }
 
-export async function saveListeningConfig(cfg: ListeningConfig): Promise<void> {
-  if (!dbConfigured()) throw new Error("Supabase no configurado: no se puede guardar la configuración de escucha");
+export async function saveListeningConfig(
+  projectId: string,
+  cfg: ListeningConfig,
+): Promise<void> {
+  if (!dbConfigured())
+    throw new Error(
+      "Supabase no configurado: no se puede guardar la configuración de escucha",
+    );
   const { error } = await getSupabase().from("listening_config").upsert(
     {
-      id: 1,
+      project_id: projectId,
       geo: { zona: cfg.zona, pais: cfg.pais },
       radio: cfg.radioKm,
       lat: cfg.lat,
@@ -53,7 +66,7 @@ export async function saveListeningConfig(cfg: ListeningConfig): Promise<void> {
       fuentes: cfg.fuentes,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "id" },
+    { onConflict: "project_id" },
   );
   if (error) throw error;
 }

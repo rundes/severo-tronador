@@ -12,6 +12,7 @@ import { log } from "@/lib/logger";
 
 interface ListeningRow {
   id?: string;
+  project_id?: string;
   connector_id: string | null;
   source: string | null;
   text: string | null;
@@ -38,8 +39,13 @@ function toListenItem(r: ListeningRow): ListenItem {
   };
 }
 
-function toRow(connectorId: string, item: ListenItem): ListeningRow {
+function toRow(
+  projectId: string,
+  connectorId: string,
+  item: ListenItem,
+): ListeningRow {
   return {
+    project_id: projectId,
     connector_id: connectorId,
     source: item.source,
     text: item.text,
@@ -58,6 +64,7 @@ function toRow(connectorId: string, item: ListenItem): ListeningRow {
 // Items en los últimos `windowDays` días, opcionalmente filtrados por
 // connector_id (se usa para respetar el filter de fuentes habilitadas).
 export async function readCachedItems(
+  projectId: string,
   windowDays = 14,
   connectorIds?: string[],
 ): Promise<ListenItem[]> {
@@ -70,6 +77,7 @@ export async function readCachedItems(
     .select(
       "source, text, url, published_at, topic, author, kind, parent_url, lat, lng, connector_id",
     )
+    .eq("project_id", projectId)
     .gte("published_at", since)
     .order("published_at", { ascending: false })
     .limit(2000);
@@ -85,7 +93,10 @@ export async function readCachedItems(
 }
 
 // True si hay rows en la ventana — para decidir cache vs live fetch.
-export async function cacheHasFreshItems(windowDays = 7): Promise<boolean> {
+export async function cacheHasFreshItems(
+  projectId: string,
+  windowDays = 7,
+): Promise<boolean> {
   if (!dbConfigured()) return false;
   const since = new Date(
     Date.now() - windowDays * 24 * 60 * 60 * 1000,
@@ -93,13 +104,15 @@ export async function cacheHasFreshItems(windowDays = 7): Promise<boolean> {
   const { count, error } = await getSupabase()
     .from("listening_items")
     .select("*", { count: "exact", head: true })
+    .eq("project_id", projectId)
     .gte("published_at", since);
   if (error) return false;
   return (count ?? 0) > 0;
 }
 
-// Upsert por url. Items sin url se insertan siempre.
+// Upsert por (project_id, url). Items sin url se insertan siempre.
 export async function upsertItems(
+  projectId: string,
   connectorId: string,
   items: ListenItem[],
 ): Promise<{ inserted: number; skipped: number }> {
@@ -117,9 +130,9 @@ export async function upsertItems(
     const { error, count } = await sb
       .from("listening_items")
       .upsert(
-        withUrl.map((i) => toRow(connectorId, i)),
+        withUrl.map((i) => toRow(projectId, connectorId, i)),
         {
-          onConflict: "url",
+          onConflict: "project_id,url",
           ignoreDuplicates: false,
           count: "exact",
         },
@@ -136,7 +149,7 @@ export async function upsertItems(
     const { error, count } = await sb
       .from("listening_items")
       .insert(
-        withoutUrl.map((i) => toRow(connectorId, i)),
+        withoutUrl.map((i) => toRow(projectId, connectorId, i)),
         { count: "exact" },
       );
     if (error) {
@@ -157,8 +170,8 @@ export interface PullSummary {
   total: number;
 }
 
-export async function pullAllSources(): Promise<PullSummary> {
-  const cfg = await getListeningConfig();
+export async function pullAllSources(projectId: string): Promise<PullSummary> {
+  const cfg = await getListeningConfig(projectId);
   const listeners = connectors.filter(
     (c) => c.category === "listening",
   ) as ListeningConnector[];
@@ -176,7 +189,7 @@ export async function pullAllSources(): Promise<PullSummary> {
         lat: cfg.lat,
         lng: cfg.lng,
       });
-      const { inserted } = await upsertItems(l.id, items);
+      const { inserted } = await upsertItems(projectId, l.id, items);
       summary.bySource[l.id] = {
         fetched: items.length,
         upserted: inserted,
