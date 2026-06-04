@@ -13,7 +13,7 @@ import { enviarContacto } from "./actions";
 export const metadata = {
   title: "Tronador · Centro de Estudios Políticos y Electorales",
   description:
-    "Herramienta para investigar tendencias y vincularse con la ciudadanía mediante estrategias multicanal.",
+    "Una herramienta para potenciar el estudio de tendencias y sostener el vínculo con la ciudadanía a través de canales diversos.",
 };
 
 export default async function Landing({
@@ -108,32 +108,32 @@ function Hero() {
         <p className="mb-5 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[oklch(55%_0.08_80)] sm:text-xs">
           Centro de Estudios Políticos y Electorales
         </p>
-        <h1 className="leading-[0.95] tracking-tight">
+        <h1 className="leading-[0.98] tracking-tight">
           <span
             className="block font-light text-[oklch(40%_0.04_250)]"
-            style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)" }}
+            style={{ fontSize: "clamp(2.25rem, 5.5vw, 4rem)" }}
           >
-            Investigar
-          </span>
-          <span
-            className="mt-1 block font-medium"
-            style={{ fontSize: "clamp(2.75rem, 7vw, 5.5rem)" }}
-          >
-            la conversación
+            La voz del pueblo
+            <span className="text-[oklch(60%_0.13_80)]">.</span>
           </span>
           <span
             className="mt-1 block font-extrabold"
             style={{
               color: "oklch(60% 0.13 80)",
-              fontSize: "clamp(3.25rem, 8.5vw, 6.5rem)",
+              fontSize: "clamp(2.75rem, 7.5vw, 5.75rem)",
             }}
           >
-            pública<span className="text-[oklch(40%_0.04_250)]">.</span>
+            La fuerza de los datos
+            <span className="text-[oklch(40%_0.04_250)]">.</span>
           </span>
         </h1>
         <p className="mt-8 max-w-prose text-base leading-relaxed text-[oklch(40%_0.04_250)] sm:text-lg">
-          Plataforma para observar tendencias y vincularse con la ciudadanía
-          mediante estrategias de contacto pensadas para la investigación.
+          Una herramienta para potenciar el estudio de tendencias y sostener el
+          vínculo con la ciudadanía a través de canales diversos.
+        </p>
+        <p className="mt-4 max-w-prose text-base font-medium leading-relaxed text-[oklch(30%_0.06_250)]">
+          Escuchamos a la gente. Interpretamos los datos. Porque la realidad
+          habla y los datos la confirman.
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
@@ -173,13 +173,15 @@ function About() {
         <SectionLabel n="01" title="Sobre" />
         <div className="space-y-6 text-lg leading-relaxed text-[oklch(28%_0.06_250)]">
           <p>
-            Tronador es la plataforma de investigación del{" "}
-            <strong className="font-semibold">
-              Centro de Estudios Políticos y Electorales
-            </strong>
-            . Una herramienta para potenciar el estudio de tendencias y
-            sostener el vínculo con la ciudadanía a través de canales
-            diversos.
+            <strong className="font-semibold">Tronador</strong> es la
+            plataforma de investigación que, a través de herramientas de
+            análisis, monitoreo y metodologías de contacto, permite observar
+            tendencias, comprender el clima social, detectar demandas
+            emergentes, medir percepciones y anticipar escenarios. Combinamos
+            escucha activa, análisis territorial y procesamiento de información
+            para transformar datos en conocimiento estratégico, comprender la
+            realidad y acompañar una mejor toma de decisiones. Porque quienes
+            entienden antes lo que está pasando, toman mejores decisiones.
           </p>
           <p>
             La conversación pública no ocurre en un solo lugar. Tronador
