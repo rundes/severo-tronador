@@ -4,9 +4,12 @@ import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
 import type { EmailFull, EmailListItem } from "./types";
 
+type Direction = "in" | "out";
+
 interface InboundRow {
   id: string;
   project_id: string;
+  direction: Direction;
   message_id: string | null;
   from_email: string;
   from_name: string | null;
@@ -52,10 +55,11 @@ export interface StoreInboundInput {
   receivedAt?: string;
 }
 
-export async function storeInbound(input: StoreInboundInput): Promise<void> {
+async function store(input: StoreInboundInput, direction: Direction): Promise<void> {
   const preview = (input.bodyText ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
   const row = {
     project_id: input.projectId,
+    direction,
     message_id: input.messageId ?? null,
     from_email: input.fromEmail,
     from_name: input.fromName ?? null,
@@ -65,23 +69,37 @@ export async function storeInbound(input: StoreInboundInput): Promise<void> {
     body_text: input.bodyText ?? null,
     body_html: input.bodyHtml ?? null,
     received_at: input.receivedAt ?? new Date().toISOString(),
-    read_at: null,
+    // Los salientes nacen "leídos" (los mandó el propio usuario).
+    read_at: direction === "out" ? new Date().toISOString() : null,
   };
   if (!dbConfigured()) {
     mem.unshift({ id: crypto.randomUUID(), ...row });
     return;
   }
-  // Dedupe por message_id (índice único parcial). Ignoramos conflicto.
+  // Dedupe por message_id (índice único). Ignoramos conflicto.
   const { error } = await getSupabase()
     .from("inbound_emails")
     .upsert(row, { onConflict: "message_id", ignoreDuplicates: true });
   if (error) log.warn("inbox.store_failed", { error: error.message });
 }
 
-export async function listInbound(projectId: string): Promise<EmailListItem[]> {
+// Entrante (Cloudflare → webhook). direction = "in".
+export async function storeInbound(input: StoreInboundInput): Promise<void> {
+  return store(input, "in");
+}
+
+// Saliente (enviado por Resend). direction = "out" → carpeta Enviados.
+export async function storeOutbound(input: StoreInboundInput): Promise<void> {
+  return store(input, "out");
+}
+
+export async function listInbound(
+  projectId: string,
+  direction: Direction = "in",
+): Promise<EmailListItem[]> {
   if (!dbConfigured()) {
     return mem
-      .filter((r) => r.project_id === projectId)
+      .filter((r) => r.project_id === projectId && r.direction === direction)
       .sort((a, b) => b.received_at.localeCompare(a.received_at))
       .map(toListItem);
   }
@@ -89,6 +107,7 @@ export async function listInbound(projectId: string): Promise<EmailListItem[]> {
     .from("inbound_emails")
     .select("*")
     .eq("project_id", projectId)
+    .eq("direction", direction)
     .order("received_at", { ascending: false })
     .limit(100);
   if (error) {
@@ -96,6 +115,19 @@ export async function listInbound(projectId: string): Promise<EmailListItem[]> {
     return [];
   }
   return (data ?? []).map((r) => toListItem(r as InboundRow));
+}
+
+export async function outboundCount(projectId: string): Promise<number> {
+  if (!dbConfigured()) {
+    return mem.filter((r) => r.project_id === projectId && r.direction === "out")
+      .length;
+  }
+  const { count } = await getSupabase()
+    .from("inbound_emails")
+    .select("*", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("direction", "out");
+  return count ?? 0;
 }
 
 export async function getInbound(
@@ -140,12 +172,15 @@ export async function markInboundRead(
 
 export async function inboxUnreadCount(projectId: string): Promise<number> {
   if (!dbConfigured()) {
-    return mem.filter((r) => r.project_id === projectId && !r.read_at).length;
+    return mem.filter(
+      (r) => r.project_id === projectId && r.direction === "in" && !r.read_at,
+    ).length;
   }
   const { count } = await getSupabase()
     .from("inbound_emails")
     .select("*", { count: "exact", head: true })
     .eq("project_id", projectId)
+    .eq("direction", "in")
     .is("read_at", null);
   return count ?? 0;
 }

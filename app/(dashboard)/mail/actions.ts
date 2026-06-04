@@ -7,11 +7,14 @@ import { logAudit } from "@/lib/audit";
 import { log } from "@/lib/logger";
 import {
   getCredentialFor,
+  isAddressTakenByOther,
   touchLastLogin,
+  updateAddress,
 } from "@/lib/mailbox/credentials";
 import { sendMail as jmapSend } from "@/lib/mailbox/jmap-client";
 import { provisionMailbox } from "@/lib/mailbox/provision";
 import type { EmailAddress } from "@/lib/mailbox/types";
+import { requireProject } from "@/lib/workspace";
 
 function requireSession() {
   return auth().then((s) => {
@@ -51,6 +54,75 @@ export async function provisionMyMailbox() {
   redirect(`/mail?ok=provisioned&mode=${result.mode}`);
 }
 
+const MAIL_DOMAIN = "tronador.net.ar";
+
+// Local-parts reservados: roles/funciones que no debe poder reclamar un usuario
+// (suplantación, abuso de confianza, rebote de RFC 2142).
+const RESERVED_LOCAL = new Set([
+  "admin",
+  "administrator",
+  "root",
+  "postmaster",
+  "hostmaster",
+  "webmaster",
+  "abuse",
+  "security",
+  "noreply",
+  "no-reply",
+  "support",
+  "billing",
+  "info",
+  "contact",
+  "mail",
+  "mailer-daemon",
+  "daemon",
+  "replies",
+  "bounce",
+  "system",
+]);
+
+// Sanitiza el local-part a chars RFC válidos. Devuelve "" si no queda nada útil.
+function sanitizeLocalPart(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/@.*$/, "") // por si pegan el address completo
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 32);
+}
+
+export async function updateMyMailboxAddress(formData: FormData) {
+  const userEmail = await requireSession();
+  const cred = await getCredentialFor(userEmail);
+  if (!cred) redirect("/mail?error=no_mailbox");
+
+  const local = sanitizeLocalPart(String(formData.get("local") ?? ""));
+  if (!local) redirect("/mail?error=bad_address");
+  if (RESERVED_LOCAL.has(local)) redirect("/mail?error=reserved_address");
+  const address = `${local}@${MAIL_DOMAIN}`;
+
+  if (address === cred.address) {
+    redirect("/mail?ok=address");
+  }
+
+  if (await isAddressTakenByOther(address, userEmail)) {
+    redirect("/mail?error=address_taken");
+  }
+
+  await updateAddress(userEmail, address);
+  await logAudit({
+    action: "mailbox.address.update",
+    actor: userEmail,
+    entity_type: "mailbox",
+    entity_id: address,
+    details: { from: cred.address, to: address },
+  });
+  log.info("mailbox.address.updated", { userEmail, address });
+  revalidatePath("/mail");
+  redirect("/mail?ok=address");
+}
+
 function parseRecipients(raw: string): EmailAddress[] {
   return raw
     .split(/[,;]/)
@@ -74,9 +146,11 @@ export async function sendMail(formData: FormData) {
   const creds = cred
     ? { address: cred.address, password: cred.password }
     : undefined;
+  const { id: projectId } = await requireProject();
   const result = await jmapSend(
     { to, cc: cc.length ? cc : undefined, subject, bodyText },
     creds,
+    projectId,
   );
 
   await logAudit({
