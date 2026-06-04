@@ -12,6 +12,13 @@ import {
   mockMessageById,
   mockMessagesInMailbox,
 } from "./mock-data";
+import {
+  listInbound,
+  getInbound,
+  markInboundRead,
+  inboxUnreadCount,
+} from "./inbox-store";
+import { dbConfigured } from "@/lib/db/supabase";
 import type {
   ComposeInput,
   EmailFull,
@@ -28,6 +35,48 @@ interface Credentials {
 
 export function isLiveMode(): boolean {
   return Boolean(process.env.STALWART_URL && process.env.STALWART_ADMIN_TOKEN);
+}
+
+// Modo del subsistema de mail:
+//  · stalwart → servidor JMAP self-hosted (webmail completo).
+//  · resend   → Cloudflare(recibir, bandeja en DB) + Resend(enviar). Sin VPS.
+//  · mock     → datos canned (dev sin nada configurado).
+export type MailMode = "stalwart" | "resend" | "mock";
+export function mailMode(): MailMode {
+  if (isLiveMode()) return "stalwart";
+  if (process.env.RESEND_API_KEY || dbConfigured()) return "resend";
+  return "mock";
+}
+
+// Envío vía Resend (modo resend): from = la casilla @tronador del usuario.
+async function resendSend(
+  input: ComposeInput,
+  from: string,
+): Promise<SendResult> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { ok: false, error: "RESEND_API_KEY no configurado" };
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: input.to.map((t) => t.email),
+        ...(input.cc ? { cc: input.cc.map((c) => c.email) } : {}),
+        subject: input.subject,
+        text: input.bodyText,
+        ...(input.bodyHtml ? { html: input.bodyHtml } : {}),
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `Resend HTTP ${res.status}` };
+    const data = (await res.json()) as { id?: string };
+    return { ok: true, messageId: data.id };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 function authHeader(creds: Credentials): string {
@@ -65,8 +114,18 @@ async function jmapCall(
 
 export async function getMailboxStatus(
   creds?: Credentials,
+  projectId?: string,
 ): Promise<MailboxStatus> {
-  if (!isLiveMode() || !creds) {
+  const mode = mailMode();
+  if (mode === "resend" && projectId) {
+    return {
+      configured: true,
+      mode: "resend",
+      address: creds?.address,
+      unread: await inboxUnreadCount(projectId),
+    };
+  }
+  if (mode !== "stalwart" || !creds) {
     const unread = MOCK_MAILBOXES.find((m) => m.role === "inbox")?.unreadCount ?? 0;
     return {
       configured: false,
@@ -91,8 +150,23 @@ export async function getMailboxStatus(
 
 // ── Mailboxes ──────────────────────────────────────────────────────────
 
-export async function listMailboxes(creds?: Credentials): Promise<Mailbox[]> {
-  if (!isLiveMode() || !creds) return MOCK_MAILBOXES;
+export async function listMailboxes(
+  creds?: Credentials,
+  projectId?: string,
+): Promise<Mailbox[]> {
+  const mode = mailMode();
+  if (mode === "resend" && projectId) {
+    return [
+      {
+        id: "inbox",
+        name: "Recibidos",
+        role: "inbox",
+        unreadCount: await inboxUnreadCount(projectId),
+        totalCount: 0,
+      },
+    ];
+  }
+  if (mode !== "stalwart" || !creds) return MOCK_MAILBOXES;
   const response = (await jmapCall(creds, [
     ["Mailbox/get", { ids: null, properties: ["name", "role", "totalEmails", "unreadEmails"] }, "0"],
   ])) as { methodResponses?: unknown[][] };
@@ -113,8 +187,11 @@ export async function listMailboxes(creds?: Credentials): Promise<Mailbox[]> {
 export async function listMessages(
   mailboxId: string,
   creds?: Credentials,
+  projectId?: string,
 ): Promise<EmailListItem[]> {
-  if (!isLiveMode() || !creds) return mockMessagesInMailbox(mailboxId);
+  const mode = mailMode();
+  if (mode === "resend" && projectId) return listInbound(projectId);
+  if (mode !== "stalwart" || !creds) return mockMessagesInMailbox(mailboxId);
 
   const response = (await jmapCall(creds, [
     ["Email/query", { filter: { inMailbox: mailboxId }, sort: [{ property: "receivedAt", isAscending: false }], limit: 50 }, "0"],
@@ -170,8 +247,11 @@ function toEmailListItem(e: JmapEmail): EmailListItem {
 export async function getMessage(
   id: string,
   creds?: Credentials,
+  projectId?: string,
 ): Promise<EmailFull | null> {
-  if (!isLiveMode() || !creds) {
+  const mode = mailMode();
+  if (mode === "resend" && projectId) return getInbound(projectId, id);
+  if (mode !== "stalwart" || !creds) {
     const m = mockMessageById(id);
     return m ?? null;
   }
@@ -223,8 +303,14 @@ export async function getMessage(
 export async function markRead(
   emailId: string,
   creds?: Credentials,
+  projectId?: string,
 ): Promise<boolean> {
-  if (!isLiveMode() || !creds) {
+  const mode = mailMode();
+  if (mode === "resend" && projectId) {
+    await markInboundRead(projectId, emailId);
+    return true;
+  }
+  if (mode !== "stalwart" || !creds) {
     const m = mockMessageById(emailId);
     if (m) m.isUnread = false;
     return Boolean(m);
@@ -249,7 +335,15 @@ export async function sendMail(
   input: ComposeInput,
   creds?: Credentials,
 ): Promise<SendResult> {
-  if (!isLiveMode() || !creds) {
+  const mode = mailMode();
+  // Modo resend: enviar vía Resend desde la casilla @tronador del usuario.
+  if (mode === "resend") {
+    if (!creds?.address) {
+      return { ok: false, error: "Provisioná tu casilla antes de enviar" };
+    }
+    return resendSend(input, creds.address);
+  }
+  if (mode !== "stalwart" || !creds) {
     // Mock: simula que se mandó OK.
     const fakeId = `mock-${Date.now()}`;
     MOCK_EMAILS.unshift({

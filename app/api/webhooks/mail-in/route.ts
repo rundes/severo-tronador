@@ -8,6 +8,8 @@ import { NextResponse } from "next/server";
 import { verifyHmacSha256 } from "@/lib/crypto";
 import { parseRawEmail } from "@/lib/mailbox/inbound-parser";
 import { routeReply } from "@/lib/mailbox/reply-routing";
+import { storeInbound } from "@/lib/mailbox/inbox-store";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -46,6 +48,21 @@ export async function POST(req: Request) {
   }
 
   const result = await routeReply(email);
+
+  // Guardar el entrante en la bandeja in-app (modo Cloudflare+Resend).
+  // Si fue un reply de campaña usamos su proyecto; si no, el default.
+  await storeInbound({
+    projectId: result.projectId ?? DEFAULT_PROJECT_ID,
+    messageId: email.id,
+    fromEmail: email.from.email,
+    fromName: email.from.name ?? null,
+    toEmail: email.to[0]?.email ?? payload.to ?? null,
+    subject: email.subject,
+    bodyText: email.bodyText,
+    bodyHtml: email.bodyHtml ?? null,
+    receivedAt: email.receivedAt,
+  });
+
   log.info("mail.inbound.routed", {
     ok: result.ok,
     reason: result.reason,

@@ -22,6 +22,7 @@ export interface RoutedReply {
     | "db_error";
   envioToken?: string;
   campaignId?: string;
+  projectId?: string;
   dni?: string;
   respuestaId?: string;
 }
@@ -86,6 +87,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
       reason: "duplicate",
       envioToken: token,
       campaignId: row.campaign_id,
+      projectId: row.project_id,
       dni: row.dni ?? undefined,
       respuestaId: (existing as RespuestaRow).id,
     };
@@ -128,6 +130,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
     ok: true,
     envioToken: token,
     campaignId: row.campaign_id,
+    projectId: row.project_id,
     dni: row.dni ?? undefined,
     respuestaId: (inserted as RespuestaRow).id,
   };
