@@ -78,7 +78,8 @@ export interface Connector {
   // lifecycle
   test(config?: Config): Promise<TestResult>;
   getStatus(config?: Config): Promise<ConnectorStatus>;
-  getQuota?(config?: Config): Promise<Quota | null>;
+  // Cuota del proyecto (opcional; default = proyecto default).
+  getQuota?(projectId?: string): Promise<Quota | null>;
 }
 
 // ── Refinamientos por categoría ───────────────────────────────────────────
@@ -134,9 +135,18 @@ export interface SendResult {
 
 export interface OutreachConnector extends Connector {
   category: "outreach";
-  getQuota(config?: Config): Promise<Quota>; // los canales siempre tienen cuota
-  send(message: OutreachMessage, recipient: Contact): Promise<SendResult>;
-  estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }>;
+  // projectId opcional (default = proyecto default) → la cuota se trackea por
+  // proyecto. send-queue pasa el del envío; callers de display usan el default.
+  getQuota(projectId?: string): Promise<Quota>;
+  send(
+    message: OutreachMessage,
+    recipient: Contact,
+    projectId?: string,
+  ): Promise<SendResult>;
+  estimateQuotaImpact(
+    count: number,
+    projectId?: string,
+  ): Promise<{ willFit: boolean; remaining: number }>;
 }
 
 export interface ListenQuery {

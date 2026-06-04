@@ -12,6 +12,7 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 
 const ID = "claude-api";
@@ -124,9 +125,9 @@ export const claudeApiConnector: AnalysisConnector = {
     return (await getUsage(ID)) >= TOKEN_CAP ? "quota_exhausted" : "enabled";
   },
 
-  async getQuota(): Promise<Quota> {
+  async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     return {
-      used: await getUsage(ID),
+      used: await getUsage(ID, projectId),
       limit: TOKEN_CAP,
       unit: "tokens",
       period: "month",

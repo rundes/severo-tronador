@@ -58,6 +58,26 @@ export async function incrementUsage(
   return Number(data);
 }
 
+// Uso ORG-WIDE de un connector: suma `used` de todos los proyectos. Necesario
+// porque las API keys son org-global pero la cuota se trackea por proyecto —
+// el límite real del free tier (X/Resend) es compartido, así que el guard de
+// la cola lo chequea además del per-project.
+export async function getOrgUsage(connectorId: string): Promise<number> {
+  if (!dbConfigured()) {
+    let sum = 0;
+    for (const [k, v] of mem) if (k.endsWith(`:${connectorId}`)) sum += v;
+    return sum;
+  }
+  const { data } = await getSupabase()
+    .from("cuotas")
+    .select("used")
+    .eq("connector_id", connectorId);
+  return (data ?? []).reduce(
+    (acc, r) => acc + ((r as { used?: number }).used ?? 0),
+    0,
+  );
+}
+
 export async function resetUsage(
   connectorId: string,
   projectId: string = DEFAULT_PROJECT_ID,
