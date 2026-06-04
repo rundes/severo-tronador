@@ -16,6 +16,7 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { getChatByDni } from "@/lib/telegram-chats";
 
@@ -105,9 +106,9 @@ export const telegramBotConnector: OutreachConnector = {
     return "enabled";
   },
 
-  async getQuota(): Promise<Quota> {
+  async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     return {
-      used: await getUsage(ID),
+      used: await getUsage(ID, projectId),
       limit: SOFT_LIMIT,
       unit: "messages",
       period: "month",
@@ -115,14 +116,18 @@ export const telegramBotConnector: OutreachConnector = {
     };
   },
 
-  async estimateQuotaImpact(count: number) {
-    const remaining = SOFT_LIMIT - (await getUsage(ID));
+  async estimateQuotaImpact(
+    count: number,
+    projectId: string = DEFAULT_PROJECT_ID,
+  ) {
+    const remaining = SOFT_LIMIT - (await getUsage(ID, projectId));
     return { willFit: count <= remaining, remaining };
   },
 
   async send(
     message: OutreachMessage,
     recipient: Contact,
+    projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<SendResult> {
     // Necesita opt-in del usuario. Sin chat_id no podemos mandar.
     const chat = await getChatByDni(recipient.dni);
@@ -135,7 +140,7 @@ export const telegramBotConnector: OutreachConnector = {
 
     const cfg = await getConnectorConfig(ID);
     if (!cfg.TELEGRAM_BOT_TOKEN) {
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return {
         ok: true,
         providerMessageId: `mock-tg-${recipient.dni}-${Date.now()}`,
@@ -157,7 +162,7 @@ export const telegramBotConnector: OutreachConnector = {
       if (!data.ok) {
         return { ok: false, error: data.description ?? `Telegram HTTP ${res.status}` };
       }
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return {
         ok: true,
         providerMessageId: data.result?.message_id?.toString(),

@@ -14,6 +14,7 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { isValidPhone } from "@/lib/schemas";
 
@@ -64,11 +65,11 @@ export const telnyxVoiceConnector: OutreachConnector = {
     return (await getUsage(ID)) >= cap ? "quota_exhausted" : "enabled";
   },
 
-  async getQuota(): Promise<Quota> {
+  async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     const cfg = await getConnectorConfig(ID);
     const cap = Number(cfg.TELNYX_VOICE_MONTHLY_CAP) || 500;
     return {
-      used: await getUsage(ID),
+      used: await getUsage(ID, projectId),
       limit: cap,
       unit: "api_calls",
       period: "month",
@@ -76,16 +77,20 @@ export const telnyxVoiceConnector: OutreachConnector = {
     };
   },
 
-  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+  async estimateQuotaImpact(
+    count: number,
+    projectId: string = DEFAULT_PROJECT_ID,
+  ): Promise<{ willFit: boolean; remaining: number }> {
     const cfg = await getConnectorConfig(ID);
     const cap = Number(cfg.TELNYX_VOICE_MONTHLY_CAP) || 500;
-    const remaining = cap - (await getUsage(ID));
+    const remaining = cap - (await getUsage(ID, projectId));
     return { willFit: count <= remaining, remaining };
   },
 
   async send(
     _message: OutreachMessage,
     recipient: Contact,
+    projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<SendResult> {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
     if (!isValidPhone(recipient.telefono)) {
@@ -95,7 +100,7 @@ export const telnyxVoiceConnector: OutreachConnector = {
     const cfg = await getConnectorConfig(ID);
 
     if (!(cfg.TELNYX_API_KEY && cfg.TELNYX_VOICE_CONNECTION_ID)) {
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: `mock-call-${recipient.dni}-${Date.now()}` };
     }
 
@@ -114,7 +119,7 @@ export const telnyxVoiceConnector: OutreachConnector = {
       });
       if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
       const data = (await res.json()) as { data?: { call_control_id?: string } };
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.data?.call_control_id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

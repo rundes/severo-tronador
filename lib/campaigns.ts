@@ -384,7 +384,10 @@ export async function executeCampaign(
   const cooling = rest.filter((m) => !channelAvailable(m.rel, input.channel));
 
   // Chequeo de cuota ANTES de enviar. No hay "mandar igual".
-  const { willFit, remaining } = await connector.estimateQuotaImpact(sendable.length);
+  const { willFit, remaining } = await connector.estimateQuotaImpact(
+    sendable.length,
+    projectId,
+  );
   if (!willFit) {
     return {
       ok: false,

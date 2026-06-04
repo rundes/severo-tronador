@@ -13,6 +13,7 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { isValidPhone } from "@/lib/schemas";
 
@@ -59,11 +60,11 @@ export const telnyxSmsConnector: OutreachConnector = {
     return (await getUsage(ID)) >= cap ? "quota_exhausted" : "enabled";
   },
 
-  async getQuota(): Promise<Quota> {
+  async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     const cfg = await getConnectorConfig(ID);
     const cap = Number(cfg.TELNYX_SMS_MONTHLY_CAP) || 2000;
     return {
-      used: await getUsage(ID),
+      used: await getUsage(ID, projectId),
       limit: cap,
       unit: "messages",
       period: "month",
@@ -71,16 +72,20 @@ export const telnyxSmsConnector: OutreachConnector = {
     };
   },
 
-  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
+  async estimateQuotaImpact(
+    count: number,
+    projectId: string = DEFAULT_PROJECT_ID,
+  ): Promise<{ willFit: boolean; remaining: number }> {
     const cfg = await getConnectorConfig(ID);
     const cap = Number(cfg.TELNYX_SMS_MONTHLY_CAP) || 2000;
-    const remaining = cap - (await getUsage(ID));
+    const remaining = cap - (await getUsage(ID, projectId));
     return { willFit: count <= remaining, remaining };
   },
 
   async send(
     message: OutreachMessage,
     recipient: Contact,
+    projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<SendResult> {
     if (!recipient.telefono) return { ok: false, error: "Contacto sin teléfono" };
     if (!isValidPhone(recipient.telefono)) {
@@ -90,7 +95,7 @@ export const telnyxSmsConnector: OutreachConnector = {
     const cfg = await getConnectorConfig(ID);
 
     if (!(cfg.TELNYX_API_KEY && cfg.TELNYX_MESSAGING_PROFILE_ID)) {
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: `mock-sms-${recipient.dni}-${Date.now()}` };
     }
 
@@ -109,7 +114,7 @@ export const telnyxSmsConnector: OutreachConnector = {
       });
       if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
       const data = (await res.json()) as { data?: { id?: string } };
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.data?.id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

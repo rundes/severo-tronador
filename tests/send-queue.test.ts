@@ -19,6 +19,8 @@ function makeTables(): Record<string, MockTable> {
     envios: { rows: [], inserted: [], updates: [] },
     campanas: { rows: [], inserted: [], updates: [] },
     sheets_sync_queue: { rows: [], inserted: [], updates: [] },
+    // getOrgUsage (guard org-wide) consulta cuotas; vacío → orgUsed 0.
+    cuotas: { rows: [], inserted: [], updates: [] },
   };
 }
 

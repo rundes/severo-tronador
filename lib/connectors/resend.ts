@@ -13,6 +13,7 @@ import type {
   TestResult,
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { isValidEmail } from "@/lib/schemas";
 
@@ -64,9 +65,9 @@ export const resendConnector: OutreachConnector = {
     return (await getUsage(ID)) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
   },
 
-  async getQuota(): Promise<Quota> {
+  async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     return {
-      used: await getUsage(ID),
+      used: await getUsage(ID, projectId),
       limit: FREE_LIMIT,
       unit: "messages",
       period: "month",
@@ -74,14 +75,18 @@ export const resendConnector: OutreachConnector = {
     };
   },
 
-  async estimateQuotaImpact(count: number): Promise<{ willFit: boolean; remaining: number }> {
-    const remaining = FREE_LIMIT - (await getUsage(ID));
+  async estimateQuotaImpact(
+    count: number,
+    projectId: string = DEFAULT_PROJECT_ID,
+  ): Promise<{ willFit: boolean; remaining: number }> {
+    const remaining = FREE_LIMIT - (await getUsage(ID, projectId));
     return { willFit: count <= remaining, remaining };
   },
 
   async send(
     message: OutreachMessage,
     recipient: Contact,
+    projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<SendResult> {
     if (!recipient.email) {
       return { ok: false, error: "Contacto sin email" };
@@ -94,7 +99,7 @@ export const resendConnector: OutreachConnector = {
 
     if (!cfg.RESEND_API_KEY) {
       // Mock: simula un envío exitoso y consume cuota igual.
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: `mock-${recipient.dni}-${Date.now()}` };
     }
 
@@ -117,7 +122,7 @@ export const resendConnector: OutreachConnector = {
         return { ok: false, error: `Resend HTTP ${res.status}` };
       }
       const data = (await res.json()) as { id?: string };
-      await incrementUsage(ID, 1);
+      await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.id };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

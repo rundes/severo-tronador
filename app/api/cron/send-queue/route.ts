@@ -17,6 +17,7 @@ import {
 } from "@/lib/campaigns";
 import type { Channel } from "@/lib/relationship";
 import { enqueueSheetSync } from "@/lib/db/mirror";
+import { getOrgUsage } from "@/lib/quota";
 import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
@@ -27,6 +28,7 @@ const MAX_ATTEMPTS = 3;
 
 interface PendingRow {
   id: string;
+  project_id: string;
   campaign_id: string;
   channel: Channel;
   connector_id: string;
@@ -156,9 +158,12 @@ export async function GET(req: Request) {
       continue;
     }
 
-    // Re-check quota antes de cada envío. Si está llena, posponer +1 min.
-    const quota = await connector.getQuota();
-    if (quota.used >= quota.limit) {
+    // Re-check quota antes de cada envío (per-project + org-wide). El límite
+    // del free tier es compartido entre proyectos (key org-global), así que
+    // chequeamos ambos: la cuota del proyecto y la suma org-wide.
+    const quota = await connector.getQuota(row.project_id);
+    const orgUsed = await getOrgUsage(row.connector_id);
+    if (quota.used >= quota.limit || orgUsed >= quota.limit) {
       await db
         .from("envio_queue")
         .update({
@@ -181,10 +186,12 @@ export async function GET(req: Request) {
               : undefined,
         },
         row.contact,
+        row.project_id,
       );
 
       // Persistir envío en `envios` (lo que ve el dashboard de la campaña).
       const envioRow = {
+        project_id: row.project_id,
         campaign_id: row.campaign_id,
         dni: row.contact.dni,
         nombre: `${row.contact.nombre} ${row.contact.apellido}`,
