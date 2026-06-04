@@ -7,6 +7,7 @@ import {
 } from "@/lib/share-token";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { requireMember } from "@/lib/workspace";
 
 export async function generarShareLink(formData: FormData) {
   const id = String(formData.get("id") ?? "");
@@ -15,13 +16,15 @@ export async function generarShareLink(formData: FormData) {
     | "week"
     | "month";
   if (!id) return;
+  const { id: projectId } = await requireMember("editor");
   const ms = SHARE_DURATIONS[duracion] ?? SHARE_DURATIONS.week;
   const exp = Date.now() + ms;
-  const token = signShareToken({ t: "campaign", id, exp });
+  const token = signShareToken({ t: "campaign", id, pid: projectId, exp });
 
   const session = await auth();
   await logAudit({
     action: "campaign.create",
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "share_link",
     entity_id: id,

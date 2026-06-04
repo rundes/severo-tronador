@@ -68,7 +68,7 @@ export default async function EncuestaPage({
     );
   }
 
-  if (await isOptedOut(ref.dni)) {
+  if (await isOptedOut(ref.projectId, ref.dni)) {
     return (
       <Shell>
         <h1 className="text-lg font-semibold">Estás dado de baja</h1>
@@ -79,7 +79,7 @@ export default async function EncuestaPage({
     );
   }
 
-  const campaign = await getCampaign(ref.campaignId);
+  const campaign = await getCampaign(ref.projectId, ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
   const contacts = await googleSheetsConnector.readPadron();
   const nombre = contacts.find((c) => c.dni === ref.dni)?.nombre ?? "";

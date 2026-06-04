@@ -9,6 +9,7 @@ import { getCampaign } from "@/lib/campaigns";
 import { getTemplate } from "@/lib/templates";
 import { listResponses } from "@/lib/survey";
 import { chiSquare2x2 } from "@/lib/ab-test";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 
 export const metadata = { title: "Reporte · Tronador" };
 
@@ -58,11 +59,13 @@ export default async function ShareCampaignPage({
     );
   }
 
-  const campaign = await getCampaign(verify.payload.id);
+  // pid puede faltar en links viejos (pre-multitenant) → proyecto default.
+  const pid = verify.payload.pid ?? DEFAULT_PROJECT_ID;
+  const campaign = await getCampaign(pid, verify.payload.id);
   if (!campaign) notFound();
 
   const template = await getTemplate(campaign.templateId);
-  const respuestasList = await listResponses(campaign.id);
+  const respuestasList = await listResponses(pid, campaign.id);
   const responseTokens = new Set(respuestasList.map((r) => r.token));
   const responses = respuestasList.length;
   const responseRate =

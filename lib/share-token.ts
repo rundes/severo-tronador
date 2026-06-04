@@ -16,6 +16,7 @@ export type ShareScope = "campaign" | "dashboard";
 export interface SharePayload {
   t: ShareScope;
   id?: string; // campaign_id si t=campaign
+  pid?: string; // project_id (scopea la lectura pública)
   exp: number; // ms epoch
 }
 

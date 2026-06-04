@@ -7,6 +7,7 @@ import { getCampaign } from "@/lib/campaigns";
 import { getTemplate } from "@/lib/templates";
 import { listResponses } from "@/lib/survey";
 import { CampaignPdfDocument } from "@/lib/pdf/campaign-pdf";
+import { getActiveProject } from "@/lib/workspace";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs"; // react-pdf necesita node, no edge.
@@ -16,14 +17,18 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
-  const campaign = await getCampaign(id);
+  const active = await getActiveProject();
+  if (!active) {
+    return NextResponse.json({ error: "no_project" }, { status: 403 });
+  }
+  const campaign = await getCampaign(active.id, id);
   if (!campaign) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
   const [template, respuestasList] = await Promise.all([
     getTemplate(campaign.templateId),
-    listResponses(campaign.id),
+    listResponses(active.id, campaign.id),
   ]);
   const responses = respuestasList.length;
 

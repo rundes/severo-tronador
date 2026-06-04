@@ -5,6 +5,7 @@ import { getCampaign } from "@/lib/campaigns";
 import { getTemplate } from "@/lib/templates";
 import { listResponses } from "@/lib/survey";
 import { chiSquare2x2 } from "@/lib/ab-test";
+import { requireProject } from "@/lib/workspace";
 import { generarShareLink } from "./actions";
 import { ShareLinkBox } from "@/components/campanas/share-link-box";
 
@@ -37,8 +38,9 @@ export default async function CampanaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
+  const { id: projectId } = await requireProject();
   const sp = (await searchParams) ?? {};
-  const campaign = await getCampaign(id);
+  const campaign = await getCampaign(projectId, id);
   if (!campaign) notFound();
 
   // Si la action acabó de generar un share link, lo recibimos en ?shared=
@@ -55,7 +57,7 @@ export default async function CampanaPage({
 
   const template = await getTemplate(campaign.templateId);
   const { metrics } = campaign;
-  const respuestasList = await listResponses(campaign.id);
+  const respuestasList = await listResponses(projectId, campaign.id);
   const respuestas = respuestasList.length;
 
   // A/B testing: agrupar envíos por variante + resolver respuestas (los

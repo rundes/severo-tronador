@@ -3,7 +3,7 @@ import { executeCampaign } from "@/lib/campaigns";
 
 describe("campañas respetan conector activo", () => {
   it("sin Supabase (conector activo por default) envía normal", async () => {
-    const res = await executeCampaign({
+    const res = await executeCampaign("p1", {
       nombre: "T",
       channel: "email",
       templateId: "tpl-invitacion",

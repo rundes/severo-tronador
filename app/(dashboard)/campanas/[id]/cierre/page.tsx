@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
 import { analyzeCampaign } from "@/lib/analysis";
+import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Cierre · Severo Tronador" };
 
@@ -15,9 +16,10 @@ export default async function CierrePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const campaign = await getCampaign(id);
+  const { id: projectId } = await requireProject();
+  const campaign = await getCampaign(projectId, id);
   if (!campaign) notFound();
-  const cierre = await analyzeCampaign(id);
+  const cierre = await analyzeCampaign(projectId, id);
   if (!cierre) notFound();
 
   const sentTotal =

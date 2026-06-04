@@ -13,6 +13,7 @@ import {
 import { logAudit } from "@/lib/audit";
 import { ChannelEnum, SegmentFilterSchema } from "@/lib/schemas";
 import { decodeQuery } from "@/lib/segment-query";
+import { requireMember } from "@/lib/workspace";
 
 const ConditionEnum = z.enum([
   "always",
@@ -82,11 +83,12 @@ export async function crearFlow(formData: FormData) {
   });
   if (!parsed.success) redirect("/campanas/flows/nueva?error=validacion");
 
+  const { id: projectId } = await requireMember("editor");
   const session = await auth();
   const segment_filter =
     advancedQuery ?? (parsedFilter && parsedFilter.success ? parsedFilter.data : {});
 
-  const flow = await createFlow({
+  const flow = await createFlow(projectId, {
     nombre: parsed.data.nombre,
     segment_filter,
     steps: parsed.data.steps.map((s) => ({
@@ -114,7 +116,8 @@ export async function crearFlow(formData: FormData) {
 export async function iniciarFlow(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const res = await startFlow(id);
+  const { id: projectId } = await requireMember("editor");
+  const res = await startFlow(projectId, id);
   if (!res.ok) {
     redirect(`/campanas/flows?error=${res.reason}`);
   }
@@ -133,7 +136,8 @@ export async function iniciarFlow(formData: FormData) {
 export async function borrarFlow(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  await deleteFlow(id);
+  const { id: projectId } = await requireMember("editor");
+  await deleteFlow(projectId, id);
   const session = await auth();
   await logAudit({
     action: "flow.delete",

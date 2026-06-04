@@ -10,7 +10,6 @@ import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
 import { telegramBotConnector } from "@/lib/connectors/telegram-bot";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
-import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
@@ -62,6 +61,7 @@ export type CampaignEstado = "enviada" | "encolada" | "enviando";
 
 export interface Campaign {
   id: string;
+  projectId: string;
   nombre: string;
   channel: Channel;
   templateId: string;
@@ -98,6 +98,7 @@ const store: Store = (g.__campaigns ??= []);
 // mapear camelCase↔snake_case explícitamente, igual que survey.ts.
 interface CampanaRow {
   id: string;
+  project_id: string;
   nombre: string;
   channel: Channel;
   template_id: string;
@@ -114,6 +115,7 @@ interface CampanaRow {
 // Fila en envio_queue (cola async). Una por destinatario sendable.
 export interface EnvioQueueRow {
   id?: string;
+  project_id: string;
   campaign_id: string;
   channel: Channel;
   connector_id: string;
@@ -131,6 +133,7 @@ export interface EnvioQueueRow {
 
 interface EnvioRow {
   id?: string;
+  project_id: string;
   campaign_id: string;
   dni: string;
   nombre: string;
@@ -147,6 +150,7 @@ interface EnvioRow {
 function campaignToRow(c: Campaign): CampanaRow {
   return {
     id: c.id,
+    project_id: c.projectId,
     nombre: c.nombre,
     channel: c.channel,
     template_id: c.templateId,
@@ -167,6 +171,7 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
   const isQuery = typeof sf === "object" && sf !== null && (sf as { type?: string }).type === "group";
   return {
     id: row.id,
+    projectId: row.project_id,
     nombre: row.nombre,
     channel: row.channel,
     templateId: row.template_id,
@@ -181,8 +186,14 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
   };
 }
 
-function envioToRow(e: Envio, campaignId: string, createdAt: string): EnvioRow {
+function envioToRow(
+  e: Envio,
+  projectId: string,
+  campaignId: string,
+  createdAt: string,
+): EnvioRow {
   return {
+    project_id: projectId,
     campaign_id: campaignId,
     dni: e.dni,
     nombre: e.nombre,
@@ -214,25 +225,33 @@ function rowToEnvio(row: EnvioRow): Envio {
 
 // La lista solo usa nombre/channel/createdAt/metrics, así que devolvemos las
 // campañas con `envios: []` para evitar N+1 contra la tabla `envios`.
-export async function listCampaigns(): Promise<Campaign[]> {
+export async function listCampaigns(projectId: string): Promise<Campaign[]> {
   if (!dbConfigured()) {
-    return [...store].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...store]
+      .filter((c) => c.projectId === projectId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   const { data, error } = await getSupabase()
     .from("campanas")
     .select("*")
+    .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as CampanaRow[]).map((row) => rowToCampaign(row, []));
 }
 
-export async function getCampaign(id: string): Promise<Campaign | undefined> {
-  if (!dbConfigured()) return store.find((c) => c.id === id);
+export async function getCampaign(
+  projectId: string,
+  id: string,
+): Promise<Campaign | undefined> {
+  if (!dbConfigured())
+    return store.find((c) => c.id === id && c.projectId === projectId);
 
   const { data: campRow, error: campErr } = await getSupabase()
     .from("campanas")
     .select("*")
     .eq("id", id)
+    .eq("project_id", projectId)
     .maybeSingle();
   if (campErr) throw campErr;
   if (!campRow) return undefined;
@@ -240,6 +259,7 @@ export async function getCampaign(id: string): Promise<Campaign | undefined> {
   const { data: envioRows, error: envErr } = await getSupabase()
     .from("envios")
     .select("*")
+    .eq("project_id", projectId)
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
   if (envErr) throw envErr;
@@ -313,6 +333,7 @@ export type ExecuteResult =
   | { ok: false; reason: "quota_blocked"; needed: number; remaining: number };
 
 export async function executeCampaign(
+  projectId: string,
   input: ExecuteInput,
 ): Promise<ExecuteResult> {
   const connector = CONNECTOR_BY_CHANNEL[input.channel];
@@ -340,9 +361,7 @@ export async function executeCampaign(
   }
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
-  // TODO(3c-2): scopear executeCampaign por proyecto; el padrón vive hoy en el
-  // proyecto default.
-  const all = await loadContacts(DEFAULT_PROJECT_ID);
+  const all = await loadContacts(projectId);
 
   // Helper local: resuelve template + variantId para un contacto.
   function resolveFor(dni: string): { tpl: Tpl; variantId?: string } {
@@ -356,7 +375,7 @@ export async function executeCampaign(
     : applySegment(all, input.segmentFilter ?? {});
 
   // Opt-out global cross-channel: regla dura, se consulta ANTES de enviar.
-  const opted = await optedOutSet();
+  const opted = await optedOutSet(projectId);
   const optedOut = matched.filter((m) => opted.has(m.contact.dni));
   const rest = matched.filter((m) => !opted.has(m.contact.dni));
 
@@ -406,7 +425,7 @@ export async function executeCampaign(
   if (!dbConfigured()) {
     for (const m of sendable) {
       const { tpl, variantId } = resolveFor(m.contact.dni);
-      const token = await createToken(campaignId, m.contact.dni);
+      const token = await createToken(projectId, campaignId, m.contact.dni);
       const url = `${baseUrl()}/encuesta/${token}`;
       const result = await connector.send(
         {
@@ -429,6 +448,7 @@ export async function executeCampaign(
     }
     const campaign: Campaign = {
       id: campaignId,
+      projectId,
       nombre: input.nombre,
       channel: input.channel,
       templateId: input.templateId,
@@ -455,9 +475,10 @@ export async function executeCampaign(
   const queueRows: (EnvioQueueRow & { variant_id?: string | null })[] = [];
   for (const m of sendable) {
     const { tpl, variantId } = resolveFor(m.contact.dni);
-    const token = await createToken(campaignId, m.contact.dni);
+    const token = await createToken(projectId, campaignId, m.contact.dni);
     const url = `${baseUrl()}/encuesta/${token}`;
     queueRows.push({
+      project_id: projectId,
       campaign_id: campaignId,
       channel: input.channel,
       connector_id: connector.id,
@@ -474,6 +495,7 @@ export async function executeCampaign(
   const enqueued = queueRows.length;
   const campaign: Campaign = {
     id: campaignId,
+    projectId,
     nombre: input.nombre,
     channel: input.channel,
     templateId: input.templateId,
@@ -504,7 +526,9 @@ export async function executeCampaign(
   // Persistir los skipped (opt-out + cooldown) en envios. Las filas reales
   // (sent/failed) las crea el cron al despachar el queue.
   if (envios.length) {
-    const envioRows = envios.map((e) => envioToRow(e, campaign.id, createdAt));
+    const envioRows = envios.map((e) =>
+      envioToRow(e, projectId, campaign.id, createdAt),
+    );
     const { error: envErr } = await getSupabase().from("envios").insert(envioRows);
     if (envErr) throw envErr;
     for (const row of envioRows) {

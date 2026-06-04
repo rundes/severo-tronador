@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listCampaigns } from "@/lib/campaigns";
+import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Campañas · Severo Tronador" };
 
@@ -11,7 +12,8 @@ const CHANNEL_ICON: Record<string, string> = {
 };
 
 export default async function CampanasPage() {
-  const campaigns = await listCampaigns();
+  const { id: projectId } = await requireProject();
+  const campaigns = await listCampaigns(projectId);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
