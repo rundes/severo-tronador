@@ -67,4 +67,13 @@ describe("audit (memory path)", () => {
     expect(list[0].entity_id).toBeNull();
     expect(list[0].details).toEqual({});
   });
+
+  it("listAudit filtra por projectId (aislamiento)", async () => {
+    const { logAudit, listAudit } = await import("@/lib/audit");
+    await logAudit({ action: "segment.save", projectId: "p1" });
+    await logAudit({ action: "segment.save", projectId: "p2" });
+    const p1 = await listAudit({ projectId: "p1" });
+    expect(p1).toHaveLength(1);
+    expect(p1[0].project_id).toBe("p1");
+  });
 });
