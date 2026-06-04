@@ -49,7 +49,7 @@ on conflict (slug) do nothing;
 -- allowlist se agrega desde la UI /proyectos cuando exista. Si audit_log está
 -- vacío, el primer login crea/asume ownership vía la UI de onboarding (Fase 2).
 insert into project_members (project_id, email, role)
-select distinct '00000000-0000-0000-0000-000000000001', lower(actor), 'owner'
+select distinct '00000000-0000-0000-0000-000000000001'::uuid, lower(actor), 'owner'
 from audit_log
 where actor is not null and trim(actor) <> ''
 on conflict (project_id, email) do nothing;
