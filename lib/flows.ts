@@ -11,6 +11,7 @@ import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-que
 import { interpolate, getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
+import { trackedLink, openPixel } from "@/lib/tracking";
 import { optedOutSet } from "@/lib/optout";
 import { outreachConnectorFor } from "@/lib/campaigns";
 import { isEnabled } from "@/lib/connectors/config";
@@ -63,8 +64,21 @@ function baseUrl(): string {
   return process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 }
 
-function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): string {
-  return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
+function buildBody(
+  cuerpo: string,
+  contact: Contact,
+  encuestaUrl: string,
+  token: string,
+  channel: Channel,
+): string {
+  if (channel !== "email") {
+    return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
+  }
+  const base = baseUrl();
+  const body = interpolateExtended(cuerpo, contact, {
+    surveyUrl: trackedLink(base, token, encuestaUrl),
+  });
+  return body + openPixel(base, token);
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -255,7 +269,7 @@ export async function startFlow(
           subject: template.asunto
             ? interpolate(template.asunto, m.contact)
             : null,
-          body: buildBody(template.cuerpo, m.contact, url),
+          body: buildBody(template.cuerpo, m.contact, url, token, step.channel),
         },
         token,
         scheduled_at: scheduledAt,

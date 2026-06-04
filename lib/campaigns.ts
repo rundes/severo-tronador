@@ -15,6 +15,7 @@ import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
+import { trackedLink, openPixel } from "@/lib/tracking";
 import { pickVariant, type Variant } from "@/lib/ab-test";
 import { optedOutSet } from "@/lib/optout";
 import { isEnabled } from "@/lib/connectors/config";
@@ -46,9 +47,23 @@ function baseUrl(): string {
 // Pregunta por defecto si la campaña no define ninguna.
 const DEFAULT_PREGUNTAS = ["¿Qué es lo que más te preocupa hoy de tu barrio?"];
 
-// Cuerpo final: inyecta el link de encuesta y luego interpola variables.
-function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): string {
-  return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
+// Cuerpo final: interpola variables + (solo email) envuelve el link de
+// encuesta en un redirect rastreado y agrega el pixel de apertura.
+function buildBody(
+  cuerpo: string,
+  contact: Contact,
+  encuestaUrl: string,
+  token: string,
+  channel: Channel,
+): string {
+  if (channel !== "email") {
+    return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
+  }
+  const base = baseUrl();
+  const body = interpolateExtended(cuerpo, contact, {
+    surveyUrl: trackedLink(base, token, encuestaUrl),
+  });
+  return body + openPixel(base, token);
 }
 
 // Dato de contacto que usa cada canal.
@@ -433,7 +448,7 @@ export async function executeCampaign(
       const result = await connector.send(
         {
           subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : undefined,
-          body: buildBody(tpl.cuerpo, m.contact, url),
+          body: buildBody(tpl.cuerpo, m.contact, url, token, input.channel),
           replyTo: isRepliesConfigured() ? buildReplyTo(token) : undefined,
         },
         m.contact,
@@ -488,7 +503,7 @@ export async function executeCampaign(
       contact: m.contact,
       template: {
         subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : null,
-        body: buildBody(tpl.cuerpo, m.contact, url),
+        body: buildBody(tpl.cuerpo, m.contact, url, token, input.channel),
       },
       token,
       variant_id: variantId ?? null,
