@@ -66,3 +66,36 @@ describe("recordEvent + campaignTracking (memory, por proyecto)", () => {
     await expect(recordEvent("open", "token-fantasma")).resolves.toBeUndefined();
   });
 });
+
+describe("click route · anti open-redirect", () => {
+  function enc(s: string) {
+    return Buffer.from(s, "utf8")
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+  it("rechaza redirect a host foráneo (400)", async () => {
+    process.env.NEXTAUTH_URL = "https://app.tronador";
+    const { GET } = await import("@/app/api/track/c/[token]/route");
+    const u = enc("https://evil.example/phish");
+    const res = await GET(
+      new Request(`https://app.tronador/api/track/c/tok?u=${u}`),
+      { params: Promise.resolve({ token: "tok" }) },
+    );
+    expect(res.status).toBe(400);
+  });
+  it("redirige (302) a un target same-host", async () => {
+    process.env.NEXTAUTH_URL = "https://app.tronador";
+    const { GET } = await import("@/app/api/track/c/[token]/route");
+    const u = enc("https://app.tronador/encuesta/tok");
+    const res = await GET(
+      new Request(`https://app.tronador/api/track/c/tok?u=${u}`),
+      { params: Promise.resolve({ token: "tok" }) },
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(
+      "https://app.tronador/encuesta/tok",
+    );
+  });
+});

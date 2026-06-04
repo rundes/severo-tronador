@@ -13,6 +13,18 @@ export async function GET(
   const u = new URL(req.url).searchParams.get("u") ?? "";
   const target = decodeTarget(u);
   if (!target) return new Response("Link inválido", { status: 400 });
+  // Anti open-redirect: los links rastreados siempre apuntan al propio app
+  // (trackedLink envuelve ${NEXTAUTH_URL}/encuesta/...). Exigimos same-host
+  // para que el endpoint no pueda usarse como redirect abierto a dominios
+  // arbitrarios (phishing).
+  const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  try {
+    if (new URL(target).host !== new URL(base).host) {
+      return new Response("Host no permitido", { status: 400 });
+    }
+  } catch {
+    return new Response("Link inválido", { status: 400 });
+  }
   await recordEvent("click", token, {
     url: target,
     userAgent: req.headers.get("user-agent") ?? undefined,
