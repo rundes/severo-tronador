@@ -29,6 +29,6 @@ export default async function middleware(req: NextRequest) {
 //   /_next/*, favicon — assets
 export const config = {
   matcher: [
-    "/((?!api/auth|api/cron|api/webhooks|api/version|encuesta|brand|signin|share|_next/static|_next/image|_next/data|favicon.ico).*)",
+    "/((?!api/auth|api/cron|api/webhooks|api/version|api/track|encuesta|brand|signin|share|_next/static|_next/image|_next/data|favicon.ico).*)",
   ],
 };

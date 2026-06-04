@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
 import { getTemplate } from "@/lib/templates";
 import { listResponses } from "@/lib/survey";
+import { campaignTracking } from "@/lib/tracking";
 import { chiSquare2x2 } from "@/lib/ab-test";
 import { requireProject } from "@/lib/workspace";
 import { generarShareLink } from "./actions";
@@ -59,6 +60,9 @@ export default async function CampanaPage({
   const { metrics } = campaign;
   const respuestasList = await listResponses(projectId, campaign.id);
   const respuestas = respuestasList.length;
+  const tracking = await campaignTracking(projectId, campaign.id);
+  const openRate =
+    metrics.sent > 0 ? tracking.openedRecipients / metrics.sent : 0;
 
   // A/B testing: agrupar envíos por variante + resolver respuestas (los
   // tokens de los envíos están en respuestasList).
@@ -155,6 +159,29 @@ export default async function CampanaPage({
           >
             <div className={`text-2xl font-semibold ${m.cls}`}>{m.n}</div>
             <div className="text-xs text-zinc-400">{m.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tracking de email: aperturas + clicks (solo canal email). */}
+      <div className="grid grid-cols-3 gap-3 text-center">
+        {[
+          {
+            label: "Aperturas",
+            n: tracking.openedRecipients,
+            sub: metrics.sent > 0 ? `${Math.round(openRate * 100)}%` : "—",
+            cls: "text-sky-600",
+          },
+          { label: "Aperturas totales", n: tracking.opens, sub: "incl. repetidas", cls: "text-sky-500" },
+          { label: "Clicks", n: tracking.clicks, sub: "links rastreados", cls: "text-violet-600" },
+        ].map((m) => (
+          <div
+            key={m.label}
+            className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800"
+          >
+            <div className={`text-2xl font-semibold ${m.cls}`}>{m.n}</div>
+            <div className="text-xs text-zinc-400">{m.label}</div>
+            <div className="text-[10px] text-zinc-400">{m.sub}</div>
           </div>
         ))}
       </div>
