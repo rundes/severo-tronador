@@ -8,6 +8,8 @@
 name = "tronador-mail-inbound"
 main = "src/worker.ts"
 compatibility_date = "2026-05-01"
+# Email Worker: lo dispara Email Routing, no HTTP. Sin subdominio workers.dev ni rutas.
+workers_dev = false
 
 [vars]
 # URL del webhook Vercel. Override en dashboard si cambia el dominio.
