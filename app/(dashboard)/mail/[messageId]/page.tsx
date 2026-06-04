@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getCredentialFor } from "@/lib/mailbox/credentials";
-import { getMessage } from "@/lib/mailbox/jmap-client";
+import { getMessage, markRead } from "@/lib/mailbox/jmap-client";
+import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Mensaje · Mail · Tronador" };
 
@@ -26,6 +27,7 @@ export default async function MessageDetailPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const { messageId } = await params;
+  const { id: projectId } = await requireProject();
   const sp = (await searchParams) ?? {};
   const box = sp.box ?? "inbox";
   const session = await auth();
@@ -35,8 +37,11 @@ export default async function MessageDetailPage({
     ? { address: cred.address, password: cred.password }
     : undefined;
 
-  const message = await getMessage(decodeURIComponent(messageId), creds);
+  const id = decodeURIComponent(messageId);
+  const message = await getMessage(id, creds, projectId);
   if (!message) notFound();
+  // Marcar leído al abrir.
+  await markRead(id, creds, projectId);
 
   const replyHref = `/mail/compose?to=${encodeURIComponent(
     message.from.email,

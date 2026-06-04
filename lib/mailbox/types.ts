@@ -51,7 +51,7 @@ export interface SendResult {
 
 export interface MailboxStatus {
   configured: boolean; // STALWART_URL + provisioned credential
-  mode: "stalwart" | "mock";
+  mode: "stalwart" | "resend" | "mock";
   address?: string;
   unread: number;
 }

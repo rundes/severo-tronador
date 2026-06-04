@@ -8,10 +8,11 @@ import {
 } from "@/lib/mailbox/credentials";
 import {
   getMailboxStatus,
-  isLiveMode,
+  mailMode,
   listMailboxes,
   listMessages,
 } from "@/lib/mailbox/jmap-client";
+import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { MailSetupChecklist } from "@/components/mail/setup-checklist";
 import { provisionMyMailbox } from "./actions";
@@ -52,6 +53,7 @@ export default async function MailPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const session = await auth();
   const userEmail = session?.user?.email?.toLowerCase();
 
@@ -59,11 +61,12 @@ export default async function MailPage({
   const creds = cred
     ? { address: cred.address, password: cred.password }
     : undefined;
-  const status = await getMailboxStatus(creds);
+  const status = await getMailboxStatus(creds, projectId);
+  const mode = mailMode();
 
   const selectedMailboxId = params.box ?? "inbox";
-  const mailboxes = await listMailboxes(creds);
-  const messages = await listMessages(selectedMailboxId, creds);
+  const mailboxes = await listMailboxes(creds, projectId);
+  const messages = await listMessages(selectedMailboxId, creds, projectId);
   const currentBox = mailboxes.find((m) => m.id === selectedMailboxId);
 
   const okMap: Record<string, string> = {
@@ -133,9 +136,11 @@ export default async function MailPage({
           <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
             Se crea una dirección{" "}
             <code>{userEmail?.split("@")[0] ?? "tu-usuario"}@tronador.net.ar</code>
-            . {isLiveMode()
+            . {mode === "stalwart"
               ? "El backend Stalwart está conectado: la casilla queda operativa."
-              : "Stalwart aún no está conectado: la casilla corre en modo mock para validar el flujo."}
+              : mode === "resend"
+                ? "Modo Cloudflare+Resend: enviás desde esta dirección por Resend y recibís en la bandeja in-app."
+                : "Sin backend conectado: la casilla corre en modo mock para validar el flujo."}
           </p>
           <form action={provisionMyMailbox} className="mt-3 flex items-center gap-2">
             <SubmitButton pendingLabel="Provisionando…">
@@ -145,11 +150,17 @@ export default async function MailPage({
         </section>
       )}
 
-      {!isLiveMode() && cred && (
+      {mode === "mock" && cred && (
         <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          ⓘ Modo mock: el backend Stalwart no está conectado. Mensajes son
-          un dataset de ejemplo. Setear <code>STALWART_URL</code> y{" "}
-          <code>STALWART_ADMIN_TOKEN</code> para activarlo.
+          ⓘ Modo mock: sin backend conectado. Mensajes son un dataset de
+          ejemplo. Setear <code>RESEND_API_KEY</code> (Cloudflare+Resend) o{" "}
+          <code>STALWART_URL</code>+<code>STALWART_ADMIN_TOKEN</code> (Stalwart).
+        </div>
+      )}
+      {mode === "resend" && cred && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+          ✓ Modo Cloudflare+Resend: envío real por Resend, bandeja in-app con
+          los entrantes ruteados por Cloudflare.
         </div>
       )}
 

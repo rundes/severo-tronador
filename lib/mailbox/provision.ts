@@ -11,7 +11,7 @@ import { saveCredential } from "./credentials";
 export interface ProvisionResult {
   ok: boolean;
   address: string;
-  mode: "stalwart" | "mock";
+  mode: "stalwart" | "resend" | "mock";
   error?: string;
 }
 
@@ -38,8 +38,11 @@ export async function provisionMailbox(
   const live = process.env.STALWART_URL && process.env.STALWART_ADMIN_TOKEN;
 
   if (!live) {
+    // Sin Stalwart: registramos la casilla (el from: de Resend). El envío sale
+    // por Resend con RESEND_API_KEY → modo "resend"; sin key → "mock".
     await saveCredential({ userEmail, address, password });
-    return { ok: true, address, mode: "mock" };
+    const mode = process.env.RESEND_API_KEY ? "resend" : "mock";
+    return { ok: true, address, mode };
   }
 
   try {
