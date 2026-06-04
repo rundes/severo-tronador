@@ -8,9 +8,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
+import { authConfigured } from "@/lib/auth-guards";
 import {
   listProjectsForEmail,
   roleAllows,
+  DEFAULT_PROJECT_ID,
   type Role,
 } from "@/lib/projects";
 
@@ -30,6 +32,12 @@ async function sessionEmail(): Promise<string | null> {
 // Memoizado por request (React cache): se llama en layout + páginas + actions
 // sin repetir la query de membresía.
 export const getActiveProject = cache(async (): Promise<ActiveProject | null> => {
+  // Dev sin auth (y normalmente sin Supabase): no hay sesión ni membresías.
+  // Devolvemos el proyecto default sintético para que el panel funcione en
+  // modo mock sin mandar a onboarding.
+  if (!authConfigured) {
+    return { id: DEFAULT_PROJECT_ID, nombre: "Proyecto principal", role: "owner" };
+  }
   const email = await sessionEmail();
   if (!email) return null;
   const projects = await listProjectsForEmail(email);
@@ -43,6 +51,19 @@ export const getActiveProject = cache(async (): Promise<ActiveProject | null> =>
 
 // Lista de proyectos del usuario logueado (para el switcher).
 export async function listMyProjects() {
+  if (!authConfigured) {
+    return [
+      {
+        id: DEFAULT_PROJECT_ID,
+        nombre: "Proyecto principal",
+        slug: "default",
+        created_by: null,
+        archived_at: null,
+        created_at: "",
+        role: "owner" as Role,
+      },
+    ];
+  }
   const email = await sessionEmail();
   if (!email) return [];
   return listProjectsForEmail(email);

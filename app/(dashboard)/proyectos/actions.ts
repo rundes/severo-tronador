@@ -6,8 +6,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { createProject, getMembership } from "@/lib/projects";
-import { ACTIVE_PROJECT_COOKIE } from "@/lib/workspace";
+import {
+  createProject,
+  getMembership,
+  addMember,
+  updateRole,
+  removeMember,
+  renameProject,
+  type Role,
+} from "@/lib/projects";
+import { ACTIVE_PROJECT_COOKIE, requireMember } from "@/lib/workspace";
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -45,4 +53,48 @@ export async function crearProyecto(formData: FormData) {
   jar.set(ACTIVE_PROJECT_COOKIE, proj.id, COOKIE_OPTS);
   revalidatePath("/", "layout");
   redirect("/dashboard");
+}
+
+// ── Gestión de miembros del proyecto ACTIVO (solo owner) ─────────────────
+
+function parseRole(v: unknown): Role {
+  return v === "owner" || v === "editor" || v === "viewer" ? v : "viewer";
+}
+
+export async function invitarMiembro(formData: FormData) {
+  const { id: projectId } = await requireMember("owner");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const role = parseRole(formData.get("role"));
+  if (!email || !email.includes("@")) redirect("/proyectos?error=email");
+  await addMember(projectId, email, role);
+  revalidatePath("/proyectos");
+  redirect("/proyectos?ok=invite");
+}
+
+export async function cambiarRol(formData: FormData) {
+  const { id: projectId } = await requireMember("owner");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const role = parseRole(formData.get("role"));
+  if (!email) redirect("/proyectos?error=email");
+  await updateRole(projectId, email, role);
+  revalidatePath("/proyectos");
+  redirect("/proyectos?ok=rol");
+}
+
+export async function quitarMiembro(formData: FormData) {
+  const { id: projectId } = await requireMember("owner");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) redirect("/proyectos?error=email");
+  await removeMember(projectId, email);
+  revalidatePath("/proyectos");
+  redirect("/proyectos?ok=quitar");
+}
+
+export async function renombrarProyecto(formData: FormData) {
+  const { id: projectId } = await requireMember("owner");
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  if (nombre.length < 2) redirect("/proyectos?error=nombre");
+  await renameProject(projectId, nombre);
+  revalidatePath("/", "layout");
+  redirect("/proyectos?ok=rename");
 }

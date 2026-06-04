@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ProjectSwitcher } from "./project-switcher";
 
 interface NavItem {
   href: string;
@@ -16,16 +17,28 @@ interface UserInfo {
   image: string | null;
 }
 
+interface ProjectOption {
+  id: string;
+  nombre: string;
+  role: string;
+}
+
 export function Sidebar({
   nav,
   user,
   versionString,
   signOutAction,
+  projects,
+  activeProjectId,
+  switchProjectAction,
 }: {
   nav: NavItem[];
   user: UserInfo | null;
   versionString: string;
   signOutAction: () => Promise<void>;
+  projects: ProjectOption[];
+  activeProjectId: string | null;
+  switchProjectAction: (formData: FormData) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -107,6 +120,13 @@ export function Sidebar({
             className="h-auto w-full"
           />
         </Link>
+        {projects.length > 0 && (
+          <ProjectSwitcher
+            projects={projects}
+            activeId={activeProjectId}
+            switchAction={switchProjectAction}
+          />
+        )}
         <nav className="flex-1 overflow-y-auto px-4 font-mono text-sm">
           <ul className="flex flex-col gap-0.5">
             {nav.map((item) => {
