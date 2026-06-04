@@ -27,6 +27,7 @@ export interface RoutedReply {
 }
 
 interface EnvioRow {
+  project_id: string;
   campaign_id: string;
   dni: string | null;
   token: string;
@@ -54,7 +55,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
   const sb = getSupabase();
   const { data: envio, error: envioErr } = await sb
     .from("envios")
-    .select("campaign_id, dni, token")
+    .select("project_id, campaign_id, dni, token")
     .eq("token", token)
     .maybeSingle();
   if (envioErr) {
@@ -104,6 +105,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
     .from("respuestas")
     .insert({
       token,
+      project_id: row.project_id,
       campaign_id: row.campaign_id,
       dni: row.dni,
       answers,
