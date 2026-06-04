@@ -17,9 +17,16 @@ import { log } from "@/lib/logger";
 import { getMappedXHandles } from "@/lib/padron-handles";
 
 const ID = "x-api";
-const FREE_LIMIT = 1500;
+// Free tier mensual, compartido entre la búsqueda y los timelines por handle.
+export const X_FREE_LIMIT = 1500;
+const FREE_LIMIT = X_FREE_LIMIT;
 const ENDPOINT = "https://api.x.com/2/tweets/search/recent";
+// Lookup de usuario (handle → id) y timeline de un usuario.
+const USER_LOOKUP = "https://api.x.com/2/users/by/username";
+const USER_TIMELINE = "https://api.x.com/2/users";
 const MAX_RESULTS = 100;
+// Posteos a traer por usuario en la escucha activa (pedido del producto).
+export const POSTS_PER_USER = 5;
 
 interface XTweet {
   id: string;
@@ -30,6 +37,63 @@ interface XTweet {
 
 interface XResp {
   data?: XTweet[];
+}
+
+export interface XUserRef {
+  id: string;
+  username: string;
+}
+
+// Resuelve un handle ("vecinacentro") a su id numérico + username canónico.
+// El id se cachea en x_handle_queue para no repetir este lookup.
+export async function resolveXUserId(
+  handle: string,
+  bearer: string,
+): Promise<XUserRef> {
+  const res = await fetch(`${USER_LOOKUP}/${encodeURIComponent(handle)}`, {
+    headers: { Authorization: `Bearer ${bearer}` },
+  });
+  if (!res.ok) throw new Error(`X API user lookup HTTP ${res.status}`);
+  const json = (await res.json()) as { data?: { id: string; username: string } };
+  if (!json.data?.id) throw new Error(`X API usuario '${handle}' no encontrado`);
+  return { id: json.data.id, username: json.data.username };
+}
+
+// Mapea tweets crudos del timeline a ListenItem (kind "tweet", author = handle).
+export function mapTimelineTweets(
+  tweets: XTweet[],
+  username: string,
+): ListenItem[] {
+  return tweets.map((t) => ({
+    source: "x.com",
+    text: t.text,
+    url: `https://x.com/${username}/status/${t.id}`,
+    publishedAt: t.created_at,
+    author: username,
+    kind: "tweet" as const,
+  }));
+}
+
+// Trae los últimos `count` posteos de un usuario (timeline, no búsqueda):
+// los más recientes sin importar la fecha. Excluye RTs y replies para
+// quedarse con el contenido propio. La X API exige max_results >= 5.
+export async function fetchXUserTimeline(
+  authorId: string,
+  username: string,
+  bearer: string,
+  count = POSTS_PER_USER,
+): Promise<ListenItem[]> {
+  const params = new URLSearchParams({
+    max_results: String(Math.min(Math.max(count, 5), 100)),
+    "tweet.fields": "created_at",
+    exclude: "retweets,replies",
+  });
+  const res = await fetch(`${USER_TIMELINE}/${authorId}/tweets?${params}`, {
+    headers: { Authorization: `Bearer ${bearer}` },
+  });
+  if (!res.ok) throw new Error(`X API timeline HTTP ${res.status}`);
+  const json = (await res.json()) as XResp;
+  return mapTimelineTweets((json.data ?? []).slice(0, count), username);
 }
 
 function matches(item: ListenItem, q: ListenQuery): boolean {
@@ -103,6 +167,14 @@ export const xApiConnector: ListeningConnector = {
   ],
   configSchema: [
     { key: "X_API_BEARER_TOKEN", label: "Bearer Token", type: "secret", required: true },
+    {
+      key: "X_TIMELINE_BATCH",
+      label: "Handles por corrida (timeline)",
+      type: "text",
+      required: false,
+      placeholder: "50",
+      help: "Cuántos usuarios del padrón procesa cada corrida del cron de timelines. El tope mensual real lo pone el free tier (1.500 tweets); el resto queda en cola.",
+    },
   ],
 
   async test(config?: Config): Promise<TestResult> {

@@ -3,11 +3,51 @@
 // (saludo, fecha humana, firma) y fallbacks seguros.
 
 import type { Contact } from "@/lib/connectors/types";
-import { ORG_NAME, APP_NAME } from "@/lib/config";
+import { ORG_NAME, APP_NAME, APP_TZ } from "@/lib/config";
 
 export interface InterpolationContext {
   now?: number;
   surveyUrl?: string;
+}
+
+// Partes de reloj de pared en la TZ del territorio (no la del runtime).
+// Vercel corre en UTC; usar getHours()/getDate() directos desfasa el
+// saludo y la fecha. Extraemos vía Intl con timeZone fijo.
+interface WallParts {
+  hour: number;
+  weekday: number; // 0=domingo … 6=sábado
+  date: number;
+  month: number; // 0=enero … 11=diciembre
+  iso: string; // YYYY-MM-DD en la TZ
+}
+
+const WEEKDAY_IDX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+function wallParts(d: Date): WallParts {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: APP_TZ,
+      hour12: false,
+      weekday: "short",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+    })
+      .formatToParts(d)
+      .map((p) => [p.type, p.value]),
+  ) as Record<string, string>;
+  let hour = parseInt(parts.hour, 10);
+  if (hour === 24) hour = 0; // algunos runtimes emiten "24" a medianoche
+  return {
+    hour,
+    weekday: WEEKDAY_IDX[parts.weekday] ?? 0,
+    date: parseInt(parts.day, 10),
+    month: parseInt(parts.month, 10) - 1,
+    iso: `${parts.year}-${parts.month}-${parts.day}`,
+  };
 }
 
 // Resolver de variables derivadas. Devuelve string o undefined si la
@@ -20,7 +60,7 @@ function resolveDerived(
   const now = new Date(ctx.now ?? Date.now());
   switch (key) {
     case "saludo": {
-      const h = now.getHours();
+      const h = wallParts(now).hour;
       if (h < 12) return "Buenos días";
       if (h < 19) return "Buenas tardes";
       return "Buenas noches";
@@ -28,7 +68,7 @@ function resolveDerived(
     case "fecha_humana":
       return formatFechaHumana(now);
     case "fecha_iso":
-      return now.toISOString().slice(0, 10);
+      return wallParts(now).iso;
     case "firma":
       return `Equipo de relevamiento ${ORG_NAME}`.trim();
     case "org":
@@ -49,7 +89,8 @@ function resolveDerived(
   }
 }
 
-// Formato fecha humana ES: "lunes 28 de mayo".
+// Formato fecha humana ES: "lunes 28 de mayo". Usa el reloj de pared de
+// la TZ del territorio, no la del runtime.
 function formatFechaHumana(d: Date): string {
   const dias = [
     "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado",
@@ -58,7 +99,8 @@ function formatFechaHumana(d: Date): string {
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
   ];
-  return `${dias[d.getDay()]} ${d.getDate()} de ${meses[d.getMonth()]}`;
+  const w = wallParts(d);
+  return `${dias[w.weekday]} ${w.date} de ${meses[w.month]}`;
 }
 
 // Default-fallbacks por variable. Si la persona no tiene barrio y la

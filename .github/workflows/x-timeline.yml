@@ -1,0 +1,43 @@
+name: Trigger X timeline pull cron
+
+# Drena la cola de handles de X (x_handle_queue): por cada contacto con
+# x_handle trae sus últimos posteos hacia listening_items (escucha
+# activa). Vercel Hobby limita a 1 cron/día; este workflow corre cada 6h
+# en GitHub Actions, dentro del free tier de la X API (1.500 tweets/mes).
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x-timeline
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/x-timeline
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET no configurado"
+            exit 1
+          fi
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/x-timeline")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "::error::endpoint devolvió $code"
+            exit 1
+          fi

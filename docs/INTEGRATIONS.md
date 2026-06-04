@@ -243,9 +243,23 @@ Basic Tier: 1.500 tweets/mes gratis. Sin token simula.
 
 ```env
 X_API_BEARER_TOKEN=...
+X_TIMELINE_BATCH=50   # handles por corrida del cron de timelines (opcional)
 ```
 
+**Timelines por contacto (escucha activa).** Al importar contactos, cada
+`x_handle` se encola en `x_handle_queue`. El cron `/api/cron/x-timeline`
+(GitHub Actions cada 6h, `.github/workflows/x-timeline.yml`) drena la cola:
+por cada handle resuelve el id (cacheado tras el primer lookup), trae los
+**últimos 5 posteos** vía `/2/users/:id/tweets` y los upserta en
+`listening_items` (`kind="tweet"`, dedupe por url). Respeta el free tier
+(1.500 tweets/mes, compartido con la búsqueda): consume hasta 5 tweets por
+handle, procesa `X_TIMELINE_BATCH` por corrida (default 50) y deja el resto
+`pending` para la próxima — los descartados por cuota se loguean
+(`x_timeline.quota_exhausted`). Sin token, la cola no se procesa (no hay mock
+de timelines, a diferencia de la búsqueda).
+
 Ref: [X API v2 · recent search](https://developer.x.com/en/docs/x-api/tweets/search/introduction)
+· [user tweets timeline](https://developer.x.com/en/docs/x-api/tweets/timelines/introduction)
 
 ---
 
