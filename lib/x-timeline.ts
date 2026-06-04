@@ -1,20 +1,21 @@
-// Escucha activa por handle: cola de timelines de X.
+// Escucha activa por handle: cola de posteos de X.
 //
 // Al importar contactos, cada x_handle se encola en `x_handle_queue`.
-// El cron /api/cron/x-timeline drena la cola: por cada handle trae los
-// últimos POSTS_PER_USER posteos (timeline del usuario) y los upserta en
-// listening_items, alimentando /escucha. Respeta el free tier de X
-// (1.500 tweets/mes, compartido con la búsqueda) — los handles que no
-// entran por cuota quedan 'pending' para la próxima corrida/mes.
+// El cron /api/cron/x-timeline drena la cola: por cada handle trae sus
+// últimos posteos vía search/recent `from:handle` (endpoint del free tier;
+// timeline/user-lookup exigen plan pago → HTTP 402) y los upserta en
+// listening_items, alimentando /escucha. Cubre los últimos ~7 días.
+// Respeta el free tier de X (1.500 tweets/mes, compartido con la búsqueda)
+// — los handles que no entran por cuota quedan 'pending' para la próxima
+// corrida/mes.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { getUsage, incrementUsage } from "@/lib/quota";
 import { upsertItems } from "@/lib/listening-cache";
 import { normalizeHandle } from "@/lib/padron-handles";
 import {
-  resolveXUserId,
-  fetchXUserTimeline,
-  POSTS_PER_USER,
+  fetchXRecentByHandle,
+  COST_PER_HANDLE,
   X_FREE_LIMIT,
 } from "@/lib/connectors/x-api";
 import { log } from "@/lib/logger";
@@ -22,9 +23,9 @@ import { log } from "@/lib/logger";
 const X_ID = "x-api";
 const DEFAULT_BATCH = 50;
 
-// Encola handles (raw o normalizados) para fetch de timeline. Los nuevos
+// Encola handles (raw o normalizados) para fetch de posteos. Los nuevos
 // entran 'pending'; los ya existentes (done/error) se re-encolan para
-// refrescar, preservando el author_id cacheado. Best-effort: nunca tira.
+// refrescar. Best-effort: nunca tira.
 export async function enqueueXHandles(
   raw: (string | null | undefined)[],
 ): Promise<number> {
@@ -94,10 +95,10 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
   const totalPending = pendingCount ?? 0;
   if (totalPending === 0) return { ...EMPTY };
 
-  // Capacidad por cuota: cada handle consume hasta POSTS_PER_USER tweets.
+  // Capacidad por cuota: cada handle consume hasta COST_PER_HANDLE tweets.
   const used = await getUsage(X_ID);
   const quotaRemaining = Math.max(0, X_FREE_LIMIT - used);
-  const maxByQuota = Math.floor(quotaRemaining / POSTS_PER_USER);
+  const maxByQuota = Math.floor(quotaRemaining / COST_PER_HANDLE);
   const batch = Number(cfg.X_TIMELINE_BATCH) || DEFAULT_BATCH;
   const limit = Math.min(batch, maxByQuota, totalPending);
 
@@ -112,7 +113,7 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
 
   const { data, error } = await sb
     .from("x_handle_queue")
-    .select("handle, author_id, username")
+    .select("handle")
     .eq("status", "pending")
     .order("enqueued_at", { ascending: true })
     .limit(limit);
@@ -121,11 +122,7 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
     return { ...EMPTY, pending: totalPending, dropped: totalPending };
   }
 
-  const rows = (data ?? []) as {
-    handle: string;
-    author_id: string | null;
-    username: string | null;
-  }[];
+  const rows = (data ?? []) as { handle: string }[];
   let processed = 0;
   let errors = 0;
   let posts = 0;
@@ -133,24 +130,17 @@ export async function processXHandleQueue(): Promise<XTimelineSummary> {
   for (const row of rows) {
     const nowIso = new Date().toISOString();
     try {
-      let authorId = row.author_id ?? undefined;
-      let username = row.username ?? undefined;
-      if (!authorId || !username) {
-        const ref = await resolveXUserId(row.handle, bearer);
-        authorId = ref.id;
-        username = ref.username;
-      }
-      const items = await fetchXUserTimeline(authorId, username, bearer);
+      const { items, raw } = await fetchXRecentByHandle(row.handle, bearer);
       await upsertItems(X_ID, items);
-      if (items.length > 0) await incrementUsage(X_ID, items.length);
+      // Presupuestamos por lo que devolvió la API (raw), no por lo guardado.
+      if (raw > 0) await incrementUsage(X_ID, raw);
       posts += items.length;
       processed += 1;
       await sb
         .from("x_handle_queue")
         .update({
           status: "done",
-          author_id: authorId,
-          username,
+          username: items[0]?.author ?? row.handle,
           posts_fetched: items.length,
           last_fetched_at: nowIso,
           last_error: null,

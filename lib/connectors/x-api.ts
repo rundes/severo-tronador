@@ -21,12 +21,16 @@ const ID = "x-api";
 export const X_FREE_LIMIT = 1500;
 const FREE_LIMIT = X_FREE_LIMIT;
 const ENDPOINT = "https://api.x.com/2/tweets/search/recent";
-// Lookup de usuario (handle → id) y timeline de un usuario.
-const USER_LOOKUP = "https://api.x.com/2/users/by/username";
-const USER_TIMELINE = "https://api.x.com/2/users";
 const MAX_RESULTS = 100;
-// Posteos a traer por usuario en la escucha activa (pedido del producto).
+// search/recent exige max_results en [10,100]; pedimos el mínimo y
+// recortamos a POSTS_PER_USER al guardar.
+const RECENT_MIN_RESULTS = 10;
+// Posteos a guardar por usuario en la escucha activa (pedido del producto).
 export const POSTS_PER_USER = 5;
+// Costo de cuota por handle: la API puede devolver hasta RECENT_MIN_RESULTS
+// tweets aunque guardemos 5. Presupuestamos por este número para no pasarnos
+// del free tier.
+export const COST_PER_HANDLE = RECENT_MIN_RESULTS;
 
 interface XTweet {
   id: string;
@@ -39,61 +43,44 @@ interface XResp {
   data?: XTweet[];
 }
 
-export interface XUserRef {
-  id: string;
-  username: string;
-}
-
-// Resuelve un handle ("vecinacentro") a su id numérico + username canónico.
-// El id se cachea en x_handle_queue para no repetir este lookup.
-export async function resolveXUserId(
+// Trae los últimos `count` posteos de un usuario vía search/recent con
+// `from:handle` — el endpoint del free tier (los endpoints de timeline /
+// user-lookup exigen plan pago, devuelven HTTP 402). Cubre los últimos ~7
+// días (límite de recent search); ordena del más nuevo al más viejo.
+// Excluye RTs. Devuelve los items recortados a `count` y `raw` = cuántos
+// devolvió la API (para presupuestar la cuota).
+export async function fetchXRecentByHandle(
   handle: string,
   bearer: string,
-): Promise<XUserRef> {
-  const res = await fetch(`${USER_LOOKUP}/${encodeURIComponent(handle)}`, {
+  count = POSTS_PER_USER,
+): Promise<{ items: ListenItem[]; raw: number }> {
+  const params = new URLSearchParams({
+    query: `from:${handle} -is:retweet`,
+    max_results: String(RECENT_MIN_RESULTS),
+    "tweet.fields": "created_at,author_id",
+    expansions: "author_id",
+    "user.fields": "username",
+  });
+  const res = await fetch(`${ENDPOINT}?${params}`, {
     headers: { Authorization: `Bearer ${bearer}` },
   });
-  if (!res.ok) throw new Error(`X API user lookup HTTP ${res.status}`);
-  const json = (await res.json()) as { data?: { id: string; username: string } };
-  if (!json.data?.id) throw new Error(`X API usuario '${handle}' no encontrado`);
-  return { id: json.data.id, username: json.data.username };
-}
-
-// Mapea tweets crudos del timeline a ListenItem (kind "tweet", author = handle).
-export function mapTimelineTweets(
-  tweets: XTweet[],
-  username: string,
-): ListenItem[] {
-  return tweets.map((t) => ({
+  if (!res.ok) throw new Error(`X API recent HTTP ${res.status}`);
+  const json = (await res.json()) as XResp & {
+    includes?: { users?: { id: string; username: string }[] };
+  };
+  const data = json.data ?? [];
+  // username canónico desde includes (respeta capitalización real); si no
+  // viene, caemos al handle normalizado.
+  const uname = json.includes?.users?.[0]?.username ?? handle;
+  const items = data.slice(0, count).map((t) => ({
     source: "x.com",
     text: t.text,
-    url: `https://x.com/${username}/status/${t.id}`,
+    url: `https://x.com/${uname}/status/${t.id}`,
     publishedAt: t.created_at,
-    author: username,
+    author: uname,
     kind: "tweet" as const,
   }));
-}
-
-// Trae los últimos `count` posteos de un usuario (timeline, no búsqueda):
-// los más recientes sin importar la fecha. Excluye RTs y replies para
-// quedarse con el contenido propio. La X API exige max_results >= 5.
-export async function fetchXUserTimeline(
-  authorId: string,
-  username: string,
-  bearer: string,
-  count = POSTS_PER_USER,
-): Promise<ListenItem[]> {
-  const params = new URLSearchParams({
-    max_results: String(Math.min(Math.max(count, 5), 100)),
-    "tweet.fields": "created_at",
-    exclude: "retweets,replies",
-  });
-  const res = await fetch(`${USER_TIMELINE}/${authorId}/tweets?${params}`, {
-    headers: { Authorization: `Bearer ${bearer}` },
-  });
-  if (!res.ok) throw new Error(`X API timeline HTTP ${res.status}`);
-  const json = (await res.json()) as XResp;
-  return mapTimelineTweets((json.data ?? []).slice(0, count), username);
+  return { items, raw: data.length };
 }
 
 function matches(item: ListenItem, q: ListenQuery): boolean {
