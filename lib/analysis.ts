@@ -20,12 +20,13 @@ export interface Cierre {
 }
 
 export async function analyzeCampaign(
+  projectId: string,
   campaignId: string,
 ): Promise<Cierre | null> {
-  const campaign = await getCampaign(campaignId);
+  const campaign = await getCampaign(projectId, campaignId);
   if (!campaign) return null;
 
-  const responses = await listResponses(campaignId);
+  const responses = await listResponses(projectId, campaignId);
   const answers = responses
     .flatMap((r) => r.answers.map((a) => a.respuesta))
     .filter(Boolean);

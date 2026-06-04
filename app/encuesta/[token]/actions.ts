@@ -14,7 +14,7 @@ export async function responderEncuesta(formData: FormData) {
   const ref = await resolveToken(token);
   if (!ref) redirect(`/encuesta/${token}?error=1`);
 
-  const campaign = await getCampaign(ref.campaignId);
+  const campaign = await getCampaign(ref.projectId, ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
   const answers = preguntas
     .map((pregunta, i) => ({
@@ -33,6 +33,6 @@ export async function optarBaja(formData: FormData) {
   const { token } = parsed.data;
 
   const ref = await resolveToken(token);
-  if (ref) await optOut(ref.dni, "baja desde encuesta");
+  if (ref) await optOut(ref.projectId, ref.dni, "baja desde encuesta");
   redirect(`/encuesta/${token}?baja=1`);
 }

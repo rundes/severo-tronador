@@ -41,8 +41,10 @@ describe("signShareToken + verifyShareToken", () => {
   it("firma manipulada → bad_signature", () => {
     const token = signShareToken({ t: "campaign", id: "x", exp: Date.now() + 10000 });
     const [payload, sig] = token.split(".");
-    // Flip un char de la firma
-    const broken = sig.slice(0, -1) + (sig.slice(-1) === "A" ? "B" : "A");
+    // Flip el PRIMER char de la firma. (El último char base64 de un HMAC de
+    // 32 bytes tiene 2 bits de padding ignorados → "A"↔"B" decodifican al
+    // mismo byte y la firma seguiría siendo válida: flakiness.)
+    const broken = (sig[0] === "A" ? "B" : "A") + sig.slice(1);
     const r = verifyShareToken(`${payload}.${broken}`);
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("bad_signature");

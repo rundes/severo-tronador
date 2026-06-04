@@ -10,6 +10,7 @@ import {
 import { decodeQuery } from "@/lib/segment-query";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { requireMember } from "@/lib/workspace";
 
 export async function crearCampana(formData: FormData) {
   const raw = formToObject(formData);
@@ -67,7 +68,8 @@ export async function crearCampana(formData: FormData) {
       ]
     : undefined;
 
-  const res = await executeCampaign({
+  const { id: projectId } = await requireMember("editor");
+  const res = await executeCampaign(projectId, {
     ...parsed.data,
     segmentQuery: segmentQuery ?? undefined,
     variants,
@@ -76,6 +78,7 @@ export async function crearCampana(formData: FormData) {
     const session = await auth();
     await logAudit({
       action: "campaign.create",
+      projectId,
       actor: session?.user?.email ?? null,
       entity_type: "campaign",
       entity_id: res.campaign.id,

@@ -19,7 +19,7 @@ beforeEach(() => {
 describe("flows (memory path)", () => {
   it("createFlow asigna position por orden de steps", async () => {
     const { createFlow } = await import("@/lib/flows");
-    const flow = await createFlow({
+    const flow = await createFlow("p1", {
       nombre: "Test",
       segment_filter: {},
       steps: [
@@ -35,37 +35,37 @@ describe("flows (memory path)", () => {
 
   it("listFlows ordena por created_at desc", async () => {
     const { createFlow, listFlows } = await import("@/lib/flows");
-    await createFlow({ nombre: "A", segment_filter: {}, steps: [] });
+    await createFlow("p1", { nombre: "A", segment_filter: {}, steps: [] });
     await new Promise((r) => setTimeout(r, 5));
-    await createFlow({ nombre: "B", segment_filter: {}, steps: [] });
-    const list = await listFlows();
+    await createFlow("p1", { nombre: "B", segment_filter: {}, steps: [] });
+    const list = await listFlows("p1");
     expect(list.map((f) => f.nombre)).toEqual(["B", "A"]);
   });
 
   it("deleteFlow remueve por id", async () => {
     const { createFlow, deleteFlow, getFlow } = await import("@/lib/flows");
-    const f = await createFlow({ nombre: "del", segment_filter: {}, steps: [] });
-    await deleteFlow(f.id);
-    expect(await getFlow(f.id)).toBeUndefined();
+    const f = await createFlow("p1", { nombre: "del", segment_filter: {}, steps: [] });
+    await deleteFlow("p1", f.id);
+    expect(await getFlow("p1", f.id)).toBeUndefined();
   });
 
   it("startFlow en memory devuelve no_db", async () => {
     const { createFlow, startFlow } = await import("@/lib/flows");
-    const f = await createFlow({ nombre: "x", segment_filter: {}, steps: [] });
-    const res = await startFlow(f.id);
+    const f = await createFlow("p1", { nombre: "x", segment_filter: {}, steps: [] });
+    const res = await startFlow("p1", f.id);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toBe("no_db");
   });
 
   it("createFlow sin steps queda con steps=[]", async () => {
     const { createFlow } = await import("@/lib/flows");
-    const f = await createFlow({ nombre: "empty", segment_filter: {}, steps: [] });
+    const f = await createFlow("p1", { nombre: "empty", segment_filter: {}, steps: [] });
     expect(f.steps).toEqual([]);
   });
 
   it("createFlow preserva createdBy", async () => {
     const { createFlow } = await import("@/lib/flows");
-    const f = await createFlow({
+    const f = await createFlow("p1", {
       nombre: "x",
       segment_filter: {},
       steps: [],

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getCampaign } from "@/lib/campaigns";
 import { listResponses } from "@/lib/survey";
+import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Respuestas · Severo Tronador" };
 
 export default async function RespuestasPage() {
-  const responses = await listResponses();
+  const { id: projectId } = await requireProject();
+  const responses = await listResponses(projectId);
 
   // Pre-resolvemos el nombre de cada campaña (getCampaign ahora es async y no
   // puede llamarse dentro del .map de render). Dedup por campaignId.
@@ -14,7 +16,10 @@ export default async function RespuestasPage() {
     await Promise.all(
       campaignIds.map(
         async (id) =>
-          [id, (await getCampaign(id))?.nombre] as [string, string | undefined],
+          [id, (await getCampaign(projectId, id))?.nombre] as [
+            string,
+            string | undefined,
+          ],
       ),
     ),
   );

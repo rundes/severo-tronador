@@ -7,7 +7,6 @@
 
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
-import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-query";
 import { interpolate, getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
@@ -38,6 +37,7 @@ export interface FlowStep {
 
 export interface Flow {
   id: string;
+  project_id?: string;
   nombre: string;
   segment_filter: SegmentFilter | SegmentQuery;
   estado: FlowEstado;
@@ -69,14 +69,17 @@ function buildBody(cuerpo: string, contact: Contact, encuestaUrl: string): strin
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
 
-export async function listFlows(): Promise<Flow[]> {
+export async function listFlows(projectId: string): Promise<Flow[]> {
   if (!dbConfigured()) {
-    return [...mem].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return [...mem]
+      .filter((f) => f.project_id === projectId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
   const db = getSupabase();
   const { data, error } = await db
     .from("flows")
     .select("*")
+    .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   const flows: Flow[] = [];
@@ -91,13 +94,18 @@ export async function listFlows(): Promise<Flow[]> {
   return flows;
 }
 
-export async function getFlow(id: string): Promise<Flow | undefined> {
-  if (!dbConfigured()) return mem.find((f) => f.id === id);
+export async function getFlow(
+  projectId: string,
+  id: string,
+): Promise<Flow | undefined> {
+  if (!dbConfigured())
+    return mem.find((f) => f.id === id && f.project_id === projectId);
   const db = getSupabase();
   const { data, error } = await db
     .from("flows")
     .select("*")
     .eq("id", id)
+    .eq("project_id", projectId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return undefined;
@@ -118,10 +126,14 @@ export interface CreateFlowInput {
   send_window_end_hour?: number | null;
 }
 
-export async function createFlow(input: CreateFlowInput): Promise<Flow> {
+export async function createFlow(
+  projectId: string,
+  input: CreateFlowInput,
+): Promise<Flow> {
   if (!dbConfigured()) {
     const flow: Flow = {
       id: crypto.randomUUID(),
+      project_id: projectId,
       nombre: input.nombre,
       segment_filter: input.segment_filter,
       estado: "draft",
@@ -140,6 +152,7 @@ export async function createFlow(input: CreateFlowInput): Promise<Flow> {
   const { data: flowRow, error: e1 } = await db
     .from("flows")
     .insert({
+      project_id: projectId,
       nombre: input.nombre,
       segment_filter: input.segment_filter,
       created_by: input.created_by ?? null,
@@ -150,6 +163,7 @@ export async function createFlow(input: CreateFlowInput): Promise<Flow> {
     .single();
   if (e1) throw e1;
   const steps = input.steps.map((s, i) => ({
+    project_id: projectId,
     flow_id: flowRow.id as string,
     position: i,
     delay_days: s.delay_days,
@@ -167,14 +181,18 @@ export async function createFlow(input: CreateFlowInput): Promise<Flow> {
   };
 }
 
-export async function deleteFlow(id: string): Promise<void> {
+export async function deleteFlow(projectId: string, id: string): Promise<void> {
   if (!dbConfigured()) {
-    const idx = mem.findIndex((f) => f.id === id);
+    const idx = mem.findIndex((f) => f.id === id && f.project_id === projectId);
     if (idx >= 0) mem.splice(idx, 1);
     return;
   }
   // ON DELETE CASCADE limpia flow_steps; envio_queue.flow_id queda null.
-  const { error } = await getSupabase().from("flows").delete().eq("id", id);
+  const { error } = await getSupabase()
+    .from("flows")
+    .delete()
+    .eq("id", id)
+    .eq("project_id", projectId);
   if (error) throw error;
 }
 
@@ -186,9 +204,12 @@ export type StartFlowResult =
   | { ok: false; reason: "step_missing_template"; step: number }
   | { ok: false; reason: "step_no_connector"; step: number };
 
-export async function startFlow(flowId: string): Promise<StartFlowResult> {
+export async function startFlow(
+  projectId: string,
+  flowId: string,
+): Promise<StartFlowResult> {
   if (!dbConfigured()) return { ok: false, reason: "no_db" };
-  const flow = await getFlow(flowId);
+  const flow = await getFlow(projectId, flowId);
   if (!flow) return { ok: false, reason: "no_flow" };
   if (flow.estado === "running") return { ok: false, reason: "already_running" };
   if (flow.steps.length === 0) return { ok: false, reason: "no_steps" };
@@ -203,14 +224,13 @@ export async function startFlow(flowId: string): Promise<StartFlowResult> {
   }
 
   // Resolver audiencia (segment_filter o segment_query).
-  // TODO(3c-2): scopear flows por proyecto; padrón hoy en proyecto default.
-  const all = await loadContacts(DEFAULT_PROJECT_ID);
+  const all = await loadContacts(projectId);
   const matched = isSegmentQuery(flow.segment_filter)
     ? applyQuery(all, flow.segment_filter as SegmentQuery)
     : applySegment(all, flow.segment_filter as SegmentFilter);
 
-  // Opt-out global. Cooldown se evalúa cuando el cron despacha cada step.
-  const opted = await optedOutSet();
+  // Opt-out del proyecto. Cooldown se evalúa cuando el cron despacha cada step.
+  const opted = await optedOutSet(projectId);
   const audience = matched.filter((m) => !opted.has(m.contact.dni));
 
   const db = getSupabase();
@@ -223,9 +243,10 @@ export async function startFlow(flowId: string): Promise<StartFlowResult> {
     const connector = outreachConnectorFor(step.channel)!;
     const scheduledAt = new Date(startedAt + step.delay_days * 86400000).toISOString();
     for (const m of audience) {
-      const token = await createToken(flow.id, m.contact.dni);
+      const token = await createToken(projectId, flow.id, m.contact.dni);
       const url = `${baseUrl()}/encuesta/${token}`;
       queueRows.push({
+        project_id: projectId,
         campaign_id: `flow-${flow.id}`,
         channel: step.channel,
         connector_id: connector.id,
@@ -258,7 +279,8 @@ export async function startFlow(flowId: string): Promise<StartFlowResult> {
       started_at: new Date(startedAt).toISOString(),
       metrics: { enqueued: queueRows.length, skipped: 0 },
     })
-    .eq("id", flow.id);
+    .eq("id", flow.id)
+    .eq("project_id", projectId);
 
   log.info("flow.started", {
     flow_id: flow.id,

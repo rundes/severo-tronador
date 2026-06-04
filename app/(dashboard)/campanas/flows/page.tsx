@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listFlows } from "@/lib/flows";
+import { requireProject } from "@/lib/workspace";
 import { borrarFlow, iniciarFlow } from "./actions";
 
 export const metadata = { title: "Flows · Tronador" };
@@ -32,7 +33,8 @@ export default async function FlowsPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const flows = await listFlows();
+  const { id: projectId } = await requireProject();
+  const flows = await listFlows(projectId);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
