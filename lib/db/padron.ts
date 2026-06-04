@@ -15,21 +15,30 @@ export function parsePadronCsv(csv: string): Contact[] {
   }).filter((c) => c.dni);
 }
 
-// Reemplaza el padrón cargado (upsert por dni en lotes).
-export async function importPadron(rows: Contact[], source: string): Promise<number> {
+// Reemplaza el padrón cargado del proyecto (upsert por (project_id, dni)).
+export async function importPadron(
+  projectId: string,
+  rows: Contact[],
+  source: string,
+): Promise<number> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
   const db = getSupabase();
-  const withSource = rows.map((r) => ({ ...r, source }));
+  const withSource = rows.map((r) => ({ ...r, project_id: projectId, source }));
   for (let i = 0; i < withSource.length; i += 500) {
-    const { error } = await db.from("padron").upsert(withSource.slice(i, i + 500), { onConflict: "dni" });
+    const { error } = await db
+      .from("padron")
+      .upsert(withSource.slice(i, i + 500), { onConflict: "project_id,dni" });
     if (error) throw error;
   }
   return rows.length;
 }
 
-export async function readPadronFromDb(limit?: number): Promise<Contact[]> {
+export async function readPadronFromDb(
+  projectId: string,
+  limit?: number,
+): Promise<Contact[]> {
   if (!dbConfigured()) return [];
-  let q = getSupabase().from("padron").select("*");
+  let q = getSupabase().from("padron").select("*").eq("project_id", projectId);
   if (limit) q = q.limit(limit);
   const { data, error } = await q;
   if (error) {
@@ -40,8 +49,11 @@ export async function readPadronFromDb(limit?: number): Promise<Contact[]> {
   return (data ?? []) as Contact[];
 }
 
-export async function padronCount(): Promise<number> {
+export async function padronCount(projectId: string): Promise<number> {
   if (!dbConfigured()) return 0;
-  const { count } = await getSupabase().from("padron").select("*", { count: "exact", head: true });
+  const { count } = await getSupabase()
+    .from("padron")
+    .select("*", { count: "exact", head: true })
+    .eq("project_id", projectId);
   return count ?? 0;
 }

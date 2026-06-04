@@ -54,7 +54,7 @@ export default async function SegmentosPage({
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   const advanced = Boolean(advancedQuery);
   const filter = advanced ? {} : filterFromParams(params);
-  const all = await loadContacts();
+  const all = await loadContacts(projectId);
   const matched = advancedQuery
     ? applyQuery(all, advancedQuery)
     : applySegment(all, filter);

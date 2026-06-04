@@ -25,6 +25,7 @@ const fixtures = {
 
 interface Builder {
   select: () => Builder;
+  eq: (col: string, val: unknown) => Builder;
   gte: (col: string, val: string) => Builder;
   order: () => Builder;
   limit: () => Builder;
@@ -35,6 +36,8 @@ function makeBuilder(table: string): Builder {
   const state: QueryState = { table, gtFilter: null };
   const builder: Builder = {
     select: () => builder,
+    // project_id scoping: no-op en el mock (mantiene la cadena fluida).
+    eq: () => builder,
     gte(col, val) {
       state.gtFilter = { col, val };
       return builder;
@@ -86,7 +89,7 @@ beforeEach(() => {
 describe("loadDashboard (Plan 03 F1)", () => {
   it("KPIs vacío cuando no hay datos", async () => {
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(7);
+    const d = await loadDashboard("p1",7);
     expect(d.kpis.sent).toBe(0);
     expect(d.kpis.responseRate).toBe(0);
     expect(d.timeSeries).toHaveLength(7);
@@ -107,7 +110,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
       created_at: now,
     });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.kpis.sent).toBe(2);
     expect(d.kpis.failed).toBe(1);
     expect(d.kpis.skipped).toBe(1);
@@ -129,7 +132,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
       created_at: now,
     });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.kpis.responses).toBe(2);
     expect(d.kpis.responseRate).toBeCloseTo(2 / 3, 5);
   });
@@ -148,7 +151,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
       created_at: now,
     });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.kpis.optOuts).toBe(1);
     expect(d.kpis.optOutRate).toBeCloseTo(0.5, 5);
   });
@@ -174,7 +177,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
       created_at: now,
     });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.kpis.byChannel.email.sent).toBe(2);
     expect(d.kpis.byChannel.email.responses).toBe(1);
     expect(d.kpis.byChannel.sms.sent).toBe(1);
@@ -200,7 +203,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
     );
     fixtures.respuestas.push({ token: "t1", created_at: now });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.campaigns).toHaveLength(2);
     const a = d.campaigns.find((c) => c.nombre === "A")!;
     expect(a.responseRate).toBe(1);
@@ -221,14 +224,14 @@ describe("loadDashboard (Plan 03 F1)", () => {
       created_at: now,
     });
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(30);
+    const d = await loadDashboard("p1",30);
     expect(d.kpis.estCostUsd).toBeGreaterThan(0);
     expect(d.kpis.estCostUsd).toBeCloseTo(2 * 0.04, 5);
   });
 
   it("time-series llena días vacíos con 0", async () => {
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(7);
+    const d = await loadDashboard("p1",7);
     expect(d.timeSeries).toHaveLength(7);
     expect(d.timeSeries.every((p) => p.envios === 0 && p.responses === 0)).toBe(
       true,
@@ -237,7 +240,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
 
   it("health distribution lee del padrón mock", async () => {
     const { loadDashboard } = await import("@/lib/analytics");
-    const d = await loadDashboard(7);
+    const d = await loadDashboard("p1",7);
     expect(d.health.total).toBe(3);
     expect(d.health.green).toBe(1);
     expect(d.health.yellow).toBe(1);

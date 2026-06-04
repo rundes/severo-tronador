@@ -2,6 +2,7 @@ import { nuevaPlantilla } from "./actions";
 import { listTemplates, templateVars } from "@/lib/templates";
 import { SUPPORTED_VARS, buildVarMap } from "@/lib/interpolate-vars";
 import { loadContacts } from "@/lib/segments";
+import { requireProject } from "@/lib/workspace";
 import { TemplateEditor } from "@/components/templates/template-editor";
 import type { Contact } from "@/lib/connectors/types";
 
@@ -33,13 +34,14 @@ export default async function TemplatesPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const templates = await listTemplates();
 
   // Sample contact para el preview. Tomamos el primero del padrón para
   // mantener el render puro (sin Math.random/Date.now de regla react/purity).
   let sample: Contact = DEMO_CONTACT;
   try {
-    const all = await loadContacts();
+    const all = await loadContacts(projectId);
     if (all.length > 0) sample = all[0].contact;
   } catch {
     // Fallback al demo si el padrón no carga.

@@ -10,6 +10,7 @@ import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
 import { telegramBotConnector } from "@/lib/connectors/telegram-bot";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
@@ -339,7 +340,9 @@ export async function executeCampaign(
   }
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
-  const all = await loadContacts();
+  // TODO(3c-2): scopear executeCampaign por proyecto; el padrón vive hoy en el
+  // proyecto default.
+  const all = await loadContacts(DEFAULT_PROJECT_ID);
 
   // Helper local: resuelve template + variantId para un contacto.
   function resolveFor(dni: string): { tpl: Tpl; variantId?: string } {

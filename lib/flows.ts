@@ -7,6 +7,7 @@
 
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-query";
 import { interpolate, getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
@@ -202,7 +203,8 @@ export async function startFlow(flowId: string): Promise<StartFlowResult> {
   }
 
   // Resolver audiencia (segment_filter o segment_query).
-  const all = await loadContacts();
+  // TODO(3c-2): scopear flows por proyecto; padrón hoy en proyecto default.
+  const all = await loadContacts(DEFAULT_PROJECT_ID);
   const matched = isSegmentQuery(flow.segment_filter)
     ? applyQuery(all, flow.segment_filter as SegmentQuery)
     : applySegment(all, flow.segment_filter as SegmentFilter);

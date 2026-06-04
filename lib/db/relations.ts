@@ -29,6 +29,7 @@ interface OptOutRow {
 }
 
 export async function loadRawRelationships(
+  projectId: string,
   dnis: string[],
 ): Promise<Map<string, RawRelationship>> {
   const map = new Map<string, RawRelationship>();
@@ -39,9 +40,18 @@ export async function loadRawRelationships(
     db
       .from("envios")
       .select("campaign_id, dni, token, created_at, estado")
+      .eq("project_id", projectId)
       .in("dni", dnis),
-    db.from("respuestas").select("token, dni, created_at").in("dni", dnis),
-    db.from("opt_outs").select("dni, at, reason").in("dni", dnis),
+    db
+      .from("respuestas")
+      .select("token, dni, created_at")
+      .eq("project_id", projectId)
+      .in("dni", dnis),
+    db
+      .from("opt_outs")
+      .select("dni, at, reason")
+      .eq("project_id", projectId)
+      .in("dni", dnis),
   ]);
 
   const envios = (enviosRes.data ?? []) as EnvioRow[];
@@ -54,6 +64,7 @@ export async function loadRawRelationships(
     const { data } = await db
       .from("campanas")
       .select("id, channel")
+      .eq("project_id", projectId)
       .in("id", campIds);
     channelById = new Map(
       (data ?? []).map((c) => [c.id as string, c.channel as Channel]),

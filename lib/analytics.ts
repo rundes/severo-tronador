@@ -110,36 +110,43 @@ function emptyKpi(window: WindowDays): KpiSummary {
   };
 }
 
-export async function loadDashboard(window: WindowDays = 30): Promise<DashboardData> {
+export async function loadDashboard(
+  projectId: string,
+  window: WindowDays = 30,
+): Promise<DashboardData> {
   const since = isoSince(window);
   if (!dbConfigured()) {
     return {
       kpis: emptyKpi(window),
       campaigns: [],
       timeSeries: [],
-      health: await healthDistribution(),
+      health: await healthDistribution(projectId),
     };
   }
 
   const db = getSupabase();
 
-  // Fetch en paralelo.
+  // Fetch en paralelo (scopeado por proyecto).
   const [enviosRes, respuestasRes, optoutsRes, campanasRes] = await Promise.all([
     db
       .from("envios")
       .select("campaign_id, estado, token, created_at")
+      .eq("project_id", projectId)
       .gte("created_at", since),
     db
       .from("respuestas")
       .select("token, created_at")
+      .eq("project_id", projectId)
       .gte("created_at", since),
     db
       .from("opt_outs")
       .select("dni, at")
+      .eq("project_id", projectId)
       .gte("at", since),
     db
       .from("campanas")
       .select("id, nombre, channel, created_at")
+      .eq("project_id", projectId)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(100),
@@ -262,13 +269,15 @@ export async function loadDashboard(window: WindowDays = 30): Promise<DashboardD
     kpis: kpi,
     campaigns,
     timeSeries: points,
-    health: await healthDistribution(),
+    health: await healthDistribution(projectId),
   };
 }
 
-async function healthDistribution(): Promise<HealthDistribution> {
+async function healthDistribution(
+  projectId: string,
+): Promise<HealthDistribution> {
   try {
-    const contacts = await loadContacts();
+    const contacts = await loadContacts(projectId);
     const dist: HealthDistribution = {
       total: contacts.length,
       green: 0,

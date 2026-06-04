@@ -5,6 +5,7 @@ import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { listTemplates, getTemplate } from "@/lib/templates";
+import { requireProject } from "@/lib/workspace";
 import { ChannelPreview } from "@/components/segmentos/channel-preview";
 
 export const metadata = { title: "Nueva campaña · Severo Tronador" };
@@ -35,9 +36,10 @@ export default async function NuevaCampanaPage({
     params.channel && OUTREACH_CHANNELS.includes(params.channel as Channel)
       ? (params.channel as Channel)
       : "email";
+  const { id: projectId } = await requireProject();
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   const filter = advancedQuery ? {} : filterFromParams(params);
-  const all = await loadContacts();
+  const all = await loadContacts(projectId);
   const matched = advancedQuery
     ? applyQuery(all, advancedQuery)
     : applySegment(all, filter);

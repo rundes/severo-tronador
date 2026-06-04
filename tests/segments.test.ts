@@ -329,7 +329,7 @@ describe("buildFunnel (Plan 02 F1.4)", () => {
 
 describe("loadContacts (memory path)", () => {
   it("devuelve contactos del padron mock con relación derivada y edad", async () => {
-    const all = await loadContacts();
+    const all = await loadContacts("p1");
     expect(all.length).toBeGreaterThan(0);
     for (const c of all) {
       expect(c.contact.dni).toBeTypeOf("string");
