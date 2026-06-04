@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, action: "unknown_token" });
     }
     await upsertChat({
+      projectId: ref.projectId,
       dni: ref.dni,
       chat_id: chatId,
       username: from?.username ?? null,
@@ -82,8 +83,8 @@ export async function POST(req: Request) {
   if (text === "/baja" || text === "/stop") {
     const chat = await findChatByChatId(chatId);
     if (chat) {
-      await markOptOut(chat.dni);
-      await optOut(chat.dni, "telegram baja");
+      await markOptOut(chat.dni, chat.project_id);
+      await optOut(chat.project_id, chat.dni, "telegram baja");
       log.info("webhook.telegram.opted_out", { dni: chat.dni });
     }
     return NextResponse.json({ ok: true, action: "opted_out" });
@@ -107,29 +108,36 @@ export async function POST(req: Request) {
 
 async function findChatByChatId(
   chatId: number,
-): Promise<{ dni: string } | null> {
-  // Helper inverso. Usa lookup directo via Supabase porque el store mem
-  // está keyed by dni.
-  // Skip: si hay mucho volumen, conviene índice secundario. Hoy mantenemos
-  // una query simple.
+): Promise<{ dni: string; project_id: string } | null> {
+  // Helper inverso por chat_id (único global). Resuelve dni + proyecto del
+  // chat para scopear el opt-out.
   const { dbConfigured, getSupabase } = await import("@/lib/db/supabase");
+  const { DEFAULT_PROJECT_ID } = await import("@/lib/projects");
   if (!dbConfigured()) {
-    // Memory fallback: scan
     const g = globalThis as unknown as {
-      __telegramChats?: Map<string, { dni: string; chat_id: number }>;
+      __telegramChats?: Map<
+        string,
+        { dni: string; chat_id: number; project_id?: string }
+      >;
     };
     if (!g.__telegramChats) return null;
     for (const v of g.__telegramChats.values()) {
-      if (v.chat_id === chatId) return { dni: v.dni };
+      if (v.chat_id === chatId)
+        return { dni: v.dni, project_id: v.project_id ?? DEFAULT_PROJECT_ID };
     }
     return null;
   }
   const { data } = await getSupabase()
     .from("telegram_chats")
-    .select("dni")
+    .select("dni, project_id")
     .eq("chat_id", chatId)
     .maybeSingle();
-  return (data ?? null) as { dni: string } | null;
+  if (!data) return null;
+  return {
+    dni: (data as { dni: string }).dni,
+    project_id:
+      (data as { project_id?: string }).project_id ?? DEFAULT_PROJECT_ID,
+  };
 }
 
 // Para silenciar el unused import en TS estricto.
