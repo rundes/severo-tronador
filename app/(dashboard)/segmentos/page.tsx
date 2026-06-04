@@ -20,6 +20,7 @@ import {
   type Channel,
 } from "@/lib/relationship";
 import { listSavedSegments } from "@/lib/segments-store";
+import { requireProject } from "@/lib/workspace";
 import { borrarSegmento, guardarSegmento } from "./actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
@@ -49,6 +50,7 @@ export default async function SegmentosPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
+  const { id: projectId } = await requireProject();
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   const advanced = Boolean(advancedQuery);
   const filter = advanced ? {} : filterFromParams(params);
@@ -56,7 +58,7 @@ export default async function SegmentosPage({
   const matched = advancedQuery
     ? applyQuery(all, advancedQuery)
     : applySegment(all, filter);
-  const saved = await listSavedSegments();
+  const saved = await listSavedSegments(projectId);
   const funnel = advanced ? [] : buildFunnel(all, filter);
   const costs = matched.length > 0 ? await estimateAllChannels(matched.length) : [];
 

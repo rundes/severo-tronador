@@ -1,4 +1,5 @@
 import { listAudit, type AuditAction } from "@/lib/audit";
+import { requireProject } from "@/lib/workspace";
 
 export const metadata = { title: "Auditoría · Tronador" };
 export const revalidate = 30;
@@ -52,9 +53,10 @@ export default async function AuditoriaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const { id: projectId } = await requireProject();
   const action = params.action as AuditAction | undefined;
   const actor = params.actor;
-  const entries = await listAudit({ limit: 200, action, actor });
+  const entries = await listAudit({ projectId, limit: 200, action, actor });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

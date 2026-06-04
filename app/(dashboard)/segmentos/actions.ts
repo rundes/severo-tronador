@@ -15,6 +15,7 @@ import {
   saveSegment,
 } from "@/lib/segments-store";
 import { logAudit } from "@/lib/audit";
+import { requireMember } from "@/lib/workspace";
 
 const GuardarSegmentoSchema = z.object({
   nombre: z.string().trim().min(1, "Nombre requerido").max(120),
@@ -50,11 +51,18 @@ export async function guardarSegmento(formData: FormData) {
     redirect(`/segmentos?${qs}`);
   }
 
+  const { id: projectId } = await requireMember("editor");
   const session = await auth();
   const email = session?.user?.email ?? null;
-  const saved = await saveSegment(parsed.data.nombre, parsed.data.filtros, email ?? undefined);
+  const saved = await saveSegment(
+    projectId,
+    parsed.data.nombre,
+    parsed.data.filtros,
+    email ?? undefined,
+  );
   await logAudit({
     action: "segment.save",
+    projectId,
     actor: email,
     entity_type: "segment",
     entity_id: saved.id,
@@ -67,12 +75,14 @@ export async function guardarSegmento(formData: FormData) {
 export async function borrarSegmento(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
-  const seg = await getSavedSegment(id);
+  const { id: projectId } = await requireMember("editor");
+  const seg = await getSavedSegment(projectId, id);
   if (!seg) return;
-  await deleteSegment(id);
+  await deleteSegment(projectId, id);
   const session = await auth();
   await logAudit({
     action: "segment.delete",
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "segment",
     entity_id: id,

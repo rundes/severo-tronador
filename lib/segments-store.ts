@@ -25,6 +25,7 @@ export interface SavedFilters {
 
 export interface SavedSegment {
   id: string;
+  project_id?: string;
   nombre: string;
   filtros: SavedFilters;
   created_by: string | null;
@@ -38,34 +39,42 @@ interface MemStore {
 const g = globalThis as unknown as MemStore;
 const mem = (g.__segmentos ??= []);
 
-export async function listSavedSegments(): Promise<SavedSegment[]> {
+export async function listSavedSegments(
+  projectId: string,
+): Promise<SavedSegment[]> {
   if (!dbConfigured()) {
-    return [...mem].sort((a, b) =>
-      (b.created_at ?? "").localeCompare(a.created_at ?? ""),
-    );
+    return mem
+      .filter((s) => s.project_id === projectId)
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
   }
   const { data, error } = await getSupabase()
     .from("segmentos")
     .select("*")
+    .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as SavedSegment[];
 }
 
 export async function getSavedSegment(
+  projectId: string,
   id: string,
 ): Promise<SavedSegment | undefined> {
-  if (!dbConfigured()) return mem.find((s) => s.id === id);
+  if (!dbConfigured()) {
+    return mem.find((s) => s.id === id && s.project_id === projectId);
+  }
   const { data, error } = await getSupabase()
     .from("segmentos")
     .select("*")
     .eq("id", id)
+    .eq("project_id", projectId)
     .maybeSingle();
   if (error) throw error;
   return (data ?? undefined) as SavedSegment | undefined;
 }
 
 export async function saveSegment(
+  projectId: string,
   nombre: string,
   filtros: SavedFilters,
   createdBy?: string,
@@ -73,6 +82,7 @@ export async function saveSegment(
   if (!dbConfigured()) {
     const row: SavedSegment = {
       id: crypto.randomUUID(),
+      project_id: projectId,
       nombre,
       filtros,
       created_by: createdBy ?? null,
@@ -83,19 +93,26 @@ export async function saveSegment(
   }
   const { data, error } = await getSupabase()
     .from("segmentos")
-    .insert({ nombre, filtros, created_by: createdBy ?? null })
+    .insert({ project_id: projectId, nombre, filtros, created_by: createdBy ?? null })
     .select()
     .single();
   if (error) throw error;
   return data as SavedSegment;
 }
 
-export async function deleteSegment(id: string): Promise<void> {
+export async function deleteSegment(
+  projectId: string,
+  id: string,
+): Promise<void> {
   if (!dbConfigured()) {
-    const idx = mem.findIndex((s) => s.id === id);
+    const idx = mem.findIndex((s) => s.id === id && s.project_id === projectId);
     if (idx >= 0) mem.splice(idx, 1);
     return;
   }
-  const { error } = await getSupabase().from("segmentos").delete().eq("id", id);
+  const { error } = await getSupabase()
+    .from("segmentos")
+    .delete()
+    .eq("id", id)
+    .eq("project_id", projectId);
   if (error) throw error;
 }

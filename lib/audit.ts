@@ -22,6 +22,7 @@ export type AuditAction =
 export interface AuditEntry {
   id: string;
   at: string;
+  project_id?: string | null;
   actor: string | null;
   action: AuditAction;
   entity_type: string | null;
@@ -37,6 +38,10 @@ const mem = (g.__audit ??= []);
 
 export interface LogAuditInput {
   action: AuditAction;
+  // Proyecto al que pertenece la acción. Opcional: si se omite, la columna
+  // audit_log.project_id cae al DEFAULT (proyecto default) en Supabase. Los
+  // call sites scopeados (Fase 3+) lo pasan explícito.
+  projectId?: string;
   actor?: string | null;
   entity_type?: string;
   entity_id?: string;
@@ -46,6 +51,7 @@ export interface LogAuditInput {
 // Fire-and-forget — no bloquea la action si falla el log.
 export async function logAudit(input: LogAuditInput): Promise<void> {
   const entry = {
+    ...(input.projectId ? { project_id: input.projectId } : {}),
     actor: input.actor ?? null,
     action: input.action,
     entity_type: input.entity_type ?? null,
@@ -72,6 +78,7 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
 
 export interface ListAuditOptions {
   limit?: number;
+  projectId?: string;
   action?: AuditAction;
   actor?: string;
 }
@@ -82,6 +89,7 @@ export async function listAudit(
   const limit = opts.limit ?? 100;
   if (!dbConfigured()) {
     let out = [...mem];
+    if (opts.projectId) out = out.filter((e) => e.project_id === opts.projectId);
     if (opts.action) out = out.filter((e) => e.action === opts.action);
     if (opts.actor) out = out.filter((e) => e.actor === opts.actor);
     return out
@@ -93,6 +101,7 @@ export async function listAudit(
     .select("*")
     .order("at", { ascending: false })
     .limit(limit);
+  if (opts.projectId) q = q.eq("project_id", opts.projectId);
   if (opts.action) q = q.eq("action", opts.action);
   if (opts.actor) q = q.eq("actor", opts.actor);
   const { data, error } = await q;
