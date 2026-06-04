@@ -152,10 +152,10 @@ function Hero() {
       </div>
       <div className="hidden items-center justify-end md:flex">
         <Image
-          src="/brand/tronador-mark.jpeg"
-          alt="Tronador"
-          width={560}
-          height={560}
+          src="/brand/tronador-logo.jpeg"
+          alt="Tronador · Estudios Electorales"
+          width={1043}
+          height={1042}
           className="h-auto w-full max-w-[480px]"
           priority
         />
