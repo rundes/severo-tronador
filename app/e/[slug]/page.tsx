@@ -55,6 +55,7 @@ export default async function EncuestaPublicaPage({
       <Shell>
         <FinishScreen
           mensaje={enc.mensajeFinal}
+          imageUrl={enc.imageEndUrl}
           ctaLabel={enc.ctaLabel}
           ctaUrl={enc.ctaUrl}
           repetido={!sp.gracias}
@@ -102,17 +103,23 @@ export default async function EncuestaPublicaPage({
 
 function FinishScreen({
   mensaje,
+  imageUrl,
   ctaLabel,
   ctaUrl,
   repetido,
 }: {
   mensaje?: string | null;
+  imageUrl?: string | null;
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   repetido: boolean;
 }) {
   return (
     <div>
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" className="mb-3 max-h-48 w-full rounded-lg object-cover" />
+      )}
       <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>
       <p className="mt-2 text-sm text-zinc-500">
         {mensaje?.trim() ||

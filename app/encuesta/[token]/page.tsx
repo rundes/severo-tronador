@@ -71,6 +71,10 @@ export default async function EncuestaPage({
     const cu = safeHttpUrl(encF?.ctaUrl);
     return (
       <Shell>
+        {encF?.imageEndUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={encF.imageEndUrl} alt="" className="mb-3 max-h-48 w-full rounded-lg object-cover" />
+        )}
         <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>
         <p className="mt-2 text-sm text-zinc-500">
           {encF?.mensajeFinal?.trim() ||

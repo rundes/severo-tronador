@@ -22,6 +22,7 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "survey.create": "Encuesta creada",
   "survey.publish": "Encuesta publicada",
   "survey.send": "Encuesta enviada",
+  "survey.delete": "Encuesta eliminada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -42,6 +43,7 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "survey.create": "bg-indigo-500",
   "survey.publish": "bg-indigo-500",
   "survey.send": "bg-indigo-500",
+  "survey.delete": "bg-red-500",
 };
 
 function ago(iso: string): string {
