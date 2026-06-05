@@ -40,12 +40,17 @@ export function SurveyStepper({
   }
   const stepValid = () => (steps[step] ?? []).every((q) => !q.required || answered(q));
 
-  // Al cambiar de paso, volver al inicio del formulario para empezar la nueva
-  // tanda desde arriba (si no, en mobile el usuario queda abajo, sobre la
-  // navegación, sin ver las nuevas preguntas). rAF para correr tras el render.
+  // Al cambiar de paso, volver al inicio de la página para empezar la nueva
+  // tanda desde arriba con el título a la vista (si no, en mobile el usuario
+  // queda abajo, sobre la navegación, sin ver las nuevas preguntas). rAF para
+  // correr tras el render; fallback a la posición del form si no hay window.
   function scrollToTop() {
     requestAnimationFrame(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        formRef.current?.scrollIntoView({ block: "start" });
+      }
     });
   }
 
@@ -94,11 +99,13 @@ export function SurveyStepper({
         </div>
       </div>
 
-      {/* Pasos: todos montados, solo el actual visible. */}
+      {/* Pasos: todos montados, solo el actual visible. `nativeRequired={false}`
+          porque los campos ocultos romperían la validación nativa del submit;
+          el stepper valida cada paso manualmente (stepValid). */}
       {steps.map((group, gi) => (
         <div key={gi} hidden={gi !== step} className="space-y-7">
           {group.map((q) => (
-            <FieldBlock key={q.id} q={q} />
+            <FieldBlock key={q.id} q={q} nativeRequired={false} />
           ))}
         </div>
       ))}

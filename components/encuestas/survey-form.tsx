@@ -27,21 +27,32 @@ function Dot({ square }: { square?: boolean }) {
   );
 }
 
-export function QuestionField({ q }: { q: Question }) {
+// `nativeRequired` controla el atributo HTML `required`. El stepper monta TODAS
+// las preguntas a la vez (ocultas) y valida manualmente: un `required` nativo en
+// un control oculto rompe el submit (el navegador no puede enfocar un campo
+// invisible) → el stepper pasa `false`. El form de página única lo deja en true.
+export function QuestionField({
+  q,
+  nativeRequired = true,
+}: {
+  q: Question;
+  nativeRequired?: boolean;
+}) {
   const name = `q_${q.id}`;
+  const req = nativeRequired && q.required;
 
   if (q.type === "paragraph") {
-    return <textarea name={name} rows={4} required={q.required} className={`${INPUT} resize-y leading-relaxed`} />;
+    return <textarea name={name} rows={4} required={req} className={`${INPUT} resize-y leading-relaxed`} />;
   }
   if (q.type === "text") {
-    return <input type="text" name={name} required={q.required} className={INPUT} />;
+    return <input type="text" name={name} required={req} className={INPUT} />;
   }
   if (q.type === "single") {
     return (
       <div className="grid gap-2.5">
         {(q.options ?? []).map((opt) => (
           <label key={opt} className={OPTION}>
-            <input type="radio" name={name} value={opt} required={q.required} className="peer sr-only" />
+            <input type="radio" name={name} value={opt} required={req} className="peer sr-only" />
             <Dot />
             <span>{opt}</span>
           </label>
@@ -70,7 +81,7 @@ export function QuestionField({ q }: { q: Question }) {
             key={opt}
             className="flex cursor-pointer items-center justify-center rounded-xl border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] px-4 py-3.5 text-base font-medium text-[oklch(30%_0.02_265)] transition active:scale-[0.99] has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(52%_0.13_255)] has-[:checked]:text-white"
           >
-            <input type="radio" name={name} value={opt} required={q.required} className="sr-only" />
+            <input type="radio" name={name} value={opt} required={req} className="sr-only" />
             {opt}
           </label>
         ))}
@@ -88,7 +99,7 @@ export function QuestionField({ q }: { q: Question }) {
             key={n}
             className="flex h-12 flex-1 cursor-pointer select-none items-center justify-center rounded-lg border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] text-base font-semibold text-[oklch(35%_0.02_265)] transition active:scale-[0.97] has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(52%_0.13_255)] has-[:checked]:text-white"
           >
-            <input type="radio" name={name} value={n} required={q.required} className="sr-only" />
+            <input type="radio" name={name} value={n} required={req} className="sr-only" />
             {n}
           </label>
         ))}
@@ -101,7 +112,15 @@ export function QuestionField({ q }: { q: Question }) {
   );
 }
 
-export function FieldBlock({ q, index }: { q: Question; index?: number }) {
+export function FieldBlock({
+  q,
+  index,
+  nativeRequired = true,
+}: {
+  q: Question;
+  index?: number;
+  nativeRequired?: boolean;
+}) {
   return (
     <div className="space-y-2.5">
       <label className="block text-[1.0625rem] font-semibold leading-snug text-[oklch(26%_0.02_265)]">
@@ -114,7 +133,7 @@ export function FieldBlock({ q, index }: { q: Question; index?: number }) {
       {q.description && (
         <p className="text-sm leading-snug text-[oklch(52%_0.02_265)]">{q.description}</p>
       )}
-      <QuestionField q={q} />
+      <QuestionField q={q} nativeRequired={nativeRequired} />
     </div>
   );
 }
