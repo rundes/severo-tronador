@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { importarCsv, previewGoogleSheet, importarConMapeo } from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
-import { padronCount } from "@/lib/db/padron";
+import { padronCount, readPadronPage } from "@/lib/db/padron";
+import type { Contact } from "@/lib/connectors/types";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { requireProject } from "@/lib/workspace";
 import {
@@ -23,6 +24,18 @@ export default async function ContactosPage({
   const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
   const count = persistOk ? await padronCount(projectId) : 0;
+
+  // Tabla paginada de contactos cargados (100 por página).
+  const PAGE_SIZE = 100;
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const cpage = Math.min(
+    totalPages,
+    Math.max(1, Number(params.cpage) || 1),
+  );
+  const rows: Contact[] =
+    persistOk && count > 0
+      ? await readPadronPage(projectId, (cpage - 1) * PAGE_SIZE, PAGE_SIZE)
+      : [];
 
   // Detectar si Google Sheets está configurado para habilitar el botón.
   const gsCfg = persistOk
@@ -72,7 +85,7 @@ export default async function ContactosPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Contactos
@@ -190,6 +203,87 @@ export default async function ContactosPage({
           />
         </form>
       </section>
+
+      {/* ── Contactos cargados (tabla paginada) ───────────────────────── */}
+      {count > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+              Contactos cargados
+            </h2>
+            <span className="font-mono text-[11px] text-zinc-400">
+              {((cpage - 1) * PAGE_SIZE + 1).toLocaleString()}–
+              {Math.min(cpage * PAGE_SIZE, count).toLocaleString()} de{" "}
+              {count.toLocaleString()}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-zinc-50 text-[10px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
+                <tr>
+                  {["DNI", "Apellido", "Nombre", "Sexo", "Nac.", "Barrio", "Teléfono", "Email"].map(
+                    (h) => (
+                      <th key={h} className="px-2.5 py-2 font-medium">
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {rows.map((c) => (
+                  <tr key={c.dni} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                    <td className="px-2.5 py-1.5 font-mono">
+                      <Link
+                        href={`/contactos/${c.dni}`}
+                        className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                      >
+                        {c.dni}
+                      </Link>
+                    </td>
+                    <td className="px-2.5 py-1.5">{c.apellido ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.nombre ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.sexo ?? ""}</td>
+                    <td className="px-2.5 py-1.5 tabular-nums">{c.fecha_nac ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.barrio ?? ""}</td>
+                    <td className="px-2.5 py-1.5 tabular-nums">{c.telefono ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.email ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm">
+              {cpage > 1 ? (
+                <Link
+                  href={`/contactos?cpage=${cpage - 1}`}
+                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                >
+                  ← Anterior
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="font-mono text-xs text-zinc-500">
+                Página {cpage} / {totalPages}
+              </span>
+              {cpage < totalPages ? (
+                <Link
+                  href={`/contactos?cpage=${cpage + 1}`}
+                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                >
+                  Siguiente →
+                </Link>
+              ) : (
+                <span />
+              )}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
