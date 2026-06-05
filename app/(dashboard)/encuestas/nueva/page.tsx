@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
+import { SURVEY_LAYOUTS, DEFAULT_LAYOUT } from "@/lib/encuestas/layouts";
 import { crearEncuesta } from "../actions";
 
 export const metadata = { title: "Nueva encuesta · Tronador" };
@@ -41,6 +42,32 @@ export default async function NuevaEncuestaPage({
           </span>
           <textarea name="descripcion" rows={3} className={`${inputCls} resize-y`} />
         </label>
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Diseño
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SURVEY_LAYOUTS.map((l) => (
+              <label
+                key={l.id}
+                className="flex cursor-pointer items-start gap-2 rounded-lg border border-zinc-300 p-3 text-sm has-[:checked]:border-zinc-900 has-[:checked]:bg-zinc-50 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:bg-zinc-800/60"
+              >
+                <input
+                  type="radio"
+                  name="layout"
+                  value={l.id}
+                  defaultChecked={l.id === DEFAULT_LAYOUT}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium text-zinc-800 dark:text-zinc-200">{l.label}</span>
+                  <span className="block text-xs text-zinc-500">{l.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <div className="flex items-center gap-3">
           <SubmitButton pendingLabel="Creando…">Crear y editar preguntas</SubmitButton>
           <Link href="/encuestas" className="text-sm text-zinc-500 hover:underline">

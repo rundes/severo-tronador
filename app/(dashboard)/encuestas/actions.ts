@@ -27,8 +27,9 @@ export async function crearEncuesta(formData: FormData) {
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   if (!titulo) redirect("/encuestas/nueva?error=titulo");
 
+  const layout = String(formData.get("layout") ?? "minimal");
   const { id: projectId } = await requireMember("editor");
-  const enc = await createEncuesta(projectId, { titulo, descripcion });
+  const enc = await createEncuesta(projectId, { titulo, descripcion, layout });
   await logAudit({
     action: "survey.create",
     projectId,
@@ -46,6 +47,7 @@ export async function guardarPreguntas(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const titulo = String(formData.get("titulo") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim();
+  const layout = String(formData.get("layout") ?? "minimal");
   let preguntas: Question[];
   try {
     preguntas = JSON.parse(String(formData.get("preguntas") ?? "[]")) as Question[];
@@ -59,6 +61,7 @@ export async function guardarPreguntas(formData: FormData) {
       titulo: titulo || undefined,
       descripcion,
       preguntas,
+      layout,
     });
   } catch (err) {
     redirect(

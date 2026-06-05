@@ -68,6 +68,26 @@ describe("encuestas · CRUD + publish", () => {
     ).rejects.toThrow(/2 opciones/);
   });
 
+  it("layout: default minimal, setea stepper, normaliza inválidos", async () => {
+    const a = await createEncuesta(P, { titulo: "A" });
+    expect(a.layout).toBe("minimal");
+    const b = await createEncuesta(P, { titulo: "B", layout: "stepper" });
+    expect(b.layout).toBe("stepper");
+    const upd = await updateEncuesta(P, b.id, { layout: "inexistente" });
+    expect(upd?.layout).toBe("minimal");
+  });
+
+  it("descripción por pregunta round-trip", async () => {
+    const enc = await createEncuesta(P, { titulo: "Desc" });
+    await updateEncuesta(P, enc.id, {
+      preguntas: [
+        { id: "x", type: "text", label: "Nombre", description: "Tu nombre completo", required: false },
+      ],
+    });
+    const full = await getEncuesta(P, enc.id);
+    expect(full?.preguntas[0].description).toBe("Tu nombre completo");
+  });
+
   it("aísla por proyecto", async () => {
     await createEncuesta(P, { titulo: "Mía" });
     expect(await listEncuestas("otro-proj")).toHaveLength(0);

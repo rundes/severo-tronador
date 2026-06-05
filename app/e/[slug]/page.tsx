@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getEncuestaBySlug } from "@/lib/encuestas";
-import { SurveyForm } from "@/components/encuestas/survey-form";
+import { SurveyRender } from "@/components/encuestas/survey-render";
 import { ORG_NAME } from "@/lib/config";
 import { responderPublica } from "./actions";
 
@@ -75,7 +75,8 @@ export default async function EncuestaPublicaPage({
           {sp.detalle ?? "Revisá tus respuestas."}
         </p>
       )}
-      <SurveyForm
+      <SurveyRender
+        layout={enc.layout}
         questions={enc.preguntas}
         action={responderPublica}
         hidden={{ slug }}
