@@ -160,6 +160,8 @@ export interface ListenQuery {
   // como hint geo para X (geocode point.lat,lng,radio).
   lat?: number | null;
   lng?: number | null;
+  // Feeds RSS/Atom configurados por el usuario (conector rss-medios).
+  rssFeeds?: string[];
 }
 
 export interface ListenItem {

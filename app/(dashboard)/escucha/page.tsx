@@ -32,7 +32,7 @@ interface SourceStatus {
   countIds?: string[];
 }
 
-function sourceStatuses(): SourceStatus[] {
+function sourceStatuses(rssCount = 0): SourceStatus[] {
   const xToken = Boolean(process.env.X_API_BEARER_TOKEN);
   const reddit = Boolean(
     process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET,
@@ -40,6 +40,12 @@ function sourceStatuses(): SourceStatus[] {
   const metaCl = Boolean(process.env.META_CL_TOKEN);
   return [
     { id: "gdelt", label: "GDELT", real: true, reason: "sin auth" },
+    {
+      id: "rss-medios",
+      label: "RSS medios",
+      real: rssCount > 0,
+      reason: rssCount > 0 ? `${rssCount} feed(s)` : "agregá feeds abajo",
+    },
     {
       id: "x-api",
       label: "X",
@@ -91,7 +97,7 @@ export default async function EscuchaPage({
   } = result;
   const emerging = topics.filter((t) => t.emerging);
   const persistOk = dbConfigured();
-  const sources = sourceStatuses();
+  const sources = sourceStatuses(cfg.rssFeeds.length);
   const realCount = sources.filter((s) => s.real).length;
 
   return (
@@ -119,7 +125,7 @@ export default async function EscuchaPage({
             Estado
           </h2>
           <span className="font-mono text-[11px] text-zinc-400">
-            {realCount}/3 fuentes reales · persistencia{" "}
+            {realCount}/{sources.length} fuentes reales · persistencia{" "}
             {persistOk ? "ok" : "off"}
           </span>
         </div>
@@ -235,6 +241,21 @@ export default async function EscuchaPage({
             className={`${inputCls} font-mono`}
           />
         </Field>
+
+        <Field label="Feeds RSS de medios locales (una URL por línea)">
+          <textarea
+            name="rssFeeds"
+            rows={4}
+            defaultValue={cfg.rssFeeds.join("\n")}
+            placeholder={"https://medio-local.com/feed\nhttps://otro-diario.com.ar/rss"}
+            className={`${inputCls} font-mono`}
+          />
+        </Field>
+        <p className="text-xs text-zinc-500">
+          Fuente gratuita sin API key. Pegá las URLs de RSS/Atom de diarios y
+          portales locales; la escucha trae sus últimas notas y las filtra por
+          tus keywords. (Buscá &quot;RSS&quot; en el sitio del medio.)
+        </p>
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-medium uppercase tracking-wide text-zinc-500">
