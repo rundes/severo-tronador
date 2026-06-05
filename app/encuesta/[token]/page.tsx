@@ -1,6 +1,9 @@
 import { responderEncuesta, optarBaja } from "./actions";
 import { getCampaign } from "@/lib/campaigns";
 import { hasResponded, resolveToken } from "@/lib/survey";
+import { getEncuesta } from "@/lib/encuestas";
+import { hasRespondedToken } from "@/lib/encuestas/responses";
+import { SurveyForm } from "@/components/encuestas/survey-form";
 import { isOptedOut } from "@/lib/optout";
 import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
 import { ORG_NAME } from "@/lib/config";
@@ -57,7 +60,10 @@ export default async function EncuestaPage({
     );
   }
 
-  if (sp.gracias || await hasResponded(token)) {
+  const yaRespondio = ref.encuestaId
+    ? await hasRespondedToken(token)
+    : await hasResponded(token);
+  if (sp.gracias || yaRespondio) {
     return (
       <Shell>
         <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>
@@ -75,6 +81,45 @@ export default async function EncuestaPage({
         <p className="mt-2 text-sm text-zinc-500">
           No recibirás más mensajes. Si fue un error, escribinos.
         </p>
+      </Shell>
+    );
+  }
+
+  // Encuesta del módulo nuevo (tipada). Convive con el flujo legacy de abajo.
+  if (ref.encuestaId) {
+    const enc = await getEncuesta(ref.projectId, ref.encuestaId);
+    if (!enc || enc.estado === "cerrada") {
+      return (
+        <Shell>
+          <h1 className="text-lg font-semibold">Encuesta no disponible</h1>
+          <p className="mt-2 text-sm text-zinc-500">
+            Esta encuesta ya no está activa. Gracias igual por tu interés.
+          </p>
+        </Shell>
+      );
+    }
+    return (
+      <Shell>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          {enc.titulo}
+        </h1>
+        {enc.descripcion && (
+          <p className="mt-1 text-sm text-zinc-500">{enc.descripcion}</p>
+        )}
+        <SurveyForm
+          questions={enc.preguntas}
+          action={responderEncuesta}
+          hidden={{ token }}
+        />
+        <form action={optarBaja} className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+          <input type="hidden" name="token" value={token} />
+          <button
+            type="submit"
+            className="text-xs text-zinc-400 underline hover:text-zinc-600"
+          >
+            No quiero recibir más mensajes (darme de baja)
+          </button>
+        </form>
       </Shell>
     );
   }
