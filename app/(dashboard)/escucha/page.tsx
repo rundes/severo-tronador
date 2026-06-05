@@ -146,7 +146,7 @@ export default async function EscuchaPage({
                       : "text-zinc-500"
                   }
                 >
-                  {s.real ? "real" : "mock"} · {s.reason}
+                  {s.real ? "real" : "sin conectar"} · {s.reason}
                 </span>
                 <span className="font-mono text-zinc-400">
                   {countFor(s, bySource)} menciones
@@ -263,7 +263,7 @@ export default async function EscuchaPage({
                       : "text-zinc-400"
                   }`}
                 >
-                  {s.real ? "real" : "mock"}
+                  {s.real ? "real" : "sin conectar"}
                 </span>
               </label>
             ))}

@@ -8,6 +8,7 @@ import type {
   TestResult,
 } from "./types";
 import { mockListenItems } from "@/lib/mock/listening";
+import { demoData } from "@/lib/connectors/demo";
 
 function matches(item: ListenItem, q: ListenQuery): boolean {
   if (!q.keywords.length) return true;
@@ -39,6 +40,7 @@ export const redditApiConnector: ListeningConnector = {
     return "enabled";
   },
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
+    if (!demoData()) return []; // sin impl real aún: en prod no inventa datos
     return mockListenItems("reddit-api").filter((i) => matches(i, query));
   },
 };

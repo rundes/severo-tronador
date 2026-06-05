@@ -12,6 +12,7 @@ import type {
   TestResult,
 } from "./types";
 import { mockListenItems } from "@/lib/mock/listening";
+import { demoData } from "@/lib/connectors/demo";
 import { log } from "@/lib/logger";
 
 const ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc";
@@ -82,9 +83,10 @@ export const gdeltConnector: ListeningConnector = {
       log.debug("listening.gdelt.fetch", { count: real.length });
       return real.filter((i) => matches(i, query));
     } catch (e) {
-      log.warn("listening.gdelt.fallback_mock", {
+      log.warn("listening.gdelt.fetch_failed", {
         error: (e as Error).message,
       });
+      if (!demoData()) return [];
       return mockListenItems("gdelt").filter((i) => matches(i, query));
     }
   },

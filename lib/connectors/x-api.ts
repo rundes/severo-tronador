@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { mockListenItems } from "@/lib/mock/listening";
+import { demoData } from "@/lib/connectors/demo";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
 import { getMappedXHandles } from "@/lib/padron-handles";
@@ -185,6 +186,7 @@ export const xApiConnector: ListeningConnector = {
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
     const cfg = await getConnectorConfig(ID);
     if (!cfg.X_API_BEARER_TOKEN) {
+      if (!demoData()) return [];
       return mockListenItems("x-api").filter((i) => matches(i, query));
     }
     try {
@@ -196,9 +198,10 @@ export const xApiConnector: ListeningConnector = {
       });
       return real.filter((i) => matches(i, query));
     } catch (e) {
-      log.warn("listening.x_api.fallback_mock", {
+      log.warn("listening.x_api.fetch_failed", {
         error: (e as Error).message,
       });
+      if (!demoData()) return [];
       return mockListenItems("x-api").filter((i) => matches(i, query));
     }
   },
