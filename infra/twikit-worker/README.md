@@ -1,52 +1,56 @@
-# Worker twikit — timelines de X gratis (incluye cuentas chicas)
+# Worker de timelines de X → Supabase (twscrape)
 
-Trae los últimos tweets de cada handle (incluso cuentas de bajo alcance que la
+Trae los últimos tweets de cada handle (incluso **cuentas chicas** que la
 sindicación gratis NO sirve) y los escribe en `listening_items` de Supabase. La
 app **ya lee de ese cache** → no requiere cambios en el código.
 
-> ⚠️ **ToS / riesgo.** twikit usa una cuenta de X logueada (scraping no oficial).
-> Viola los Términos de X; la cuenta puede ser **suspendida**. Usá una cuenta
-> **quemable**, no la institucional. Es lento a propósito para bajar el riesgo.
-> No corre en Vercel (Python + sesión persistente): va en un host chico.
+Usa **twscrape** en modo **cookies** (auth_token + ct0 de una sesión logueada).
+El login programático de X (usuario/pass) está roto por su anti-bot; las cookies
+lo evitan. twikit quedó descartado ("Couldn't get KEY_BYTE indices").
 
-## Por qué un worker aparte
-- twikit es **Python** y necesita **sesión logueada con cookies** persistentes.
-- X **bloquea IPs de datacenter** en su API GraphQL → conviene IP residencial
-  (tu PC) o aceptar el riesgo en un VPS. Vercel no sirve para esto.
+> ⚠️ **ToS / riesgo.** Scraping con cuenta logueada viola los Términos de X; la
+> cuenta puede ser **suspendida**. Usá una cuenta **quemable**. No corre en
+> Vercel (Python + sesión persistente + IP residencial): va en tu PC / VPS.
 
 ## Setup
-```bash
-cd infra/twikit-worker
-python -m venv .venv && . .venv/bin/activate   # (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt
-cp .env.example .env        # completar SUPABASE_SERVICE_ROLE_KEY + cuenta X
-python worker.py            # primer run: loguea y guarda cookies.json
+```powershell
+cd infra\twikit-worker
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env   # completar valores
 ```
-El `SUPABASE_SERVICE_ROLE_KEY` está en Supabase → Project Settings → API.
 
-Primera corrida: hace login con `X_USERNAME/X_EMAIL/X_PASSWORD` y guarda
-`cookies.json`. Las siguientes reusan las cookies (no re-loguea). Si X pide
-re-login (cookies vencidas), borrá `cookies.json` y volvé a correr.
+### Completar `.env`
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase → Settings → API → service_role.
+- `X_USERNAME` / `X_EMAIL`: de la cuenta (metadata).
+- `X_AUTH_TOKEN` + `X_CT0`: **cookies** de la sesión:
+  1. Logueate en https://x.com en el navegador.
+  2. F12 → **Application → Storage → Cookies → https://x.com**.
+  3. Copiá los Value de `auth_token` y `ct0`.
+- `TWEETS_PER_HANDLE=1` si solo querés el último tweet por cuenta.
 
-## Qué handles procesa
-1. `listening_config.x_handles` del proyecto (los que cargás en **/escucha**).
-2. + `padron.x_handle` (los vecinos importados).
-Dedupe + normaliza (@/URL → handle).
-
-## Ritmo y rate-limit
-- `DELAY_SECONDS=45` entre handles (subilo si te frenan).
-- `TWEETS_PER_HANDLE=5` (poné `1` si solo querés el último tweet).
-- Ante rate-limit duerme `RATELIMIT_SLEEP=900`s y el handle se reintenta en la
-  próxima corrida. Con miles de handles tarda horas/días: es la naturaleza del
-  scraping lento. Corré por cron seguido y va completando.
-
-## Correr periódico (cron, en el host)
-```cron
-# cada 8 horas
-0 */8 * * * cd /ruta/infra/twikit-worker && . .venv/bin/activate && python worker.py >> worker.log 2>&1
+## Correr
+```powershell
+.\.venv\Scripts\python.exe worker.py
 ```
-Fly.io / Railway: deploy como app con un scheduled job equivalente.
+- Agrega la cuenta al pool (`accounts.db`) la primera vez y la reusa.
+- Procesa los handles de `listening_config.x_handles` (los que cargás en
+  /escucha) + `padron.x_handle`, de a uno con `DELAY_SECONDS`.
+- Upsert por url a `listening_items` (source `x-api`). Idempotente.
+- **Lento**: 1000 handles × 45s ≈ 12 h. Corré por cron; va completando.
+
+Si las cookies vencen (X pide re-login), repetí el paso de cookies y actualizá
+`.env` (y borrá `accounts.db` si quedó la cuenta inactiva).
+
+## Cron (Windows Task Scheduler)
+Programá cada 8-12 h:
+```
+C:\...\infra\twikit-worker\.venv\Scripts\python.exe  C:\...\infra\twikit-worker\worker.py
+```
 
 ## Resultado
-Inserta filas en `listening_items` con `source='x-api'`. En la app, **Escucha**
-las muestra junto al resto (cache-first). Sin tocar nada más.
+Filas en `listening_items` con `source='x-api'` → aparecen en **Escucha**
+(cache-first), sin tocar la app.
+
+Archivos locales NO versionados (ver .gitignore): `.env`, `accounts.db`,
+`cookies.json`, `.venv/`.
