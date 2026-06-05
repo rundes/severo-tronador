@@ -2,7 +2,7 @@
 // por env para que la herramienta no esté atada a ningún territorio u
 // organización en particular.
 export const ORG_NAME =
-  process.env.ORG_NAME?.trim() || "el equipo de relevamiento";
+  process.env.ORG_NAME?.trim() || "TRONADOR - Estudios electorales";
 
 export const TERRITORY = process.env.TERRITORY?.trim() || "tu territorio";
 
