@@ -65,7 +65,7 @@ export function Sidebar({
   return (
     <>
       {/* Top bar mobile */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-[oklch(96%_0.005_80)]/95 px-4 py-3 backdrop-blur md:hidden dark:border-zinc-800 dark:bg-zinc-950/95">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-[#eae9e4]/95 px-4 py-3 backdrop-blur md:hidden dark:border-zinc-800 dark:bg-zinc-950/95">
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/brand/tronador-mark.jpeg"
@@ -106,7 +106,7 @@ export function Sidebar({
           La aside es md:sticky → preservada por App Router entre navegaciones,
           su scroll interno no se pierde al cambiar de pantalla. */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[oklch(96%_0.005_80)] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:w-56 md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[#eae9e4] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:w-56 md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -150,7 +150,7 @@ export function Sidebar({
             })}
           </ul>
         </nav>
-        <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[oklch(96%_0.005_80)] px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[#eae9e4] px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <UserPill user={user} signOutAction={signOutAction} />
           <div className="font-mono text-[10px] text-zinc-500">
             {versionString}
