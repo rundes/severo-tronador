@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
-import type { Question, QuestionType } from "@/lib/encuestas/types";
+import { scaleBounds, type Question, type QuestionType } from "@/lib/encuestas/types";
 
 const TYPE_LABEL: Record<QuestionType, string> = {
   text: "Texto corto",
@@ -18,6 +18,65 @@ const inputCls =
 
 function newQuestion(): Question {
   return { id: crypto.randomUUID(), type: "text", label: "", required: false };
+}
+
+// Vista previa no interactiva: muestra cómo verá el formulario el encuestado
+// (mismos widgets mobile-first que el render público).
+function PreviewField({ q }: { q: Question }) {
+  if (q.type === "paragraph")
+    return <div className="h-16 rounded-lg border border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900" />;
+  if (q.type === "text")
+    return <div className="h-10 rounded-lg border border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900" />;
+  if (q.type === "single" || q.type === "multi")
+    return (
+      <div className="space-y-2">
+        {(q.options ?? []).map((opt, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-lg border border-zinc-300 p-3 text-sm dark:border-zinc-700">
+            <span className={`h-4 w-4 shrink-0 border border-zinc-400 ${q.type === "single" ? "rounded-full" : "rounded"}`} />
+            <span>{opt || <em className="text-zinc-400">opción vacía</em>}</span>
+          </div>
+        ))}
+      </div>
+    );
+  if (q.type === "boolean")
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        {["Sí", "No"].map((o) => (
+          <div key={o} className="rounded-lg border border-zinc-300 p-3 text-center text-sm font-medium dark:border-zinc-700">{o}</div>
+        ))}
+      </div>
+    );
+  const { min, max } = scaleBounds(q);
+  return (
+    <div className="flex gap-2">
+      {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => (
+        <div key={n} className="flex h-11 min-w-11 flex-1 items-center justify-center rounded-lg border border-zinc-300 text-sm font-medium dark:border-zinc-700">{n}</div>
+      ))}
+    </div>
+  );
+}
+
+function Preview({ questions }: { questions: Question[] }) {
+  return (
+    <div className="mx-auto max-w-md space-y-6 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+      {questions.length === 0 && (
+        <p className="text-sm text-zinc-400">Agregá preguntas para ver la vista previa.</p>
+      )}
+      {questions.map((q, i) => (
+        <div key={q.id} className="space-y-2">
+          <p className="text-base font-medium leading-snug text-zinc-900 dark:text-zinc-100">
+            <span className="mr-1 text-zinc-400">{i + 1}.</span>
+            {q.label || <em className="text-zinc-400">sin enunciado</em>}
+            {q.required && <span className="ml-0.5 text-red-500">*</span>}
+          </p>
+          <PreviewField q={q} />
+        </div>
+      ))}
+      {questions.length > 0 && (
+        <div className="h-12 rounded-lg bg-zinc-900 dark:bg-zinc-100" />
+      )}
+    </div>
+  );
 }
 
 export function QuestionEditor({
@@ -36,6 +95,7 @@ export function QuestionEditor({
   action: (formData: FormData) => void;
 }) {
   const [questions, setQuestions] = useState<Question[]>(initial);
+  const [showPreview, setShowPreview] = useState(false);
 
   function patch(id: string, p: Partial<Question>) {
     setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...p } : q)));
@@ -167,8 +227,8 @@ export function QuestionEditor({
         ))}
       </ol>
 
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        {!readOnly && (
           <button
             type="button"
             onClick={() => setQuestions((qs) => [...qs, newQuestion()])}
@@ -176,7 +236,23 @@ export function QuestionEditor({
           >
             + Agregar pregunta
           </button>
-          <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowPreview((v) => !v)}
+          className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+        >
+          {showPreview ? "Ocultar vista previa" : "Vista previa"}
+        </button>
+        {!readOnly && <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>}
+      </div>
+
+      {showPreview && (
+        <div className="mt-2">
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Vista previa (así la ve el encuestado)
+          </p>
+          <Preview questions={questions} />
         </div>
       )}
     </form>
