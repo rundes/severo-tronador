@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { scaleBounds, type Question, type QuestionType } from "@/lib/encuestas/types";
+import { SURVEY_LAYOUTS } from "@/lib/encuestas/layouts";
 
 const TYPE_LABEL: Record<QuestionType, string> = {
   text: "Texto corto",
@@ -69,6 +70,7 @@ function Preview({ questions }: { questions: Question[] }) {
             {q.label || <em className="text-zinc-400">sin enunciado</em>}
             {q.required && <span className="ml-0.5 text-red-500">*</span>}
           </p>
+          {q.description && <p className="text-sm text-zinc-500">{q.description}</p>}
           <PreviewField q={q} />
         </div>
       ))}
@@ -83,6 +85,7 @@ export function QuestionEditor({
   encuestaId,
   titulo,
   descripcion,
+  layout,
   initial,
   readOnly,
   action,
@@ -90,11 +93,13 @@ export function QuestionEditor({
   encuestaId: string;
   titulo: string;
   descripcion: string;
+  layout: string;
   initial: Question[];
   readOnly: boolean;
   action: (formData: FormData) => void;
 }) {
   const [questions, setQuestions] = useState<Question[]>(initial);
+  const [layoutId, setLayoutId] = useState(layout);
   const [showPreview, setShowPreview] = useState(false);
 
   function patch(id: string, p: Partial<Question>) {
@@ -118,6 +123,7 @@ export function QuestionEditor({
     <form action={action} className="space-y-4">
       <input type="hidden" name="id" value={encuestaId} />
       <input type="hidden" name="preguntas" value={JSON.stringify(questions)} />
+      <input type="hidden" name="layout" value={layoutId} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -133,6 +139,38 @@ export function QuestionEditor({
           <input name="descripcion" defaultValue={descripcion} disabled={readOnly} className={inputCls} />
         </label>
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Diseño de la encuesta
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SURVEY_LAYOUTS.map((l) => (
+            <label
+              key={l.id}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm transition-colors ${
+                layoutId === l.id
+                  ? "border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800/60"
+                  : "border-zinc-300 dark:border-zinc-700"
+              }`}
+            >
+              <input
+                type="radio"
+                name="layout_pick"
+                value={l.id}
+                checked={layoutId === l.id}
+                onChange={() => setLayoutId(l.id)}
+                disabled={readOnly}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-medium text-zinc-800 dark:text-zinc-200">{l.label}</span>
+                <span className="block text-xs text-zinc-500">{l.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <ol className="space-y-3">
         {questions.map((q, idx) => (
@@ -151,6 +189,13 @@ export function QuestionEditor({
                   placeholder="Enunciado de la pregunta"
                   disabled={readOnly}
                   className={inputCls}
+                />
+                <input
+                  value={q.description ?? ""}
+                  onChange={(e) => patch(q.id, { description: e.target.value })}
+                  placeholder="Descripción / contexto (opcional)"
+                  disabled={readOnly}
+                  className={`${inputCls} text-xs`}
                 />
                 <div className="flex flex-wrap items-center gap-3">
                   <select

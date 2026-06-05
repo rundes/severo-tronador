@@ -12,7 +12,7 @@ const cardCls =
   "flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-300 p-3.5 text-base transition-colors has-[:checked]:border-zinc-900 has-[:checked]:bg-zinc-50 active:bg-zinc-100 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:bg-zinc-800/60 dark:active:bg-zinc-800";
 const controlCls = "h-5 w-5 shrink-0 accent-zinc-900 dark:accent-zinc-100";
 
-function QuestionField({ q }: { q: Question }) {
+export function QuestionField({ q }: { q: Question }) {
   const name = `q_${q.id}`;
   if (q.type === "paragraph") {
     return <textarea name={name} rows={4} required={q.required} className={`${textCls} resize-y`} />;
@@ -95,6 +95,9 @@ export function SurveyForm({
             {q.label}
             {q.required && <span className="ml-0.5 text-red-500">*</span>}
           </label>
+          {q.description && (
+            <p className="text-sm leading-snug text-zinc-500">{q.description}</p>
+          )}
           <QuestionField q={q} />
         </div>
       ))}

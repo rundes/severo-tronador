@@ -15,6 +15,8 @@ export interface Question {
   id: string;
   type: QuestionType;
   label: string;
+  // Texto de ayuda opcional para contextualizar la pregunta.
+  description?: string;
   required: boolean;
   options?: string[]; // single | multi
   min?: number; // scale (default 1)
@@ -40,6 +42,8 @@ export interface Encuesta {
   descripcion?: string | null;
   slug?: string | null;
   estado: EncuestaEstado;
+  // Diseño de render público (ver lib/encuestas/layouts.ts). Extensible.
+  layout: string;
   preguntas: Question[];
   publishedAt?: string | null;
   createdAt: string;

@@ -92,6 +92,7 @@ export default async function EncuestaDetailPage({
         encuestaId={enc.id}
         titulo={enc.titulo}
         descripcion={enc.descripcion ?? ""}
+        layout={enc.layout}
         initial={enc.preguntas}
         readOnly={isClosed}
         action={guardarPreguntas}

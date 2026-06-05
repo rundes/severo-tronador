@@ -3,7 +3,7 @@ import { getCampaign } from "@/lib/campaigns";
 import { hasResponded, resolveToken } from "@/lib/survey";
 import { getEncuesta } from "@/lib/encuestas";
 import { hasRespondedToken } from "@/lib/encuestas/responses";
-import { SurveyForm } from "@/components/encuestas/survey-form";
+import { SurveyRender } from "@/components/encuestas/survey-render";
 import { isOptedOut } from "@/lib/optout";
 import { googleSheetsConnector } from "@/lib/connectors/google-sheets";
 import { ORG_NAME } from "@/lib/config";
@@ -106,7 +106,8 @@ export default async function EncuestaPage({
         {enc.descripcion && (
           <p className="mt-1 text-sm text-zinc-500">{enc.descripcion}</p>
         )}
-        <SurveyForm
+        <SurveyRender
+          layout={enc.layout}
           questions={enc.preguntas}
           action={responderEncuesta}
           hidden={{ token }}

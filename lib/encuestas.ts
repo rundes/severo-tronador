@@ -9,6 +9,7 @@ import {
   type Question,
   validateQuestions,
 } from "@/lib/encuestas/types";
+import { normalizeLayout } from "@/lib/encuestas/layouts";
 
 interface EncuestaRow {
   id: string;
@@ -17,6 +18,7 @@ interface EncuestaRow {
   descripcion: string | null;
   slug: string | null;
   estado: EncuestaEstado;
+  layout: string | null;
   preguntas: Question[];
   published_at: string | null;
   created_at: string;
@@ -33,6 +35,7 @@ function rowToEncuesta(r: EncuestaRow): Encuesta {
     descripcion: r.descripcion,
     slug: r.slug,
     estado: r.estado,
+    layout: normalizeLayout(r.layout),
     preguntas: Array.isArray(r.preguntas) ? r.preguntas : [],
     publishedAt: r.published_at,
     createdAt: r.created_at,
@@ -102,7 +105,7 @@ export async function getEncuestaBySlug(slug: string): Promise<Encuesta | null> 
 
 export async function createEncuesta(
   projectId: string,
-  input: { titulo: string; descripcion?: string | null },
+  input: { titulo: string; descripcion?: string | null; layout?: string },
 ): Promise<Encuesta> {
   const now = new Date().toISOString();
   const base: Omit<EncuestaRow, "id"> = {
@@ -111,6 +114,7 @@ export async function createEncuesta(
     descripcion: input.descripcion?.trim() || null,
     slug: null,
     estado: "borrador",
+    layout: normalizeLayout(input.layout),
     preguntas: [],
     published_at: null,
     created_at: now,
@@ -132,7 +136,12 @@ export async function createEncuesta(
 export async function updateEncuesta(
   projectId: string,
   id: string,
-  patch: { titulo?: string; descripcion?: string | null; preguntas?: Question[] },
+  patch: {
+    titulo?: string;
+    descripcion?: string | null;
+    preguntas?: Question[];
+    layout?: string;
+  },
 ): Promise<Encuesta | null> {
   if (patch.preguntas) {
     const err = validateQuestions(patch.preguntas);
@@ -143,6 +152,7 @@ export async function updateEncuesta(
   if (patch.descripcion !== undefined)
     upd.descripcion = patch.descripcion?.trim() || null;
   if (patch.preguntas !== undefined) upd.preguntas = patch.preguntas;
+  if (patch.layout !== undefined) upd.layout = normalizeLayout(patch.layout);
 
   if (!dbConfigured()) {
     const r = mem.find((x) => x.id === id && x.project_id === projectId);
