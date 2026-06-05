@@ -86,6 +86,7 @@ export async function runListening(
     radioKm: cfg.radioKm,
     lat: cfg.lat,
     lng: cfg.lng,
+    rssFeeds: cfg.rssFeeds,
   };
 
   // Cache-first (Plan 05 F5). Si listening_items tiene rows frescas las

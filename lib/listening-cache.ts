@@ -188,6 +188,7 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
         radioKm: cfg.radioKm,
         lat: cfg.lat,
         lng: cfg.lng,
+        rssFeeds: cfg.rssFeeds,
       });
       const { inserted } = await upsertItems(projectId, l.id, items);
       summary.bySource[l.id] = {

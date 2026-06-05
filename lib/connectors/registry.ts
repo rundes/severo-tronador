@@ -15,6 +15,7 @@ import { gdeltConnector } from "./gdelt";
 import { xApiConnector } from "./x-api";
 import { redditApiConnector } from "./reddit-api";
 import { metaContentLibraryConnector } from "./meta-content-library";
+import { rssConnector } from "./rss";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -30,6 +31,7 @@ export const connectors: Connector[] = [
   xApiConnector,
   redditApiConnector,
   metaContentLibraryConnector,
+  rssConnector,
 ];
 
 export function getConnector(id: string): Connector | undefined {

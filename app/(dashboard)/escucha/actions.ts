@@ -18,6 +18,10 @@ export async function guardarEscucha(formData: FormData) {
     .map((k) => k.trim())
     .filter(Boolean);
   const fuentes = formData.getAll("fuentes").map(String);
+  const rssFeeds = String(formData.get("rssFeeds") ?? "")
+    .split("\n")
+    .map((u) => u.trim())
+    .filter(Boolean);
 
   const parsed = GuardarEscuchaSchema.safeParse({
     zona: raw.zona,
@@ -27,6 +31,7 @@ export async function guardarEscucha(formData: FormData) {
     lng: raw.lng,
     keywords,
     fuentes,
+    rssFeeds,
   });
   if (!parsed.success) redirect("/escucha?error=validacion");
 

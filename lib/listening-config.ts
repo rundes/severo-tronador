@@ -8,10 +8,12 @@ export interface ListeningConfig {
   lng: number | null;
   keywords: string[];
   fuentes: string[];
+  rssFeeds: string[];
 }
 
 const DEFAULT: ListeningConfig = {
-  zona: "", pais: "AR", radioKm: null, lat: null, lng: null, keywords: [], fuentes: [],
+  zona: "", pais: "AR", radioKm: null, lat: null, lng: null,
+  keywords: [], fuentes: [], rssFeeds: [],
 };
 
 interface Row {
@@ -21,6 +23,7 @@ interface Row {
   lng: number | null;
   keywords: string[] | null;
   fuentes: string[] | null;
+  rss_feeds: string[] | null;
 }
 
 // Config de escucha POR PROYECTO. La tabla listening_config tiene PK project_id
@@ -44,6 +47,7 @@ export async function getListeningConfig(
     lng: r.lng ?? null,
     keywords: r.keywords ?? [],
     fuentes: r.fuentes ?? [],
+    rssFeeds: r.rss_feeds ?? [],
   };
 }
 
@@ -64,6 +68,7 @@ export async function saveListeningConfig(
       lng: cfg.lng,
       keywords: cfg.keywords,
       fuentes: cfg.fuentes,
+      rss_feeds: cfg.rssFeeds,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "project_id" },
