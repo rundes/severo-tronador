@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { saveListeningConfig } from "@/lib/listening-config";
+import { normalizeHandle } from "@/lib/padron-handles";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireMember } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
@@ -22,6 +23,14 @@ export async function guardarEscucha(formData: FormData) {
     .split("\n")
     .map((u) => u.trim())
     .filter(Boolean);
+  const xHandles = Array.from(
+    new Set(
+      String(formData.get("xHandles") ?? "")
+        .split(/[\n,]/)
+        .map((h) => normalizeHandle(h))
+        .filter(Boolean),
+    ),
+  );
 
   const parsed = GuardarEscuchaSchema.safeParse({
     zona: raw.zona,
@@ -32,6 +41,7 @@ export async function guardarEscucha(formData: FormData) {
     keywords,
     fuentes,
     rssFeeds,
+    xHandles,
   });
   if (!parsed.success) redirect("/escucha?error=validacion");
 

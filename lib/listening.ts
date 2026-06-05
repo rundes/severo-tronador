@@ -87,6 +87,7 @@ export async function runListening(
     lat: cfg.lat,
     lng: cfg.lng,
     rssFeeds: cfg.rssFeeds,
+    xHandles: cfg.xHandles,
   };
 
   // Cache-first (Plan 05 F5). Si listening_items tiene rows frescas las

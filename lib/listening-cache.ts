@@ -189,6 +189,7 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
         lat: cfg.lat,
         lng: cfg.lng,
         rssFeeds: cfg.rssFeeds,
+        xHandles: cfg.xHandles,
       });
       const { inserted } = await upsertItems(projectId, l.id, items);
       summary.bySource[l.id] = {
