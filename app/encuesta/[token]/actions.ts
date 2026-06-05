@@ -3,6 +3,9 @@
 import { redirect } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
 import { addResponse, resolveToken } from "@/lib/survey";
+import { getEncuesta } from "@/lib/encuestas";
+import { addEncuestaResponse } from "@/lib/encuestas/responses";
+import { parseAnswers } from "@/lib/encuestas/answer-parse";
 import { optOut } from "@/lib/optout";
 import { TokenSchema, formToObject } from "@/lib/schemas";
 
@@ -13,6 +16,25 @@ export async function responderEncuesta(formData: FormData) {
 
   const ref = await resolveToken(token);
   if (!ref) redirect(`/encuesta/${token}?error=1`);
+
+  // Encuesta del módulo nuevo (tipada): atribuida al dni del token.
+  if (ref.encuestaId) {
+    const enc = await getEncuesta(ref.projectId, ref.encuestaId);
+    if (!enc) redirect(`/encuesta/${token}?error=1`);
+    const result = parseAnswers(enc.preguntas, formData);
+    if (!result.ok) {
+      redirect(`/encuesta/${token}?error=1`);
+    }
+    await addEncuestaResponse({
+      projectId: ref.projectId,
+      encuestaId: ref.encuestaId,
+      source: "email",
+      dni: ref.dni,
+      token,
+      answers: result.answers,
+    });
+    redirect(`/encuesta/${token}?gracias=1`);
+  }
 
   const campaign = await getCampaign(ref.projectId, ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
