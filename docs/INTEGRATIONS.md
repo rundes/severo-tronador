@@ -1,8 +1,14 @@
 # Integraciones — conectar herramientas paso a paso
 
-> Cada servicio externo es un **conector** (plugin). Sin credenciales, todos
-> corren en **modo mock** (simulan su función y consumen cuota igual) para que
-> puedas probar el flujo completo. Activar el modo real = setear las variables
+> **Nota:** en **producción** (Supabase configurado) un conector sin credenciales
+> queda **inactivo** (no inventa datos). El **modo mock** descrito abajo aplica al
+> **dev local sin Supabase**. El mail usa **Cloudflare Email Routing + Resend**
+> (ver `infra/cloudflare-email-worker/CLOUDFLARE-RESEND-RUNBOOK.md`); la escucha
+> de X gratis usa sindicación o el worker `infra/twikit-worker/`.
+
+> Cada servicio externo es un **conector** (plugin). Sin credenciales, en dev
+> local corren en **modo mock** (simulan su función y consumen cuota igual) para
+> que puedas probar el flujo completo. Activar el modo real = setear las variables
 > de entorno del conector en `.env.local` (o en Vercel) y reiniciar.
 >
 > **Desde el panel**: además de env vars, podés configurar cada conector en

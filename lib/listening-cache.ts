@@ -170,6 +170,24 @@ export interface PullSummary {
   total: number;
 }
 
+// Última vez que se actualizó el cache de listening (opcional por source).
+// Devuelve ISO string o null. Usa updated_at (el upsert lo refresca).
+export async function lastListeningUpdate(
+  projectId: string,
+  source?: string,
+): Promise<string | null> {
+  if (!dbConfigured()) return null;
+  let q = getSupabase()
+    .from("listening_items")
+    .select("updated_at")
+    .eq("project_id", projectId)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (source) q = q.eq("source", source);
+  const { data } = await q.maybeSingle();
+  return (data?.updated_at as string | undefined) ?? null;
+}
+
 export async function pullAllSources(projectId: string): Promise<PullSummary> {
   const cfg = await getListeningConfig(projectId);
   const listeners = connectors.filter(

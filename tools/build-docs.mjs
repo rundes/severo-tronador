@@ -15,11 +15,9 @@ const REPO = "https://github.com/rundes/severo-tronador";
 const PAGES = [
   { src: "README.md", out: "index.html", nav: "Inicio" },
   { src: "VISION.md", out: "VISION.html", nav: "Visión" },
-  { src: "PLAN.md", out: "PLAN.html", nav: "Plan / Roadmap" },
   { src: "ARCHITECTURE.md", out: "ARCHITECTURE.html", nav: "Arquitectura" },
   { src: "PROVIDERS.md", out: "PROVIDERS.html", nav: "Providers" },
   { src: "docs/INTEGRATIONS.md", out: "INTEGRATIONS.html", nav: "Integraciones" },
-  { src: "docs/STABILIZATION.md", out: "STABILIZATION.html", nav: "Estabilización" },
 ];
 
 // Mapa basename .md → página de salida (para reescribir links internos).

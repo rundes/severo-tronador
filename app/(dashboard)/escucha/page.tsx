@@ -2,6 +2,7 @@ import Link from "next/link";
 import { runListening } from "@/lib/listening";
 import { TERRITORY } from "@/lib/config";
 import { getListeningConfig } from "@/lib/listening-config";
+import { lastListeningUpdate } from "@/lib/listening-cache";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { guardarEscucha } from "./actions";
@@ -81,6 +82,7 @@ export default async function EscuchaPage({
 }) {
   const params = (await searchParams) ?? {};
   const { id: projectId } = await requireProject();
+  const lastXUpdate = await lastListeningUpdate(projectId, "x-api");
   const [result, cfg] = await Promise.all([
     runListening(projectId),
     getListeningConfig(projectId),
@@ -186,7 +188,7 @@ export default async function EscuchaPage({
       </section>
 
 
-      <MonitorHelp />
+      <MonitorHelp lastUpdate={lastXUpdate} />
 
       <form
         action={guardarEscucha}

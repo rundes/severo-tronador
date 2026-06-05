@@ -1,5 +1,11 @@
 # Severo Tronador — Arquitectura del sistema de gestión
 
+> **Estado actual:** la app está **en producción** sobre **Supabase (Postgres)
+> como fuente de verdad** y es **multi-tenant** (proyectos + roles). Google
+> Sheets es un **espejo** de preservación, no la base. Este documento describe el
+> **modelo de conectores** y patrones de diseño (vigentes); donde menciona
+> "memoria" o "Google Sheets como DB" como estado, leer Supabase.
+
 > Plataforma de contactación con propósito investigativo y de fidelización.
 > Modelo de **conectores activables/desactivables** (como los connectors de Claude), interfaz minimalista, y orquestación centrada en **no quemar la base de contactos ni los free tier de los proveedores**.
 

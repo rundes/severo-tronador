@@ -1,65 +1,80 @@
 # severo-tronador
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/rundes/severo-tronador&project-name=severo-tronador&repository-name=severo-tronador&env=NEXTAUTH_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ALLOWED_EMAILS,GOOGLE_SHEETS_SHEET_ID,GOOGLE_SERVICE_ACCOUNT_KEY,RESEND_API_KEY,RESEND_FROM&envDescription=Todas%20opcionales:%20sin%20ellas%20la%20app%20corre%20en%20modo%20mock&envLink=https://github.com/rundes/severo-tronador/blob/main/docs/INTEGRATIONS.md) · 📖 [Documentación](https://rundes.github.io/severo-tronador/)
+Plataforma de **investigación social y opinión pública**: toma tu base de
+contactos (padrón / lista enriquecida) y le da **segmentación fina** + una
+**estrategia multicanal asistida** para contactar a las personas correctas, por
+el medio correcto, y **obtener respuestas** (comunicación, encuestas, escucha).
+Cada servicio (email, WhatsApp, SMS, voz, Telegram, listening…) es un **conector
+tipo plugin** que se activa desde la app, optimizado para **maximizar recursos
+gratuitos** sin quemar la relación con cada contacto.
 
-Toma **tu base de contactos** (tu padrón o lista enriquecida) y le da **segmentación fina** + una **estrategia multicanal asistida** para contactar a las personas correctas, por el medio correcto, y **obtener respuestas** — comunicación, encuestas e intercambios. Cada servicio (email, WhatsApp, SMS, voz, Telegram, listening…) es un **conector tipo plugin** que se activa desde la app, y el sistema está optimizado para **maximizar los recursos gratuitos** sin quemar la relación con cada contacto.
+Genérica: el nombre del equipo, el territorio y el branding se configuran por env
+(`ORG_NAME`, `TERRITORY`, `APP_NAME`).
 
-La herramienta es **genérica**: no está atada a ningún territorio ni organización. El nombre del equipo, el territorio y el branding se configuran por variables de entorno (`ORG_NAME`, `TERRITORY`, `APP_NAME`).
+> **Scope:** investigación social y opinión pública. **No** se usa para campañas
+> electorales ni posicionamiento de candidatos.
 
-> **Scope**: investigación social y opinión pública. **No** se usa para campañas electorales ni posicionamiento de candidatos.
+## Estado
 
-## Estado actual
+**En producción** (Vercel + Supabase). Multi-tenant: proyectos con membresía y
+roles (owner / editor / viewer). Sin las credenciales de un conector, ese
+conector queda inactivo (o mock en dev local); el resto sigue funcionando.
 
-✅ **Roadmap F0→F8 completo** (scaffold + mock). App Next.js con: panel de conectores, lectura del padrón, segmentos + health score, plantillas, campañas multicanal (email/WhatsApp/SMS/voz) con cuotas y cooldowns, encuestas públicas tokenizadas + opt-out, análisis cualitativo + dashboard de cierre, y listening pasivo con alertas de tema emergente.
+## Módulos
 
-Todos los conectores corren en **modo mock** sin credenciales; el envío/listening real se activa seteando las env vars (ver `.env.example`). Pendiente de producción: persistencia en Google Sheets (hoy en memoria), Vercel Cron para la cola de envíos, y plantillas WhatsApp aprobadas por Meta.
-
-## Documentación
-
-- 🧭 [VISION.md](./VISION.md) — El sentido: por qué existe y qué es en esencia
-- 📋 [PLAN.md](./PLAN.md) — Roadmap único (fases F0→F8), capa de datos, stack
-- 🏗️ [ARCHITECTURE.md](./ARCHITECTURE.md) — El cómo técnico: modelo de conectores, fidelización, UI
-- 📡 [PROVIDERS.md](./PROVIDERS.md) — El abanico de servicios: comparativa por canal (+ voz IA, open source, listening por tiers)
-- 🔌 [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) — Conectar cada herramienta paso a paso + cómo agregar conectores nuevos
-- 🧰 [docs/STABILIZATION.md](./docs/STABILIZATION.md) — Hallazgos de revisión + plan de mejoras para producción
-- 📄 [docs/SEVERO_TRONADOR_Research.docx](./docs/SEVERO_TRONADOR_Research.docx) — Research técnico original (artefacto histórico)
+- **Contactos / padrón** — import CSV o sync Google Sheet (mapeo de columnas) +
+  tabla paginada.
+- **Segmentos** — filtros (sexo, edad, barrio, salud de la relación…) + health
+  score, sobre el padrón completo.
+- **Plantillas** y **Campañas** multicanal (email/WhatsApp/SMS/voz/Telegram) con
+  cuota por proyecto, cooldowns, opt-out global, A/B y tracking apertura/clicks.
+- **Flows** — secuencias condicionales.
+- **Encuestas** — builder tipado (texto, opción única/múltiple, escala, sí/no),
+  **diseños** (minimalista / paso a paso agrupable), portada con imagen + cierre
+  con CTA, **URL pública** + envío por mail a un segmento, **dashboard** de
+  monitoreo + export CSV. Respuestas en DB + espejo a Google Sheet.
+- **Mail** `@tronador.net.ar` — Cloudflare Email Routing (recepción) + Resend
+  (envío), bandeja in-app, tracking. Sin VPS.
+- **Escucha** — listening pasivo: GDELT (prensa), RSS de medios locales editables,
+  X (timelines públicos por sindicación gratis, o worker twscrape), con detección
+  de temas emergentes, sentiment y feed.
+- **Respuestas**, **Conectores**, **Proyecto** (miembros), **Auditoría**.
 
 ## Stack
 
-- **Next.js 16** (App Router, Turbopack) + TypeScript + Tailwind v4
-- **NextAuth v5** con Google OAuth + allowlist por email
-- **Google Sheets API** (`googleapis` + service account) como base de datos
-- **Resend** (email) · **Meta WhatsApp Cloud API** · **Telnyx** (SMS + voz) — desde F3+
-- Deploy en **Vercel** (incluye Cron jobs)
+- **Next.js 15** (App Router, Turbopack) + TypeScript + Tailwind v4
+- **NextAuth v5** (Google OAuth + allowlist por email)
+- **Supabase** (Postgres) = fuente de verdad · **Google Sheets** = espejo de
+  preservación
+- Conectores: **Resend**, **Meta WhatsApp Cloud**, **Telnyx** (SMS+voz),
+  **Telegram**, **GDELT/RSS/X**, **Claude API**
+- Deploy en **Vercel**; crons vía **GitHub Actions**
 
-## Setup
+## Setup (dev)
 
 ```bash
 npm install
-cp .env.example .env.local   # opcional en F1: sin credenciales corre contra el mock
-npm run dev                  # http://localhost:3000 → /conectores
+cp .env.example .env.local   # sin credenciales corre en modo mock/memoria
+npm run dev                  # http://localhost:3000
 ```
 
-Sin `.env.local`, la app usa el padrón mock (100 filas) y la auth queda
-deshabilitada para iterar local. Con credenciales reales (ver PLAN.md), el
-conector Google Sheets lee el padrón real y se activa el login.
+Calidad: `npm test` · `npx tsc --noEmit` · `npm run lint` · `npm run build`.
 
-## Deploy
+## Base de datos
 
-- **La app → Vercel.** Es una app Next.js con render server-side (server
-  actions, API routes, webhooks); **no** corre en hosts estáticos como GitHub
-  Pages. Hay `vercel.json` y botón de deploy:
+Migraciones en `supabase/migrations/` (Postgres). RLS deny-all; el acceso real
+es por cliente service-role en la capa server (`lib/db/`).
 
-  [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/rundes/severo-tronador&project-name=severo-tronador&repository-name=severo-tronador&env=NEXTAUTH_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ALLOWED_EMAILS,GOOGLE_SHEETS_SHEET_ID,GOOGLE_SERVICE_ACCOUNT_KEY,RESEND_API_KEY,RESEND_FROM&envDescription=Todas%20opcionales:%20sin%20ellas%20la%20app%20corre%20en%20modo%20mock&envLink=https://github.com/rundes/severo-tronador/blob/main/docs/INTEGRATIONS.md)
+## Infra (fuera de Vercel)
 
-  El botón clona el repo y pide (opcionalmente) las env vars. Sin cargar
-  ninguna, la app despliega y corre en **modo mock**. Detalle de cada
-  credencial en [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md). La cola con
-  Vercel Cron queda pendiente — ver [docs/STABILIZATION.md](./docs/STABILIZATION.md).
-- **La documentación → GitHub Pages.** Se publica sola: el workflow
-  `.github/workflows/docs.yml` renderiza los markdown a un sitio estático en
-  cada push a `main`. URL: `https://rundes.github.io/severo-tronador/`.
+- `infra/cloudflare-email-worker/` — Email Worker de Cloudflare que postea el
+  mail entrante al webhook de la app. Runbook: `CLOUDFLARE-RESEND-RUNBOOK.md`.
+- `infra/twikit-worker/` — worker (twscrape) que trae timelines de X a
+  `listening_items`. Corre en una PC/VPS, no en Vercel. Ver su `README.md`.
 
-## Próximos pasos
+## Documentación
 
-Roadmap F0→F8 completo (ver [PLAN.md](./PLAN.md#fases-de-entrega-roadmap-único)). Para llevar a producción: cargar credenciales reales, migrar la persistencia en memoria a Google Sheets, y agregar Vercel Cron para la cola de envíos.
+- 🧭 [VISION.md](./VISION.md) — por qué existe y qué es en esencia
+- 🏗️ [ARCHITECTURE.md](./ARCHITECTURE.md) — modelo de conectores, fidelización, UI
+- 📡 [PROVIDERS.md](./PROVIDERS.md) — comparativa de servicios por canal
+- 🔌 [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) — conectar cada herramienta + agregar conectores
