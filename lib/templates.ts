@@ -1,8 +1,10 @@
 // Plantillas de mensaje por canal. Variables tipo {{nombre}}, {{barrio}}.
-// F3 → repo: persistencia via repo<Template>("templates", true).
+// Persistencia Supabase directa (mapea camelCase↔snake_case: la columna es
+// created_at, no createdAt) con fallback en memoria. Org-global (sin filtro de
+// proyecto en lectura; el project_id lo completa el default de la tabla).
 import type { Channel } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
-import { repo } from "@/lib/db";
+import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 
 export interface Template {
   id: string;
@@ -74,25 +76,96 @@ const SEED: Template[] = [
   },
 ];
 
-const r = () => repo<Template>("templates", true);
+interface TemplateRow {
+  id: string;
+  channel: Channel;
+  nombre: string;
+  asunto: string | null;
+  cuerpo: string;
+  estado: Template["estado"];
+  created_at: string;
+}
+
+const g = globalThis as unknown as { __templates?: Template[] };
+const mem = (g.__templates ??= []);
+
+function rowToTemplate(r: TemplateRow): Template {
+  return {
+    id: r.id,
+    channel: r.channel,
+    nombre: r.nombre,
+    asunto: r.asunto ?? undefined,
+    cuerpo: r.cuerpo,
+    estado: r.estado,
+    createdAt: r.created_at,
+  };
+}
+
+// Fila para la DB: createdAt → created_at. Sin project_id (default de la tabla).
+function templateToRow(t: Template): TemplateRow {
+  return {
+    id: t.id,
+    channel: t.channel,
+    nombre: t.nombre,
+    asunto: t.asunto ?? null,
+    cuerpo: t.cuerpo,
+    estado: t.estado,
+    created_at: t.createdAt,
+  };
+}
+
+async function upsertTemplate(t: Template): Promise<Template> {
+  if (!dbConfigured()) {
+    const i = mem.findIndex((x) => x.id === t.id);
+    if (i >= 0) mem[i] = t;
+    else mem.push(t);
+    return t;
+  }
+  const { data, error } = await getSupabase()
+    .from("templates")
+    .upsert(templateToRow(t))
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToTemplate(data as TemplateRow);
+}
 
 let seeded = false;
 async function ensureSeed() {
   if (seeded) return;
-  const existing = await r().list();
-  if (existing.length === 0) for (const t of SEED) await r().upsert(t);
+  if (!dbConfigured()) {
+    if (mem.length === 0) mem.push(...SEED);
+    seeded = true;
+    return;
+  }
+  const { count, error } = await getSupabase()
+    .from("templates")
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  if ((count ?? 0) === 0) for (const t of SEED) await upsertTemplate(t);
   seeded = true;
 }
 
 export async function listTemplates(channel?: Channel): Promise<Template[]> {
   await ensureSeed();
-  const all = await r().list();
+  if (!dbConfigured()) {
+    return channel ? mem.filter((t) => t.channel === channel) : [...mem];
+  }
+  const { data, error } = await getSupabase().from("templates").select("*");
+  if (error) throw error;
+  const all = (data as TemplateRow[]).map(rowToTemplate);
   return channel ? all.filter((t) => t.channel === channel) : all;
 }
 
 export async function getTemplate(id: string): Promise<Template | undefined> {
   await ensureSeed();
-  return r().get(id);
+  if (!dbConfigured()) return mem.find((t) => t.id === id);
+  const { data } = await getSupabase()
+    .from("templates")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return data ? rowToTemplate(data as TemplateRow) : undefined;
 }
 
 export async function createTemplate(
@@ -103,7 +176,7 @@ export async function createTemplate(
     id: `tpl-${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
   };
-  return r().upsert(tpl);
+  return upsertTemplate(tpl);
 }
 
 // Sustituye {{var}} por el campo del contacto (vacío si no existe).
