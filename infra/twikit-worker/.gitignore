@@ -4,3 +4,5 @@ accounts.db
 .venv/
 __pycache__/
 worker.log
+worker.err
+*.err
