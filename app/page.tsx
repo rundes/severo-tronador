@@ -443,7 +443,7 @@ function Contact({ state }: { state?: string }) {
           <p className="mt-4 max-w-[28ch] text-sm leading-relaxed text-[oklch(80%_0.02_250)]">
             Los mensajes llegan a{" "}
             <code className="font-mono text-[oklch(70%_0.08_80)]">
-              contacto@cpelectoral.org
+              contacto@tronador.net.ar
             </code>
             . Respondemos en días hábiles.
           </p>
@@ -471,7 +471,7 @@ function Contact({ state }: { state?: string }) {
               No pudimos enviar el mensaje. Probá de nuevo en un rato, o
               escribí directo a{" "}
               <code className="text-[oklch(70%_0.08_80)]">
-                contacto@cpelectoral.org
+                contacto@tronador.net.ar
               </code>
               .
             </StatusNote>
