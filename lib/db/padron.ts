@@ -76,6 +76,26 @@ export async function readPadronFromDb(
   return out;
 }
 
+// Una página de contactos (para la tabla de /contactos). Ordena por apellido.
+export async function readPadronPage(
+  projectId: string,
+  offset: number,
+  limit: number,
+): Promise<Contact[]> {
+  if (!dbConfigured()) return [];
+  const { data, error } = await getSupabase()
+    .from("padron")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("apellido", { ascending: true })
+    .order("nombre", { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) {
+    throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+  }
+  return (data ?? []) as Contact[];
+}
+
 export async function padronCount(projectId: string): Promise<number> {
   if (!dbConfigured()) return 0;
   const { count } = await getSupabase()
