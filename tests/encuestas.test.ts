@@ -15,7 +15,7 @@ import {
   aggregate,
   _clearEncRespuestasMem,
 } from "@/lib/encuestas/responses";
-import type { Question } from "@/lib/encuestas/types";
+import { buildSteps, type Question } from "@/lib/encuestas/types";
 
 const P = "00000000-0000-0000-0000-000000000001";
 
@@ -75,6 +75,25 @@ describe("encuestas · CRUD + publish", () => {
     expect(b.layout).toBe("stepper");
     const upd = await updateEncuesta(P, b.id, { layout: "inexistente" });
     expect(upd?.layout).toBe("minimal");
+  });
+
+  it("stepMode round-trip + buildSteps agrupa", async () => {
+    const enc = await createEncuesta(P, { titulo: "Steps", layout: "stepper" });
+    const qs: Question[] = [
+      { id: "a", type: "text", label: "A", required: false, step: 1 },
+      { id: "b", type: "text", label: "B", required: false, step: 1 },
+      { id: "c", type: "text", label: "C", required: false, step: 2 },
+    ];
+    const upd = await updateEncuesta(P, enc.id, { stepMode: "manual", preguntas: qs });
+    expect(upd?.stepMode).toBe("manual");
+
+    // one → un paso por pregunta
+    expect(buildSteps(qs, "one")).toHaveLength(3);
+    // manual → agrupa por step (1: [a,b], 2: [c])
+    const groups = buildSteps(qs, "manual");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].map((q) => q.id)).toEqual(["a", "b"]);
+    expect(groups[1].map((q) => q.id)).toEqual(["c"]);
   });
 
   it("descripción por pregunta round-trip", async () => {

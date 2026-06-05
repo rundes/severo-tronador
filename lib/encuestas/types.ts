@@ -21,6 +21,8 @@ export interface Question {
   options?: string[]; // single | multi
   min?: number; // scale (default 1)
   max?: number; // scale (default 5)
+  // Paso (1-based) al que pertenece en el stepper modo "manual". Si falta → 1.
+  step?: number;
 }
 
 export type AnswerValue = string | string[] | number | boolean;
@@ -44,9 +46,46 @@ export interface Encuesta {
   estado: EncuestaEstado;
   // Diseño de render público (ver lib/encuestas/layouts.ts). Extensible.
   layout: string;
+  // Stepper: "one" = una pregunta por paso; "manual" = agrupadas por Question.step.
+  stepMode: string;
+  // Portada: imagen de cabecera (URL http/https).
+  imageUrl?: string | null;
+  // Cierre: mensaje al finalizar + botón/link opcional al sitio del autor.
+  mensajeFinal?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
   preguntas: Question[];
   publishedAt?: string | null;
   createdAt: string;
+}
+
+export type StepMode = "one" | "manual";
+export function normalizeStepMode(v: string | null | undefined): StepMode {
+  return v === "manual" ? "manual" : "one";
+}
+
+// Agrupa preguntas en pasos para el stepper. "one" → un paso por pregunta;
+// "manual" → agrupadas por step (1-based, default 1), preservando el orden.
+export function buildSteps(questions: Question[], mode: string): Question[][] {
+  if (normalizeStepMode(mode) === "one") return questions.map((q) => [q]);
+  const groups = new Map<number, Question[]>();
+  questions.forEach((q) => {
+    const s = Number.isInteger(q.step) && (q.step as number) > 0 ? (q.step as number) : 1;
+    if (!groups.has(s)) groups.set(s, []);
+    groups.get(s)!.push(q);
+  });
+  return [...groups.keys()].sort((a, b) => a - b).map((k) => groups.get(k)!);
+}
+
+// Acepta solo URLs http/https (evita javascript:, data: en src/href públicos).
+export function safeHttpUrl(v: string | null | undefined): string | null {
+  if (!v) return null;
+  try {
+    const u = new URL(v.trim());
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface EncuestaResponse {
