@@ -2,6 +2,15 @@
 
 > **Scope de la herramienta**: investigación social y opinión pública (encuestas cuali/cuanti, relevamientos territoriales). **NO** se usa para campañas electorales ni posicionamiento de candidatos. Este encuadre habilita prácticamente todos los providers comerciales bajo la vertical de *Market Research / Survey*.
 
+> **Qué está implementado hoy** (este doc compara *opciones* del mercado; no todas
+> están conectadas). Conectores reales en `lib/connectors/registry.ts`: **Resend**
+> (email), **Meta WhatsApp Cloud**, **Telnyx SMS** y **Telnyx Voice (IVR)**,
+> **Telegram**, **Claude API** (análisis), y listening: **GDELT**, **RSS** de
+> medios, **X** (API paga *o* sindicación gratis), **Reddit**, **Meta Content
+> Library**. Mail `@tronador.net.ar` = **Cloudflare Email Routing + Resend**.
+> **Bland AI / Vapi** (voz conversacional IA) figuran como opción de catálogo pero
+> **no están implementados** (la voz hoy es Telnyx IVR).
+
 ## Consideraciones transversales
 
 | Tema | Implicancia |
@@ -392,7 +401,7 @@ Para Severo Tronador en su forma actual (relevamiento territorial + encuestas), 
 | **F3 (primer canal real)** | **Resend** (3k free) | — | — | — | Built-in |
 | **F4 (WhatsApp)** | Resend | **Meta Cloud API directo** | — | — | Built-in |
 | **F5 (SMS)** | Resend | Meta Cloud | **Telnyx** o **360nrs** | — | Built-in |
-| **F6 (Voz)** | Resend | Meta Cloud | Telnyx | **Telnyx IVR** (menú) o **Bland AI** (conversacional) | Built-in |
+| **F6 (Voz)** | Resend | Meta Cloud | Telnyx | **Telnyx IVR** (menú; implementado). Voz conversacional IA (Bland AI/Vapi) = futuro, no implementado | Built-in |
 | **A escala** | Brevo o Listmonk+SES | 360dialog o Meta directo | Telnyx (volumen) o 360nrs (factura AR) | Telnyx + Bland AI / Vapi | Built-in + Google Forms para ad-hoc |
 
 ## ⚠️ Providers descartados (con razón)
