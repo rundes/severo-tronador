@@ -23,11 +23,15 @@ export function parseAnswers(
   for (const q of questions) {
     const field = `q_${q.id}`;
 
+    // Opciones trimeadas: tolera espacios al borde guardados en la definición
+    // (el radio envía el valor exacto con espacios; sin esto no matchea).
+    const opts = (q.options ?? []).map((o) => o.trim());
+
     if (q.type === "multi") {
       const picked = formData
         .getAll(field)
-        .map((v) => String(v))
-        .filter((v) => (q.options ?? []).includes(v));
+        .map((v) => String(v).trim())
+        .filter((v) => opts.includes(v));
       if (q.required && picked.length === 0) {
         return { ok: false, error: `Falta responder: ${q.label}` };
       }
@@ -44,7 +48,7 @@ export function parseAnswers(
     }
 
     if (q.type === "single") {
-      if (!(q.options ?? []).includes(raw)) {
+      if (!opts.includes(raw)) {
         return { ok: false, error: `Opción inválida en: ${q.label}` };
       }
       answers.push({ questionId: q.id, label: q.label, type: q.type, value: raw });

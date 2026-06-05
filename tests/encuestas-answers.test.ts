@@ -58,6 +58,15 @@ describe("parseAnswers", () => {
     if (r.ok) expect(r.answers.find((a) => a.questionId === "m")).toBeUndefined();
   });
 
+  it("acepta opción con espacios al borde en la definición (single)", () => {
+    const qs: Question[] = [
+      { id: "g", type: "single", label: "Gobierno", required: true, options: ["Debería continuar ", "Ya cumplió un ciclo "] },
+    ];
+    const r = parseAnswers(qs, fd([["q_g", "Debería continuar "]]));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.answers[0].value).toBe("Debería continuar");
+  });
+
   it("rechaza escala fuera de rango", () => {
     const r = parseAnswers(
       QS,

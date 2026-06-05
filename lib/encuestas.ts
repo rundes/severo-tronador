@@ -169,7 +169,15 @@ export async function updateEncuesta(
     ctaUrl?: string | null;
   },
 ): Promise<Encuesta | null> {
+  // Normaliza: trimea label/description/opciones (evita que espacios al borde
+  // rompan el match opción↔respuesta).
   if (patch.preguntas) {
+    patch.preguntas = patch.preguntas.map((q) => ({
+      ...q,
+      label: q.label.trim(),
+      description: q.description?.trim() || undefined,
+      options: q.options?.map((o) => o.trim()).filter(Boolean),
+    }));
     const err = validateQuestions(patch.preguntas);
     if (err) throw new Error(err);
   }
