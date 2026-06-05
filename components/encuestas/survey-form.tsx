@@ -1,31 +1,48 @@
-// Render del formulario de respuesta de una encuesta (público o tokenizado).
-// Mobile-first: inputs grandes (text-base evita zoom iOS), opciones como
-// tarjetas tappables (>=44px), submit full-width. Server component: inputs
-// nativos, sin JS. Cada campo se llama `q_<id>`. Texto como texto plano.
+// Render del formulario de encuesta (minimal) + widgets de campo compartidos
+// con el stepper. Tema claro (superficie pública, respondida al aire libre en
+// celular): papel cálido, tinta azulada, un acento índigo para selección/acción.
+// Mobile-first, escala a desktop con la tarjeta centrada del Shell.
 import { scaleBounds, type Question } from "@/lib/encuestas/types";
 
-const textCls =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-3 text-base focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900";
+// Paleta (oklch). Acento índigo confiable; selección = borde+tinte; tinta cálida.
+const INPUT =
+  "w-full rounded-xl border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] px-3.5 py-3 text-base text-[oklch(28%_0.02_265)] placeholder:text-[oklch(70%_0.02_265)] outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/15";
 
-// Tarjeta tappable para radio/checkbox: resalta cuando el control está marcado.
-const cardCls =
-  "flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-300 p-3.5 text-base transition-colors has-[:checked]:border-zinc-900 has-[:checked]:bg-zinc-50 active:bg-zinc-100 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:bg-zinc-800/60 dark:active:bg-zinc-800";
-const controlCls = "h-5 w-5 shrink-0 accent-zinc-900 dark:accent-zinc-100";
+// Tarjeta de opción tappable. Selected → borde acento + tinte + check.
+const OPTION =
+  "group relative flex cursor-pointer items-center gap-3 rounded-xl border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] px-4 py-3.5 text-base text-[oklch(30%_0.02_265)] transition active:scale-[0.99] has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(96.5%_0.025_255)] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-[oklch(52%_0.13_255)]/15";
+
+function Dot({ square }: { square?: boolean }) {
+  // Indicador custom (el input nativo va sr-only). Marca con check al elegir.
+  return (
+    <span
+      className={`grid h-5 w-5 shrink-0 place-items-center border-2 border-[oklch(80%_0.02_265)] text-white transition group-has-[:checked]:border-[oklch(52%_0.13_255)] group-has-[:checked]:bg-[oklch(52%_0.13_255)] ${
+        square ? "rounded-md" : "rounded-full"
+      }`}
+    >
+      <svg viewBox="0 0 16 16" className="h-3 w-3 opacity-0 transition group-has-[:checked]:opacity-100" fill="none" aria-hidden>
+        <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
 
 export function QuestionField({ q }: { q: Question }) {
   const name = `q_${q.id}`;
+
   if (q.type === "paragraph") {
-    return <textarea name={name} rows={4} required={q.required} className={`${textCls} resize-y`} />;
+    return <textarea name={name} rows={4} required={q.required} className={`${INPUT} resize-y leading-relaxed`} />;
   }
   if (q.type === "text") {
-    return <input type="text" name={name} required={q.required} className={textCls} />;
+    return <input type="text" name={name} required={q.required} className={INPUT} />;
   }
   if (q.type === "single") {
     return (
-      <div className="space-y-2">
+      <div className="grid gap-2.5">
         {(q.options ?? []).map((opt) => (
-          <label key={opt} className={cardCls}>
-            <input type="radio" name={name} value={opt} required={q.required} className={controlCls} />
+          <label key={opt} className={OPTION}>
+            <input type="radio" name={name} value={opt} required={q.required} className="peer sr-only" />
+            <Dot />
             <span>{opt}</span>
           </label>
         ))}
@@ -34,10 +51,11 @@ export function QuestionField({ q }: { q: Question }) {
   }
   if (q.type === "multi") {
     return (
-      <div className="space-y-2">
+      <div className="grid gap-2.5">
         {(q.options ?? []).map((opt) => (
-          <label key={opt} className={cardCls}>
-            <input type="checkbox" name={name} value={opt} className={controlCls} />
+          <label key={opt} className={OPTION}>
+            <input type="checkbox" name={name} value={opt} className="peer sr-only" />
+            <Dot square />
             <span>{opt}</span>
           </label>
         ))}
@@ -46,30 +64,57 @@ export function QuestionField({ q }: { q: Question }) {
   }
   if (q.type === "boolean") {
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2.5">
         {["Sí", "No"].map((opt) => (
-          <label key={opt} className={`${cardCls} justify-center font-medium`}>
+          <label
+            key={opt}
+            className="flex cursor-pointer items-center justify-center rounded-xl border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] px-4 py-3.5 text-base font-medium text-[oklch(30%_0.02_265)] transition active:scale-[0.99] has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(52%_0.13_255)] has-[:checked]:text-white"
+          >
             <input type="radio" name={name} value={opt} required={q.required} className="sr-only" />
-            <span>{opt}</span>
+            {opt}
           </label>
         ))}
       </div>
     );
   }
-  // scale: fila de objetivos tappables grandes, scrollable si no entra.
+  // scale → control segmentado; selección con relleno acento.
   const { min, max } = scaleBounds(q);
   const ticks = Array.from({ length: max - min + 1 }, (_, i) => min + i);
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {ticks.map((n) => (
-        <label
-          key={n}
-          className="flex h-12 min-w-12 flex-1 cursor-pointer items-center justify-center rounded-lg border border-zinc-300 text-base font-medium transition-colors has-[:checked]:border-zinc-900 has-[:checked]:bg-zinc-900 has-[:checked]:text-white active:bg-zinc-100 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:bg-zinc-100 dark:has-[:checked]:text-zinc-900"
-        >
-          <input type="radio" name={name} value={n} required={q.required} className="sr-only" />
-          <span>{n}</span>
-        </label>
-      ))}
+    <div>
+      <div className="flex gap-1.5">
+        {ticks.map((n) => (
+          <label
+            key={n}
+            className="flex h-12 flex-1 cursor-pointer select-none items-center justify-center rounded-lg border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] text-base font-semibold text-[oklch(35%_0.02_265)] transition active:scale-[0.97] has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(52%_0.13_255)] has-[:checked]:text-white"
+          >
+            <input type="radio" name={name} value={n} required={q.required} className="sr-only" />
+            {n}
+          </label>
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between px-1 text-xs text-[oklch(60%_0.02_265)]">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+export function FieldBlock({ q, index }: { q: Question; index?: number }) {
+  return (
+    <div className="space-y-2.5">
+      <label className="block text-[1.0625rem] font-semibold leading-snug text-[oklch(26%_0.02_265)]">
+        {typeof index === "number" && (
+          <span className="mr-1.5 text-[oklch(70%_0.03_255)]">{index + 1}.</span>
+        )}
+        {q.label}
+        {q.required && <span className="ml-0.5 text-[oklch(55%_0.18_25)]">*</span>}
+      </label>
+      {q.description && (
+        <p className="text-sm leading-snug text-[oklch(52%_0.02_265)]">{q.description}</p>
+      )}
+      <QuestionField q={q} />
     </div>
   );
 }
@@ -84,26 +129,16 @@ export function SurveyForm({
   hidden: Record<string, string>;
 }) {
   return (
-    <form action={action} className="mt-6 space-y-6">
+    <form action={action} className="space-y-7">
       {Object.entries(hidden).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
       {questions.map((q, i) => (
-        <div key={q.id} className="space-y-2">
-          <label className="block text-base font-medium leading-snug text-zinc-900 dark:text-zinc-100">
-            <span className="mr-1 text-zinc-400">{i + 1}.</span>
-            {q.label}
-            {q.required && <span className="ml-0.5 text-red-500">*</span>}
-          </label>
-          {q.description && (
-            <p className="text-sm leading-snug text-zinc-500">{q.description}</p>
-          )}
-          <QuestionField q={q} />
-        </div>
+        <FieldBlock key={q.id} q={q} index={i} />
       ))}
       <button
         type="submit"
-        className="w-full rounded-lg bg-zinc-900 px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-zinc-700 active:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className="sticky bottom-3 w-full rounded-xl bg-[oklch(52%_0.13_255)] px-4 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[oklch(47%_0.13_255)] active:scale-[0.99]"
       >
         Enviar respuesta
       </button>
