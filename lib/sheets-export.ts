@@ -5,6 +5,7 @@ const SHEET_BY_ENTITY: Record<string, string> = {
   padron: "padron", segmentos: "segmentos", templates: "templates",
   campanas: "campañas", envios: "envios", respuestas: "respuestas",
   opt_outs: "opt_outs", llamadas: "llamadas",
+  encuestas: "encuestas", encuesta_respuestas: "encuesta_respuestas",
 };
 
 function sheetsClient() {
