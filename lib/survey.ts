@@ -17,6 +17,9 @@ interface TokenRef {
   campaignId: string;
   dni: string;
   projectId: string;
+  // Si el token distribuye una encuesta del módulo nuevo, su id. Convive con
+  // el flujo legacy de preguntas-en-campaña (encuestaId undefined).
+  encuestaId?: string;
 }
 
 export interface SurveyResponse {
@@ -62,15 +65,22 @@ export async function createToken(
   projectId: string,
   campaignId: string,
   dni: string,
+  encuestaId?: string,
 ): Promise<string> {
   const token = randomUUID();
   if (!dbConfigured()) {
-    tokMem.set(token, { campaignId, dni, projectId });
+    tokMem.set(token, { campaignId, dni, projectId, encuestaId });
     return token;
   }
   await getSupabase()
     .from("survey_tokens")
-    .insert({ token, project_id: projectId, campaign_id: campaignId, dni });
+    .insert({
+      token,
+      project_id: projectId,
+      campaign_id: campaignId,
+      dni,
+      encuesta_id: encuestaId ?? null,
+    });
   return token;
 }
 
@@ -80,7 +90,7 @@ export async function resolveToken(
   if (!dbConfigured()) return tokMem.get(token);
   const { data } = await getSupabase()
     .from("survey_tokens")
-    .select("campaign_id,dni,project_id")
+    .select("campaign_id,dni,project_id,encuesta_id")
     .eq("token", token)
     .maybeSingle();
   if (!data) return undefined;
@@ -88,6 +98,7 @@ export async function resolveToken(
     campaignId: data.campaign_id as string,
     dni: data.dni as string,
     projectId: data.project_id as string,
+    encuestaId: (data.encuesta_id as string | null) ?? undefined,
   };
 }
 
