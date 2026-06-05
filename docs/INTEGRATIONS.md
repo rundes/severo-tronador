@@ -1,10 +1,24 @@
 # Integraciones — conectar herramientas paso a paso
 
-> **Nota:** en **producción** (Supabase configurado) un conector sin credenciales
-> queda **inactivo** (no inventa datos). El **modo mock** descrito abajo aplica al
-> **dev local sin Supabase**. El mail usa **Cloudflare Email Routing + Resend**
-> (ver `infra/cloudflare-email-worker/CLOUDFLARE-RESEND-RUNBOOK.md`); la escucha
-> de X gratis usa sindicación o el worker `infra/twikit-worker/`.
+> **Nota de estado (corrige el detalle de abajo):**
+> - En **producción** (Supabase configurado) un conector sin credenciales queda
+>   **inactivo** (no inventa datos). El **modo mock** de abajo aplica solo al
+>   **dev local sin Supabase** (`lib/connectors/demo.ts`).
+> - El "mock consume cuota igual" aplica a **outreach** (email/SMS/voz/Telegram);
+>   los conectores de **listening** (GDELT/X/Reddit/RSS) **no** consumen cuota:
+>   sin credenciales devuelven vacío en prod.
+> - **Mail** `@tronador.net.ar` = **Cloudflare Email Routing + Resend**
+>   (`infra/cloudflare-email-worker/CLOUDFLARE-RESEND-RUNBOOK.md`). Stalwart es
+>   modo opcional, no primario.
+> - **X listening**: con `X_API_BEARER_TOKEN` usa la API paga (search). **Sin
+>   token, cae a sindicación gratis** (timelines de handles, sin keyword); para
+>   cuentas chicas, el worker `infra/twikit-worker/` (twscrape).
+> - **RSS** de medios y **handles de X a monitorear** se editan en **/escucha**
+>   (`listening_config.rss_feeds` / `x_handles`), no por env.
+> - El **registry** es un **array** `connectors: Connector[]` en
+>   `lib/connectors/registry.ts` (agregar conector = un import + una línea en el
+>   array). Conectores ya incluidos no listados abajo: **Telegram**, **RSS**,
+>   **Meta Content Library**, **Google Sheets Archive**.
 
 > Cada servicio externo es un **conector** (plugin). Sin credenciales, en dev
 > local corren en **modo mock** (simulan su función y consumen cuota igual) para

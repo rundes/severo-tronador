@@ -1,10 +1,33 @@
 # Severo Tronador — Arquitectura del sistema de gestión
 
-> **Estado actual:** la app está **en producción** sobre **Supabase (Postgres)
-> como fuente de verdad** y es **multi-tenant** (proyectos + roles). Google
-> Sheets es un **espejo** de preservación, no la base. Este documento describe el
-> **modelo de conectores** y patrones de diseño (vigentes); donde menciona
-> "memoria" o "Google Sheets como DB" como estado, leer Supabase.
+> ## Estado actual (corrige el detalle histórico de abajo)
+>
+> Este documento conserva el **modelo de conectores y los patrones de diseño**
+> (vigentes), pero su detalle de *implementación/roadmap* quedó viejo. La realidad:
+>
+> - **Producción** sobre **Supabase (Postgres) = fuente de verdad**; Google Sheets
+>   es solo **espejo** de preservación (`lib/db/mirror.ts`, `sheets_sync_queue`).
+>   Donde el texto diga "Google Sheets como DB / en memoria / `cuotas`,
+>   `envio_queue`, logs en Sheets", leer **Supabase**.
+> - **Multi-tenant**: proyectos + membresía + roles (owner/editor/viewer),
+>   `project_id` en todas las tablas (`lib/projects.ts`, `lib/workspace.ts`).
+>   El §11 dice "NO multi-tenancy" — **falso hoy, sí está**.
+> - **A/B testing**: implementado (`lib/ab-test.ts`). El §11 dice "NO A/B" —
+>   **falso hoy**.
+> - **Fases F1–F8**: todas **shipped** (no pendientes): Resend, Meta WhatsApp,
+>   Telnyx SMS/voz, Telegram, Claude API, GDELT, X (API + sindicación gratis),
+>   Reddit, RSS, encuestas tipadas (público + dashboard + CSV), mail.
+> - **Mail** `@tronador.net.ar`: **Cloudflare Email Routing + Resend** (Stalwart
+>   quedó como modo opcional, no es el primario). Ver
+>   `infra/cloudflare-email-worker/`.
+> - **Registry** de conectores: es un **array** `connectors: Connector[]` en
+>   `lib/connectors/registry.ts` (no el objeto de imports lazy del §2.3). **No
+>   existe** un conector `bland-ai` (nunca se implementó).
+> - **Creds** de conectores: encriptadas en Supabase (`conector_config`,
+>   `lib/crypto.ts` AES-GCM), nunca van a Sheets.
+> - Stack real: **Next.js 16**, React 19, NextAuth v5, Tailwind 4.
+> - Módulos en el panel hoy: Dashboard, Contactos, Escucha, Segmentos, Campañas,
+>   Flows, **Encuestas**, **Mail**, Plantillas, Conectores, Proyecto, Auditoría.
 
 > Plataforma de contactación con propósito investigativo y de fidelización.
 > Modelo de **conectores activables/desactivables** (como los connectors de Claude), interfaz minimalista, y orquestación centrada en **no quemar la base de contactos ni los free tier de los proveedores**.
@@ -640,12 +663,14 @@ F1 ya construye **la infraestructura de conectores** aunque solo tenga uno vivo 
 
 Para mantener el foco, dejamos fuera:
 
-- **Editor visual de flujos conversacionales** (à la Typebot/Botpress). Las encuestas son lineales y se editan como código + JSON.
-- **A/B testing de mensajes**. La población es chica, los splits estadísticos no cierran.
+- **Editor visual de flujos conversacionales** (à la Typebot/Botpress). Las encuestas se editan en el builder (preguntas tipadas + JSON), no en un canvas conversacional.
 - **CRM completo** (gestión de pipeline, tareas, recordatorios). Esto es investigación, no ventas.
-- **Multi-tenancy**. Una instalación = un proyecto = un padrón. Si se necesita otro municipio, otra instalación.
 - **App móvil nativa**. La web mobile-friendly es suficiente para encuestadores en campo.
 - **Llamadas con operadora humana en vivo** (à la VICIdial/CallHub). Si hace falta, se usa el celular del encuestador y se loguea manualmente.
+
+> Nota: lo que este diseño originalmente dejaba afuera y **ya se implementó**:
+> **multi-tenancy** (proyectos + roles) y **A/B testing de mensajes**
+> (`lib/ab-test.ts`).
 
 ---
 

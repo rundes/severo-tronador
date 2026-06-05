@@ -42,7 +42,7 @@ conector queda inactivo (o mock en dev local); el resto sigue funcionando.
 
 ## Stack
 
-- **Next.js 15** (App Router, Turbopack) + TypeScript + Tailwind v4
+- **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript + Tailwind v4
 - **NextAuth v5** (Google OAuth + allowlist por email)
 - **Supabase** (Postgres) = fuente de verdad · **Google Sheets** = espejo de
   preservación
