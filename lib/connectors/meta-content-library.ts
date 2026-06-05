@@ -16,6 +16,7 @@ import type {
   TestResult,
 } from "./types";
 import { META_MOCK_PARENTS, mockMetaItems } from "@/lib/mock/listening-meta";
+import { demoData } from "@/lib/connectors/demo";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
 
@@ -210,6 +211,7 @@ export const metaContentLibraryConnector: ListeningConnector = {
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
     const cfg = await getConnectorConfig("meta-content-library");
     if (!cfg.META_CL_TOKEN) {
+      if (!demoData()) return [];
       const items = mockMetaItems("all").filter((i) =>
         matchesKeywords(i.text, query),
       );
@@ -220,9 +222,10 @@ export const metaContentLibraryConnector: ListeningConnector = {
       log.debug("listening.meta.fetch", { count: real.length });
       return real.filter((i) => matchesKeywords(i.text, query));
     } catch (e) {
-      log.warn("listening.meta.fallback_mock", {
+      log.warn("listening.meta.fetch_failed", {
         error: (e as Error).message,
       });
+      if (!demoData()) return [];
       const items = mockMetaItems("all").filter((i) =>
         matchesKeywords(i.text, query),
       );
