@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEncuesta } from "@/lib/encuestas";
+import { listEncuestaResponses } from "@/lib/encuestas/responses";
+import { listSavedSegments } from "@/lib/segments-store";
+import { listTemplates } from "@/lib/templates";
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { QuestionEditor } from "@/components/encuestas/question-editor";
-import { guardarPreguntas, publicarEncuesta, cerrarEncuesta } from "../actions";
+import { EncuestaDashboard } from "@/components/encuestas/dashboard";
+import {
+  guardarPreguntas,
+  publicarEncuesta,
+  cerrarEncuesta,
+  enviarEncuestaPorMail,
+} from "../actions";
 
 export const metadata = { title: "Editar encuesta · Tronador" };
 
@@ -26,21 +35,30 @@ export default async function EncuestaDetailPage({
   const enc = await getEncuesta(projectId, id);
   if (!enc) notFound();
 
+  const isPublished = enc.estado === "publicada";
+  const isClosed = enc.estado === "cerrada";
+
+  const responses = await listEncuestaResponses(projectId, id);
+  const [segments, templates] = isPublished
+    ? await Promise.all([listSavedSegments(projectId), listTemplates("email")])
+    : [[], []];
+
   const okMap: Record<string, string> = {
     guardada: "Cambios guardados.",
     publicada: "Encuesta publicada. Ya podés distribuir el link público.",
     cerrada: "Encuesta cerrada. No recibe más respuestas.",
+    enviada: "Encuesta encolada para envío por mail al segmento.",
+  };
+  const errDetalleMap: Record<string, string> = {
+    validacion: sp.detalle ?? "Revisá las preguntas.",
+    no_publicada: "Publicá la encuesta antes de enviarla.",
+    envio_datos: "Elegí una plantilla y un segmento.",
+    envio: `No se pudo enviar: ${sp.detalle ?? ""}`,
   };
   const okMsg = sp.ok ? okMap[sp.ok] ?? null : null;
-  const errMsg =
-    sp.error === "validacion"
-      ? sp.detalle ?? "Revisá las preguntas."
-      : sp.error
-        ? "No se pudo guardar."
-        : null;
-
-  const isPublished = enc.estado === "publicada";
-  const isClosed = enc.estado === "cerrada";
+  const errMsg = sp.error
+    ? errDetalleMap[sp.error] ?? "No se pudo guardar."
+    : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -95,6 +113,58 @@ export default async function EncuestaDetailPage({
           </form>
         </div>
       )}
+
+      {isPublished && (
+        <section className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+            Enviar por mail a un segmento
+          </h2>
+          {segments.length === 0 || templates.length === 0 ? (
+            <p className="text-xs text-zinc-500">
+              Necesitás al menos un segmento guardado y una plantilla de email
+              (con <code>{"{{encuesta_url}}"}</code> en el cuerpo).
+            </p>
+          ) : (
+            <form action={enviarEncuestaPorMail} className="flex flex-wrap items-end gap-2">
+              <input type="hidden" name="id" value={enc.id} />
+              <label className="text-xs text-zinc-500">
+                <span className="mb-1 block">Plantilla</span>
+                <select name="templateId" className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nombre}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-zinc-500">
+                <span className="mb-1 block">Segmento</span>
+                <select name="segmentId" className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                  {segments.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </label>
+              <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
+            </form>
+          )}
+        </section>
+      )}
+
+      <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+            Monitoreo
+          </h2>
+          {responses.length > 0 && (
+            <a
+              href={`/encuestas/${enc.id}/export`}
+              className="text-xs text-zinc-500 underline-offset-4 hover:underline"
+            >
+              Exportar CSV
+            </a>
+          )}
+        </div>
+        <EncuestaDashboard encuesta={enc} responses={responses} />
+      </section>
     </div>
   );
 }

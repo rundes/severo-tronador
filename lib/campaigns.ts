@@ -90,6 +90,9 @@ export interface Campaign {
   // persiste variant_id en envios.
   variants: Variant[];
   preguntas: string[];
+  // Si la campaña distribuye una encuesta del módulo nuevo, su id. Los tokens
+  // creados resuelven a esa encuesta (atribución por destinatario).
+  encuestaId?: string;
   createdAt: string;
   estado: CampaignEstado;
   envios: Envio[];
@@ -122,6 +125,7 @@ interface CampanaRow {
   segment_filter: SegmentFilter | SegmentQuery;
   variants: Variant[];
   preguntas: string[];
+  encuesta_id?: string | null;
   estado: CampaignEstado;
   metrics: Campaign["metrics"];
   created_at: string;
@@ -173,6 +177,7 @@ function campaignToRow(c: Campaign): CampanaRow {
     segment_filter: c.segmentQuery ?? c.segmentFilter ?? {},
     variants: c.variants ?? [],
     preguntas: c.preguntas,
+    encuesta_id: c.encuestaId ?? null,
     estado: c.estado,
     metrics: c.metrics,
     created_at: c.createdAt,
@@ -194,6 +199,7 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
     segmentQuery: isQuery ? (sf as SegmentQuery) : undefined,
     variants: Array.isArray(row.variants) ? row.variants : [],
     preguntas: row.preguntas,
+    encuestaId: row.encuesta_id ?? undefined,
     createdAt: row.created_at,
     estado: row.estado,
     envios,
@@ -336,6 +342,8 @@ export type ExecuteInput = {
   segmentFilter?: SegmentFilter;
   segmentQuery?: SegmentQuery;
   preguntas?: string[];
+  // Distribuir una encuesta del módulo nuevo: los tokens resuelven a ella.
+  encuestaId?: string;
   // A/B testing: si trae 2+ variantes, executeCampaign hace pickVariant
   // por destinatario. Cada variante apunta a su propio template_id (puede
   // ser el mismo templateId del input para una variante baseline).
@@ -443,7 +451,7 @@ export async function executeCampaign(
   if (!dbConfigured()) {
     for (const m of sendable) {
       const { tpl, variantId } = resolveFor(m.contact.dni);
-      const token = await createToken(projectId, campaignId, m.contact.dni);
+      const token = await createToken(projectId, campaignId, m.contact.dni, input.encuestaId);
       const url = `${baseUrl()}/encuesta/${token}`;
       const result = await connector.send(
         {
@@ -474,6 +482,7 @@ export async function executeCampaign(
       segmentQuery: input.segmentQuery,
       variants,
       preguntas,
+      encuestaId: input.encuestaId,
       createdAt,
       estado: "enviada",
       envios,
@@ -493,7 +502,7 @@ export async function executeCampaign(
   const queueRows: (EnvioQueueRow & { variant_id?: string | null })[] = [];
   for (const m of sendable) {
     const { tpl, variantId } = resolveFor(m.contact.dni);
-    const token = await createToken(projectId, campaignId, m.contact.dni);
+    const token = await createToken(projectId, campaignId, m.contact.dni, input.encuestaId);
     const url = `${baseUrl()}/encuesta/${token}`;
     queueRows.push({
       project_id: projectId,
@@ -521,6 +530,7 @@ export async function executeCampaign(
     segmentQuery: input.segmentQuery,
     variants,
     preguntas,
+    encuestaId: input.encuestaId,
     createdAt,
     // Si no hay nada que encolar (todo opted-out o cooling), termina ya.
     estado: enqueued > 0 ? "encolada" : "enviada",
