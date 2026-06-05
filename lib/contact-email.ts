@@ -1,8 +1,9 @@
 // Envío del formulario de contacto del landing. Usa Resend (mismo
-// connector que el resto). Destinatario fijo: contacto@cpelectoral.org.
+// connector que el resto). Destinatario fijo: contacto@tronador.net.ar
+// (cae en la bandeja in-app vía Cloudflare Email Routing).
 import { log } from "@/lib/logger";
 
-const CONTACT_TO = "contacto@cpelectoral.org";
+const CONTACT_TO = "contacto@tronador.net.ar";
 
 export interface ContactPayload {
   name: string;
