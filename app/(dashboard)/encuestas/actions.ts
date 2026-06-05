@@ -10,7 +10,11 @@ import {
   updateEncuesta,
   publishEncuesta,
   closeEncuesta,
+  getEncuesta,
 } from "@/lib/encuestas";
+import { executeCampaign } from "@/lib/campaigns";
+import { getSavedSegment } from "@/lib/segments-store";
+import type { SegmentFilter } from "@/lib/segments";
 import type { Question } from "@/lib/encuestas/types";
 
 async function actorEmail(): Promise<string | null> {
@@ -89,6 +93,42 @@ export async function publicarEncuesta(formData: FormData) {
   }
   revalidatePath(`/encuestas/${id}`);
   redirect(`/encuestas/${id}?ok=publicada`);
+}
+
+export async function enviarEncuestaPorMail(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const templateId = String(formData.get("templateId") ?? "").trim();
+  const segmentId = String(formData.get("segmentId") ?? "").trim();
+  const { id: projectId } = await requireMember("editor");
+
+  const enc = await getEncuesta(projectId, id);
+  if (!enc || enc.estado !== "publicada") {
+    redirect(`/encuestas/${id}?error=no_publicada`);
+  }
+  if (!templateId || !segmentId) redirect(`/encuestas/${id}?error=envio_datos`);
+  const seg = await getSavedSegment(projectId, segmentId);
+  if (!seg) redirect(`/encuestas/${id}?error=envio_datos`);
+
+  const result = await executeCampaign(projectId, {
+    nombre: `Encuesta: ${enc.titulo}`,
+    channel: "email",
+    templateId,
+    segmentFilter: seg.filtros as SegmentFilter,
+    encuestaId: enc.id,
+  });
+  await logAudit({
+    action: "survey.send",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "survey",
+    entity_id: id,
+    details: { segmento: seg.nombre, ok: result.ok, reason: result.ok ? null : result.reason },
+  });
+  if (!result.ok) {
+    redirect(`/encuestas/${id}?error=envio&detalle=${encodeURIComponent(result.reason)}`);
+  }
+  revalidatePath(`/encuestas/${id}`);
+  redirect(`/encuestas/${id}?ok=enviada`);
 }
 
 export async function cerrarEncuesta(formData: FormData) {

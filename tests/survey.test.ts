@@ -22,6 +22,16 @@ describe("survey", () => {
     expect(r2).toBeNull();
   });
 
+  it("token con encuestaId resuelve a la encuesta (atribución por destinatario)", async () => {
+    const tok = await createToken(P, "camp-enc", "888", "enc-xyz");
+    const ref = await resolveToken(tok);
+    expect(ref?.encuestaId).toBe("enc-xyz");
+    expect(ref?.dni).toBe("888");
+    // token legacy (sin encuesta) → encuestaId undefined.
+    const legacy = await resolveToken(await createToken(P, "camp-leg", "999"));
+    expect(legacy?.encuestaId).toBeUndefined();
+  });
+
   it("resolveToken con token desconocido → undefined", async () => {
     expect(await resolveToken("no-existe-token-zzz")).toBeUndefined();
   });
