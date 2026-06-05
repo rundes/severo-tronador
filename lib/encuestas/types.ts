@@ -50,6 +50,8 @@ export interface Encuesta {
   stepMode: string;
   // Portada: imagen de cabecera (URL http/https).
   imageUrl?: string | null;
+  // Imagen de cierre (pantalla de gracias).
+  imageEndUrl?: string | null;
   // Cierre: mensaje al finalizar + botón/link opcional al sitio del autor.
   mensajeFinal?: string | null;
   ctaLabel?: string | null;

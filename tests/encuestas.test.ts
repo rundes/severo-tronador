@@ -7,6 +7,7 @@ import {
   getEncuesta,
   getEncuestaBySlug,
   listEncuestas,
+  deleteEncuesta,
   _clearEncuestasMem,
 } from "@/lib/encuestas";
 import {
@@ -105,6 +106,19 @@ describe("encuestas · CRUD + publish", () => {
     });
     const full = await getEncuesta(P, enc.id);
     expect(full?.preguntas[0].description).toBe("Tu nombre completo");
+  });
+
+  it("imágenes solo aceptan http/https; eliminar borra la encuesta", async () => {
+    const enc = await createEncuesta(P, { titulo: "Img" });
+    const upd = await updateEncuesta(P, enc.id, {
+      imageUrl: "https://x/cover.jpg",
+      imageEndUrl: "javascript:alert(1)", // inválida → null
+    });
+    expect(upd?.imageUrl).toBe("https://x/cover.jpg");
+    expect(upd?.imageEndUrl).toBeNull();
+
+    await deleteEncuesta(P, enc.id);
+    expect(await getEncuesta(P, enc.id)).toBeNull();
   });
 
   it("aísla por proyecto", async () => {

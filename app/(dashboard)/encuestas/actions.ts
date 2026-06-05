@@ -11,6 +11,7 @@ import {
   publishEncuesta,
   closeEncuesta,
   getEncuesta,
+  deleteEncuesta,
 } from "@/lib/encuestas";
 import { executeCampaign } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
@@ -50,6 +51,7 @@ export async function guardarPreguntas(formData: FormData) {
   const layout = String(formData.get("layout") ?? "minimal");
   const stepMode = String(formData.get("step_mode") ?? "one");
   const imageUrl = String(formData.get("image_url") ?? "").trim();
+  const imageEndUrl = String(formData.get("image_end_url") ?? "").trim();
   const mensajeFinal = String(formData.get("mensaje_final") ?? "").trim();
   const ctaLabel = String(formData.get("cta_label") ?? "").trim();
   const ctaUrl = String(formData.get("cta_url") ?? "").trim();
@@ -69,6 +71,7 @@ export async function guardarPreguntas(formData: FormData) {
       layout,
       stepMode,
       imageUrl,
+      imageEndUrl,
       mensajeFinal,
       ctaLabel,
       ctaUrl,
@@ -142,6 +145,23 @@ export async function enviarEncuestaPorMail(formData: FormData) {
   }
   revalidatePath(`/encuestas/${id}`);
   redirect(`/encuestas/${id}?ok=enviada`);
+}
+
+export async function eliminarEncuesta(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const { id: projectId } = await requireMember("editor");
+  const enc = await getEncuesta(projectId, id);
+  await deleteEncuesta(projectId, id);
+  await logAudit({
+    action: "survey.delete",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "survey",
+    entity_id: id,
+    details: { titulo: enc?.titulo },
+  });
+  revalidatePath("/encuestas");
+  redirect("/encuestas?ok=eliminada");
 }
 
 export async function cerrarEncuesta(formData: FormData) {

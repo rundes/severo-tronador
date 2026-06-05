@@ -23,6 +23,7 @@ interface EncuestaRow {
   layout: string | null;
   step_mode: string | null;
   image_url: string | null;
+  image_end_url: string | null;
   mensaje_final: string | null;
   cta_label: string | null;
   cta_url: string | null;
@@ -45,6 +46,7 @@ function rowToEncuesta(r: EncuestaRow): Encuesta {
     layout: normalizeLayout(r.layout),
     stepMode: normalizeStepMode(r.step_mode),
     imageUrl: r.image_url,
+    imageEndUrl: r.image_end_url,
     mensajeFinal: r.mensaje_final,
     ctaLabel: r.cta_label,
     ctaUrl: r.cta_url,
@@ -129,6 +131,7 @@ export async function createEncuesta(
     layout: normalizeLayout(input.layout),
     step_mode: "one",
     image_url: null,
+    image_end_url: null,
     mensaje_final: null,
     cta_label: null,
     cta_url: null,
@@ -160,6 +163,7 @@ export async function updateEncuesta(
     layout?: string;
     stepMode?: string;
     imageUrl?: string | null;
+    imageEndUrl?: string | null;
     mensajeFinal?: string | null;
     ctaLabel?: string | null;
     ctaUrl?: string | null;
@@ -178,6 +182,8 @@ export async function updateEncuesta(
   if (patch.stepMode !== undefined) upd.step_mode = normalizeStepMode(patch.stepMode);
   if (patch.imageUrl !== undefined)
     upd.image_url = safeHttpUrl(patch.imageUrl);
+  if (patch.imageEndUrl !== undefined)
+    upd.image_end_url = safeHttpUrl(patch.imageEndUrl);
   if (patch.mensajeFinal !== undefined)
     upd.mensaje_final = patch.mensajeFinal?.trim() || null;
   if (patch.ctaLabel !== undefined)
@@ -251,6 +257,24 @@ export async function closeEncuesta(
     .maybeSingle();
   if (error) throw error;
   return data ? rowToEncuesta(data as EncuestaRow) : null;
+}
+
+export async function deleteEncuesta(
+  projectId: string,
+  id: string,
+): Promise<void> {
+  if (!dbConfigured()) {
+    const i = mem.findIndex((x) => x.id === id && x.project_id === projectId);
+    if (i >= 0) mem.splice(i, 1);
+    return;
+  }
+  // encuesta_respuestas y survey_tokens.encuesta_id caen por FK on delete cascade.
+  const { error } = await getSupabase()
+    .from("encuestas")
+    .delete()
+    .eq("id", id)
+    .eq("project_id", projectId);
+  if (error) throw error;
 }
 
 // Helper para tests.

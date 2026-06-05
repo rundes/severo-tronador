@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { scaleBounds, type Question, type QuestionType } from "@/lib/encuestas/types";
 import { SURVEY_LAYOUTS } from "@/lib/encuestas/layouts";
+import { ImageUpload } from "@/components/encuestas/image-upload";
 
 const TYPE_LABEL: Record<QuestionType, string> = {
   text: "Texto corto",
@@ -88,6 +89,7 @@ export function QuestionEditor({
   layout,
   stepMode,
   imageUrl,
+  imageEndUrl,
   mensajeFinal,
   ctaLabel,
   ctaUrl,
@@ -101,6 +103,7 @@ export function QuestionEditor({
   layout: string;
   stepMode: string;
   imageUrl: string;
+  imageEndUrl: string;
   mensajeFinal: string;
   ctaLabel: string;
   ctaUrl: string;
@@ -152,19 +155,14 @@ export function QuestionEditor({
         </label>
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Imagen de portada <span className="font-normal normal-case text-zinc-400">(URL, opcional)</span>
-        </span>
-        <input
-          name="image_url"
-          type="url"
-          defaultValue={imageUrl}
-          placeholder="https://…/imagen.jpg"
-          disabled={readOnly}
-          className={inputCls}
-        />
-      </label>
+      <ImageUpload
+        name="image_url"
+        value={imageUrl}
+        aspect={3}
+        recommend="PNG/JPG · recomendado 1200×400 (3:1)"
+        label="Imagen de portada"
+        disabled={readOnly}
+      />
 
       <fieldset className="space-y-2">
         <legend className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
@@ -341,6 +339,14 @@ export function QuestionEditor({
         <legend className="px-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
           Cierre (al finalizar)
         </legend>
+        <ImageUpload
+          name="image_end_url"
+          value={imageEndUrl}
+          aspect={3}
+          recommend="PNG/JPG · recomendado 1200×400 (3:1)"
+          label="Imagen de cierre"
+          disabled={readOnly}
+        />
         <label className="block">
           <span className="mb-1 block text-xs text-zinc-500">Mensaje final</span>
           <textarea

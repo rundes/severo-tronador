@@ -9,11 +9,13 @@ import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { QuestionEditor } from "@/components/encuestas/question-editor";
 import { EncuestaDashboard } from "@/components/encuestas/dashboard";
 import { EditTabs } from "@/components/encuestas/edit-tabs";
+import { DeleteEncuestaButton } from "@/components/encuestas/delete-button";
 import {
   guardarPreguntas,
   publicarEncuesta,
   cerrarEncuesta,
   enviarEncuestaPorMail,
+  eliminarEncuesta,
 } from "../actions";
 
 export const metadata = { title: "Editar encuesta · Tronador" };
@@ -71,6 +73,7 @@ export default async function EncuestaDetailPage({
         layout={enc.layout}
         stepMode={enc.stepMode}
         imageUrl={enc.imageUrl ?? ""}
+        imageEndUrl={enc.imageEndUrl ?? ""}
         mensajeFinal={enc.mensajeFinal ?? ""}
         ctaLabel={enc.ctaLabel ?? ""}
         ctaUrl={enc.ctaUrl ?? ""}
@@ -92,6 +95,14 @@ export default async function EncuestaDetailPage({
               Cerrar encuesta
             </SubmitButton>
           </form>
+          <div className="ml-auto">
+            <DeleteEncuestaButton id={enc.id} titulo={enc.titulo} action={eliminarEncuesta} />
+          </div>
+        </div>
+      )}
+      {isClosed && (
+        <div className="flex border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <DeleteEncuestaButton id={enc.id} titulo={enc.titulo} action={eliminarEncuesta} />
         </div>
       )}
     </div>

@@ -21,7 +21,8 @@ export type AuditAction =
   | "mailbox.address.update"
   | "survey.create"
   | "survey.publish"
-  | "survey.send";
+  | "survey.send"
+  | "survey.delete";
 
 export interface AuditEntry {
   id: string;
