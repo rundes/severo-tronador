@@ -126,6 +126,7 @@ export const GuardarEscuchaSchema = z.object({
   keywords: z.array(z.string().trim().min(1)).max(100).default([]),
   fuentes: z.array(z.string().trim().min(1)).max(20).default([]),
   rssFeeds: z.array(z.string().trim().url()).max(40).default([]),
+  xHandles: z.array(z.string().trim().min(1)).max(100).default([]),
 });
 export type GuardarEscuchaInput = z.infer<typeof GuardarEscuchaSchema>;
 

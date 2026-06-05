@@ -162,6 +162,8 @@ export interface ListenQuery {
   lng?: number | null;
   // Feeds RSS/Atom configurados por el usuario (conector rss-medios).
   rssFeeds?: string[];
+  // Handles públicos de X a monitorear (override de los handles del padrón).
+  xHandles?: string[];
 }
 
 export interface ListenItem {

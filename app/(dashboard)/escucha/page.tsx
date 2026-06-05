@@ -242,6 +242,23 @@ export default async function EscuchaPage({
           />
         </Field>
 
+        <Field label="Handles públicos de X a monitorear (uno por línea)">
+          <textarea
+            name="xHandles"
+            rows={3}
+            defaultValue={cfg.xHandles.join("\n")}
+            placeholder={"@intendenteMaipu\n@diariolocal\n@concejalX"}
+            className={`${inputCls} font-mono`}
+          />
+        </Field>
+        <p className="text-xs text-zinc-500">
+          La fuente X (gratis, por sindicación) trae los últimos posts de estos
+          handles. Funciona con <strong>cuentas públicas activas</strong>
+          (intendente, medios, concejales); las cuentas chicas de vecinos no
+          devuelven datos por esta vía. Si lo dejás vacío, usa los handles del
+          padrón.
+        </p>
+
         <Field label="Feeds RSS de medios locales (una URL por línea)">
           <textarea
             name="rssFeeds"

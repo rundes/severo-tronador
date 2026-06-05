@@ -190,10 +190,14 @@ export const xApiConnector: ListeningConnector = {
       if (demoData()) {
         return mockListenItems("x-api").filter((i) => matches(i, query));
       }
-      // Sin token pago: vía GRATIS por sindicación sobre los handles mapeados
-      // (timelines públicos, ~20 por handle, sin búsqueda por keyword).
+      // Sin token pago: vía GRATIS por sindicación. Usa los handles públicos
+      // configurados en Escucha (intendente/medios/…); si no hay, cae a los
+      // del padrón. ~20 posts por handle, sin búsqueda por keyword.
       try {
-        const handles = await getMappedXHandles();
+        const handles =
+          query.xHandles && query.xHandles.length
+            ? query.xHandles
+            : await getMappedXHandles();
         const items = await fetchXSyndication(handles);
         log.debug("listening.x_syndication.fetch", {
           count: items.length,
@@ -206,7 +210,10 @@ export const xApiConnector: ListeningConnector = {
       }
     }
     try {
-      const handles = await getMappedXHandles();
+      const handles =
+        query.xHandles && query.xHandles.length
+          ? query.xHandles
+          : await getMappedXHandles();
       const real = await fetchReal(query, cfg.X_API_BEARER_TOKEN, handles);
       log.debug("listening.x_api.fetch", {
         count: real.length,
