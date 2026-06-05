@@ -40,16 +40,34 @@ export function SurveyStepper({
   }
   const stepValid = () => (steps[step] ?? []).every((q) => !q.required || answered(q));
 
+  // Al cambiar de paso, volver al inicio del formulario para empezar la nueva
+  // tanda desde arriba (si no, en mobile el usuario queda abajo, sobre la
+  // navegación, sin ver las nuevas preguntas). rAF para correr tras el render.
+  function scrollToTop() {
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function next() {
     if (!stepValid()) return setError("Respondé las preguntas obligatorias.");
     setError(null);
     setStep((s) => Math.min(s + 1, total - 1));
+    scrollToTop();
   }
   function back() {
     setError(null);
     setStep((s) => Math.max(s - 1, 0));
+    scrollToTop();
   }
   function onSubmit(e: React.FormEvent) {
+    // Submit implícito (Enter en un campo) en un paso intermedio: NO finalizar
+    // la encuesta — tratarlo como "Siguiente". Solo el último paso envía.
+    if (!isLast) {
+      e.preventDefault();
+      next();
+      return;
+    }
     if (!stepValid()) {
       e.preventDefault();
       setError("Respondé las preguntas obligatorias.");
