@@ -1,14 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { QuestionField } from "@/components/encuestas/survey-form";
+import { FieldBlock } from "@/components/encuestas/survey-form";
 import { buildSteps, type Question } from "@/lib/encuestas/types";
 
-// Diseño "paso a paso" con barra de progreso. Los pasos se arman según
-// stepMode: "one" = una pregunta por paso; "manual" = agrupadas por step.
-// Todas las preguntas se montan (ocultas) para que el submit final incluya
-// todas las respuestas; validación de requeridas manual (un control oculto con
-// `required` nativo rompe el submit del browser).
+// Stepper con progreso y navegación sticky (alcanzable con el pulgar en mobile).
+// Pasos según stepMode ("one" = 1 por paso; "manual" = agrupadas por step).
+// Todas las preguntas montadas (ocultas) → el submit final lleva todo; las
+// requeridas se validan manualmente (un control oculto con required nativo
+// rompería el submit).
 export function SurveyStepper({
   questions,
   stepMode,
@@ -32,20 +32,16 @@ export function SurveyStepper({
   function answered(q: Question): boolean {
     const form = formRef.current;
     if (!form) return true;
-    const fd = new FormData(form);
-    const vals = fd.getAll(`q_${q.id}`).map((v) => String(v).trim()).filter(Boolean);
+    const vals = new FormData(form)
+      .getAll(`q_${q.id}`)
+      .map((v) => String(v).trim())
+      .filter(Boolean);
     return vals.length > 0;
   }
-
-  function stepValid(): boolean {
-    return (steps[step] ?? []).every((q) => !q.required || answered(q));
-  }
+  const stepValid = () => (steps[step] ?? []).every((q) => !q.required || answered(q));
 
   function next() {
-    if (!stepValid()) {
-      setError("Respondé las preguntas obligatorias de este paso.");
-      return;
-    }
+    if (!stepValid()) return setError("Respondé las preguntas obligatorias.");
     setError(null);
     setStep((s) => Math.min(s + 1, total - 1));
   }
@@ -56,78 +52,59 @@ export function SurveyStepper({
   function onSubmit(e: React.FormEvent) {
     if (!stepValid()) {
       e.preventDefault();
-      setError("Respondé las preguntas obligatorias de este paso.");
+      setError("Respondé las preguntas obligatorias.");
     }
   }
 
   return (
-    <form ref={formRef} action={action} onSubmit={onSubmit} className="mt-6">
+    <form ref={formRef} action={action} onSubmit={onSubmit}>
       {Object.entries(hidden).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
 
       {/* Progreso */}
-      <div className="mb-5">
-        <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+      <div className="mb-6">
+        <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-[oklch(55%_0.02_265)]">
           <span>Paso {Math.min(step + 1, total)} de {total}</span>
           <span>{pct}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <div className="h-1.5 overflow-hidden rounded-full bg-[oklch(92%_0.01_255)]">
           <div
-            className="h-full rounded-full bg-[oklch(55%_0.12_240)] transition-all duration-300"
+            className="h-full rounded-full bg-[oklch(52%_0.13_255)] transition-[width] duration-300 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
       </div>
 
-      {/* Pasos: todos montados, solo el actual visible. Sin required nativo. */}
+      {/* Pasos: todos montados, solo el actual visible. */}
       {steps.map((group, gi) => (
-        <div key={gi} hidden={gi !== step} className="space-y-6">
+        <div key={gi} hidden={gi !== step} className="space-y-7">
           {group.map((q) => (
-            <div key={q.id} className="space-y-2">
-              <label className="block text-lg font-medium leading-snug text-zinc-900 dark:text-zinc-100">
-                {q.label}
-                {q.required && <span className="ml-0.5 text-red-500">*</span>}
-              </label>
-              {q.description && (
-                <p className="text-sm leading-snug text-zinc-500">{q.description}</p>
-              )}
-              <div className="pt-1">
-                <QuestionField q={{ ...q, required: false }} />
-              </div>
-            </div>
+            <FieldBlock key={q.id} q={q} />
           ))}
         </div>
       ))}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-[oklch(55%_0.18_25)]">{error}</p>}
 
-      <div className="mt-6 flex items-center gap-2">
+      {/* Navegación sticky */}
+      <div className="sticky bottom-0 -mx-5 mt-7 flex items-center gap-2.5 border-t border-[oklch(92%_0.01_95)] bg-[oklch(99.5%_0.004_95)]/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         {step > 0 && (
           <button
             type="button"
             onClick={back}
-            className="rounded-lg border border-zinc-300 px-4 py-3 text-base font-medium text-zinc-700 active:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800"
+            className="rounded-xl border border-[oklch(88%_0.01_95)] px-5 py-3 text-base font-medium text-[oklch(40%_0.02_265)] transition active:scale-[0.98]"
           >
             Atrás
           </button>
         )}
-        {isLast ? (
-          <button
-            type="submit"
-            className="flex-1 rounded-lg bg-zinc-900 px-4 py-3.5 text-base font-medium text-white active:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Enviar respuesta
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={next}
-            className="flex-1 rounded-lg bg-zinc-900 px-4 py-3.5 text-base font-medium text-white active:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Siguiente
-          </button>
-        )}
+        <button
+          type={isLast ? "submit" : "button"}
+          onClick={isLast ? undefined : next}
+          className="flex-1 rounded-xl bg-[oklch(52%_0.13_255)] px-4 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[oklch(47%_0.13_255)] active:scale-[0.99]"
+        >
+          {isLast ? "Enviar respuesta" : "Siguiente"}
+        </button>
       </div>
     </form>
   );

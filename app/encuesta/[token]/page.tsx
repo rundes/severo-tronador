@@ -14,17 +14,52 @@ export const metadata = {
   robots: { index: false },
 };
 
-function Shell({ children }: { children: React.ReactNode }) {
+// Tema claro fijo (igual que /e/[slug]): papel cálido, tinta azulada, acento
+// índigo. Tarjeta centrada con cover full-bleed opcional.
+function Shell({
+  cover,
+  children,
+}: {
+  cover?: string | null;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-4 py-8 sm:px-6 sm:py-12">
-      <div className="rounded-xl border border-zinc-200 p-5 sm:p-6 dark:border-zinc-800">
-        {children}
-      </div>
-      <p className="mt-4 text-center text-xs text-zinc-400">
-        Relevamiento de opinión pública. No es campaña electoral. Tus datos no
-        se comparten con terceros.
+    <div className="flex min-h-screen flex-col items-center bg-[oklch(98.5%_0.006_95)] px-4 py-8 sm:py-12">
+      <main className="w-full max-w-xl overflow-hidden rounded-2xl border border-[oklch(91%_0.01_95)] bg-[oklch(99.5%_0.004_95)] shadow-[0_1px_2px_oklch(50%_0.03_265_/_0.08),0_10px_34px_oklch(50%_0.03_265_/_0.07)]">
+        {cover && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={cover} alt="" className="h-40 w-full object-cover sm:h-52" />
+        )}
+        <div className="p-5 sm:p-6">{children}</div>
+      </main>
+      <p className="mt-5 max-w-xl px-4 text-center text-xs leading-relaxed text-[oklch(62%_0.02_265)]">
+        Relevamiento de opinión pública. No es campaña electoral. Tus datos no se
+        comparten con terceros.
       </p>
     </div>
+  );
+}
+
+function Heading({ children }: { children: React.ReactNode }) {
+  return (
+    <h1 className="text-lg font-semibold text-[oklch(26%_0.02_265)]">{children}</h1>
+  );
+}
+function Sub({ children }: { children: React.ReactNode }) {
+  return <p className="mt-2 text-sm text-[oklch(52%_0.02_265)]">{children}</p>;
+}
+
+function BajaLink({ token }: { token: string }) {
+  return (
+    <form action={optarBaja} className="mt-6 border-t border-[oklch(93%_0.01_95)] pt-4">
+      <input type="hidden" name="token" value={token} />
+      <button
+        type="submit"
+        className="text-xs text-[oklch(62%_0.02_265)] underline underline-offset-2 hover:text-[oklch(45%_0.02_265)]"
+      >
+        No quiero recibir más mensajes (darme de baja)
+      </button>
+    </form>
   );
 }
 
@@ -42,10 +77,8 @@ export default async function EncuestaPage({
   if (!ref || sp.error) {
     return (
       <Shell>
-        <h1 className="text-lg font-semibold">Link inválido</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          Este enlace de encuesta no es válido o expiró.
-        </p>
+        <Heading>Link inválido</Heading>
+        <Sub>Este enlace de encuesta no es válido o expiró.</Sub>
       </Shell>
     );
   }
@@ -53,10 +86,8 @@ export default async function EncuestaPage({
   if (sp.baja) {
     return (
       <Shell>
-        <h1 className="text-lg font-semibold">Listo, te damos de baja</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          No vas a recibir más mensajes nuestros por ningún canal. Gracias.
-        </p>
+        <Heading>Listo, te damos de baja</Heading>
+        <Sub>No vas a recibir más mensajes nuestros por ningún canal. Gracias.</Sub>
       </Shell>
     );
   }
@@ -70,26 +101,31 @@ export default async function EncuestaPage({
       : null;
     const cu = safeHttpUrl(encF?.ctaUrl);
     return (
-      <Shell>
-        {encF?.imageEndUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={encF.imageEndUrl} alt="" className="mb-3 max-h-48 w-full rounded-lg object-cover" />
-        )}
-        <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          {encF?.mensajeFinal?.trim() ||
-            "Tu respuesta quedó registrada. Nos ayuda a entender mejor el barrio."}
-        </p>
-        {encF?.ctaLabel && cu && (
-          <a
-            href={cu}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className="mt-5 inline-block rounded-lg bg-zinc-900 px-5 py-3 text-base font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            {encF.ctaLabel}
-          </a>
-        )}
+      <Shell cover={encF?.imageEndUrl}>
+        <div className="text-center">
+          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[oklch(94%_0.05_150)] text-[oklch(52%_0.13_150)]">
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden>
+              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <h1 className="text-xl font-bold text-[oklch(26%_0.02_265)]">
+            ¡Gracias por responder!
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-[0.95rem] leading-relaxed text-[oklch(50%_0.02_265)]">
+            {encF?.mensajeFinal?.trim() ||
+              "Tu respuesta quedó registrada. Nos ayuda a entender mejor el barrio."}
+          </p>
+          {encF?.ctaLabel && cu && (
+            <a
+              href={cu}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="mt-6 inline-block rounded-xl bg-[oklch(52%_0.13_255)] px-6 py-3 text-base font-semibold text-white transition hover:bg-[oklch(47%_0.13_255)]"
+            >
+              {encF.ctaLabel}
+            </a>
+          )}
+        </div>
       </Shell>
     );
   }
@@ -97,10 +133,8 @@ export default async function EncuestaPage({
   if (await isOptedOut(ref.projectId, ref.dni)) {
     return (
       <Shell>
-        <h1 className="text-lg font-semibold">Estás dado de baja</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          No recibirás más mensajes. Si fue un error, escribinos.
-        </p>
+        <Heading>Estás dado de baja</Heading>
+        <Sub>No recibirás más mensajes. Si fue un error, escribinos.</Sub>
       </Shell>
     );
   }
@@ -111,32 +145,27 @@ export default async function EncuestaPage({
     if (!enc || enc.estado === "cerrada") {
       return (
         <Shell>
-          <h1 className="text-lg font-semibold">Encuesta no disponible</h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            Esta encuesta ya no está activa. Gracias igual por tu interés.
-          </p>
+          <Heading>Encuesta no disponible</Heading>
+          <Sub>Esta encuesta ya no está activa. Gracias igual por tu interés.</Sub>
         </Shell>
       );
     }
     return (
-      <Shell>
+      <Shell cover={enc.imageUrl}>
         <header className="space-y-2">
-          {enc.imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={enc.imageUrl}
-              alt=""
-              className="mb-1 max-h-48 w-full rounded-lg object-cover"
-            />
-          )}
-          <h1 className="text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-[oklch(58%_0.06_255)]">
+            {ORG_NAME}
+          </p>
+          <h1 className="text-2xl font-bold leading-tight text-[oklch(24%_0.03_265)]">
             {enc.titulo}
           </h1>
           {enc.descripcion && (
-            <p className="text-sm text-zinc-500">{enc.descripcion}</p>
+            <p className="text-[0.95rem] leading-relaxed text-[oklch(48%_0.02_265)]">
+              {enc.descripcion}
+            </p>
           )}
         </header>
-        <div className="mt-4 border-t border-zinc-200 pt-2 dark:border-zinc-800" />
+        <div className="my-6 h-px bg-[oklch(92%_0.01_95)]" />
         <SurveyRender
           layout={enc.layout}
           stepMode={enc.stepMode}
@@ -144,19 +173,12 @@ export default async function EncuestaPage({
           action={responderEncuesta}
           hidden={{ token }}
         />
-        <form action={optarBaja} className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-          <input type="hidden" name="token" value={token} />
-          <button
-            type="submit"
-            className="text-xs text-zinc-400 underline hover:text-zinc-600"
-          >
-            No quiero recibir más mensajes (darme de baja)
-          </button>
-        </form>
+        <BajaLink token={token} />
       </Shell>
     );
   }
 
+  // Flujo legacy: preguntas-en-campaña (texto libre).
   const campaign = await getCampaign(ref.projectId, ref.campaignId);
   const preguntas = campaign?.preguntas ?? [];
   const contacts = await googleSheetsConnector.readPadron();
@@ -164,42 +186,34 @@ export default async function EncuestaPage({
 
   return (
     <Shell>
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+      <h1 className="text-xl font-bold text-[oklch(24%_0.03_265)]">
         Hola{nombre ? ` ${nombre}` : ""} 👋
       </h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-[0.95rem] text-[oklch(48%_0.02_265)]">
         Somos {ORG_NAME}. ¿Nos das un minuto?
       </p>
 
-      <form action={responderEncuesta} className="mt-5 space-y-4">
+      <form action={responderEncuesta} className="mt-6 space-y-5">
         <input type="hidden" name="token" value={token} />
         {preguntas.map((p, i) => (
-          <label key={i} className="flex flex-col gap-1 text-sm">
-            <span className="text-zinc-700 dark:text-zinc-200">{p}</span>
+          <label key={i} className="flex flex-col gap-2 text-base">
+            <span className="font-semibold leading-snug text-[oklch(26%_0.02_265)]">{p}</span>
             <textarea
               name={`q${i}`}
-              rows={2}
-              className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              rows={3}
+              className="w-full resize-y rounded-xl border border-[oklch(90%_0.01_95)] bg-[oklch(99.5%_0.004_95)] px-3.5 py-3 text-base text-[oklch(28%_0.02_265)] outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)/0.12]"
             />
           </label>
         ))}
         <button
           type="submit"
-          className="w-full rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className="w-full rounded-xl bg-[oklch(52%_0.13_255)] px-4 py-3.5 text-base font-semibold text-white transition hover:bg-[oklch(47%_0.13_255)] active:scale-[0.99]"
         >
           Enviar respuesta
         </button>
       </form>
 
-      <form action={optarBaja} className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-        <input type="hidden" name="token" value={token} />
-        <button
-          type="submit"
-          className="text-xs text-zinc-400 underline hover:text-zinc-600"
-        >
-          No quiero recibir más mensajes (darme de baja)
-        </button>
-      </form>
+      <BajaLink token={token} />
     </Shell>
   );
 }
