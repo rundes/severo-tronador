@@ -28,6 +28,8 @@ conector queda inactivo (o mock en dev local); el resto sigue funcionando.
   score, sobre el padrón completo.
 - **Plantillas** y **Campañas** multicanal (email/WhatsApp/SMS/voz/Telegram) con
   cuota por proyecto, cooldowns, opt-out global, A/B y tracking apertura/clicks.
+  Email con **diseño HTML** (editor de texto o HTML + plantillas prediseñadas,
+  preview real) y **envío de prueba** a tu casilla antes de lanzar.
 - **Flows** — secuencias condicionales.
 - **Encuestas** — builder tipado (texto, opción única/múltiple, escala, sí/no),
   **diseños** (minimalista / paso a paso agrupable), portada con imagen + cierre
@@ -75,6 +77,8 @@ es por cliente service-role en la capa server (`lib/db/`).
 ## Documentación
 
 - 🧭 [VISION.md](./VISION.md) — por qué existe y qué es en esencia
+- 🗺️ [PLAN.md](./PLAN.md) — roadmap (fases F1–F8) y modelo de datos
 - 🏗️ [ARCHITECTURE.md](./ARCHITECTURE.md) — modelo de conectores, fidelización, UI
 - 📡 [PROVIDERS.md](./PROVIDERS.md) — comparativa de servicios por canal
 - 🔌 [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) — conectar cada herramienta + agregar conectores
+- 🤖 [AI-STRATEGY.md](./AI-STRATEGY.md) — estrategia de integración de IA por módulo

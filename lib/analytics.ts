@@ -9,6 +9,9 @@ import type { Channel } from "@/lib/relationship";
 import { outreachConnectorFor, OUTREACH_CHANNELS } from "@/lib/campaigns";
 import { healthBand, type HealthBand } from "@/lib/relationship";
 import { loadContacts } from "@/lib/segments";
+import { listSavedSegments } from "@/lib/segments-store";
+import { listTemplates } from "@/lib/templates";
+import { listEncuestas } from "@/lib/encuestas";
 
 export type WindowDays = 7 | 30 | 90;
 
@@ -57,11 +60,32 @@ export interface HealthDistribution {
   red: number;
 }
 
+// Overview de inventario del proyecto: lo que existe HOY, independiente de si
+// hubo o no campañas en la ventana. Hace útil el dashboard de un proyecto
+// recién creado (que aún no tiene envíos).
+export interface ChannelQuota {
+  channel: Channel;
+  used: number;
+  limit: number;
+}
+
+export interface OverviewData {
+  padron: number;
+  segments: number;
+  templates: number;
+  encuestasTotal: number;
+  encuestasActivas: number;
+  campaignsTotal: number;
+  listeningRecent: number; // items de escucha últimos 30d
+  quotas: ChannelQuota[];
+}
+
 export interface DashboardData {
   kpis: KpiSummary;
   campaigns: CampaignRow[];
   timeSeries: DayPoint[];
   health: HealthDistribution;
+  overview: OverviewData;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -116,11 +140,13 @@ export async function loadDashboard(
 ): Promise<DashboardData> {
   const since = isoSince(window);
   if (!dbConfigured()) {
+    const health = await healthDistribution(projectId);
     return {
       kpis: emptyKpi(window),
       campaigns: [],
       timeSeries: [],
-      health: await healthDistribution(projectId),
+      health,
+      overview: await loadOverview(projectId, health.total),
     };
   }
 
@@ -265,11 +291,68 @@ export async function loadDashboard(
     points.push({ day: key, envios: v.envios, responses: v.responses });
   }
 
+  const health = await healthDistribution(projectId);
   return {
     kpis: kpi,
     campaigns,
     timeSeries: points,
-    health: await healthDistribution(projectId),
+    health,
+    overview: await loadOverview(projectId, health.total),
+  };
+}
+
+// Inventario del proyecto. Resiliente: cada fuente cae a 0/[] si falla, para
+// que el dashboard nunca quede en blanco por un error parcial.
+async function loadOverview(
+  projectId: string,
+  padron: number,
+): Promise<OverviewData> {
+  const [segments, templates, encuestas] = await Promise.all([
+    listSavedSegments(projectId).catch(() => []),
+    listTemplates().catch(() => []),
+    listEncuestas(projectId).catch(() => []),
+  ]);
+
+  let campaignsTotal = 0;
+  let listeningRecent = 0;
+  if (dbConfigured()) {
+    const db = getSupabase();
+    const [campRes, listenRes] = await Promise.all([
+      db
+        .from("campanas")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", projectId),
+      db
+        .from("listening_items")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", projectId)
+        .gte("published_at", isoSince(30)),
+    ]);
+    campaignsTotal = campRes.count ?? 0;
+    listeningRecent = listenRes.count ?? 0;
+  }
+
+  const quotas: ChannelQuota[] = [];
+  for (const channel of OUTREACH_CHANNELS) {
+    const c = outreachConnectorFor(channel);
+    if (!c) continue;
+    try {
+      const q = await c.getQuota(projectId);
+      quotas.push({ channel, used: q.used, limit: q.limit });
+    } catch {
+      // conector sin cuota disponible: lo omitimos.
+    }
+  }
+
+  return {
+    padron,
+    segments: segments.length,
+    templates: templates.length,
+    encuestasTotal: encuestas.length,
+    encuestasActivas: encuestas.filter((e) => e.estado === "publicada").length,
+    campaignsTotal,
+    listeningRecent,
+    quotas,
   };
 }
 

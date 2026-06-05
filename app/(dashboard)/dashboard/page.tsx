@@ -42,7 +42,8 @@ export default async function DashboardPage({
   const { id: projectId } = await requireProject();
   const window = parseWindow(params.window);
   const data = await loadDashboard(projectId, window);
-  const { kpis, campaigns, timeSeries, health } = data;
+  const { kpis, campaigns, timeSeries, health, overview } = data;
+  const hasActivity = kpis.sent > 0 || campaigns.length > 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -81,6 +82,84 @@ export default async function DashboardPage({
           </a>
         </div>
       </header>
+
+      {/* Inventario del proyecto ─────────── */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Inventario del proyecto
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <OverviewCard
+            href="/padron"
+            icon="👥"
+            label="Padrón"
+            value={overview.padron.toLocaleString()}
+          />
+          <OverviewCard
+            href="/segmentos"
+            icon="🎯"
+            label="Segmentos"
+            value={overview.segments.toLocaleString()}
+          />
+          <OverviewCard
+            href="/templates"
+            icon="📝"
+            label="Plantillas"
+            value={overview.templates.toLocaleString()}
+          />
+          <OverviewCard
+            href="/encuestas"
+            icon="📋"
+            label="Encuestas"
+            value={overview.encuestasTotal.toLocaleString()}
+            sub={`${overview.encuestasActivas} activas`}
+          />
+          <OverviewCard
+            href="/campanas"
+            icon="📣"
+            label="Campañas"
+            value={overview.campaignsTotal.toLocaleString()}
+          />
+          <OverviewCard
+            href="/escucha"
+            icon="👂"
+            label="Escucha 30d"
+            value={overview.listeningRecent.toLocaleString()}
+          />
+        </div>
+
+        {/* Cuotas por canal */}
+        {overview.quotas.length > 0 && (
+          <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+              Cuotas del mes por canal
+            </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              {overview.quotas.map((q) => (
+                <QuotaBar key={q.channel} quota={q} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!hasActivity && (
+          <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-300">
+            Todavía no hay envíos en este proyecto. Empezá por{" "}
+            <Link href="/padron" className="underline">
+              cargar el padrón
+            </Link>
+            , armá un{" "}
+            <Link href="/segmentos" className="underline">
+              segmento
+            </Link>{" "}
+            y lanzá tu primera{" "}
+            <Link href="/campanas/nueva" className="underline">
+              campaña
+            </Link>
+            . Las métricas de actividad aparecen acá apenas empiece a moverse.
+          </p>
+        )}
+      </section>
 
       {/* KPIs ─────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -231,6 +310,63 @@ export default async function DashboardPage({
 }
 
 // ── Components ────────────────────────────────────────────────────────────
+
+function OverviewCard({
+  href,
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  href: string;
+  icon: string;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-lg border border-zinc-200 p-3 transition-colors hover:border-zinc-400 hover:bg-zinc-50/60 dark:border-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-900/40"
+    >
+      <div className="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+        {value}
+      </div>
+      <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        <span aria-hidden>{icon}</span> {label}
+      </div>
+      {sub && <div className="text-[10px] text-zinc-400">{sub}</div>}
+    </Link>
+  );
+}
+
+function QuotaBar({
+  quota,
+}: {
+  quota: { channel: Channel; used: number; limit: number };
+}) {
+  const pct =
+    quota.limit > 0 ? Math.min(100, (quota.used / quota.limit) * 100) : 0;
+  const remaining = Math.max(0, quota.limit - quota.used);
+  const tone =
+    pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-zinc-600 dark:text-zinc-300">
+          {CHANNEL_ICON[quota.channel]} {quota.channel}
+        </span>
+        <span className="font-mono text-[11px] text-zinc-400">
+          {quota.used.toLocaleString()}/{quota.limit.toLocaleString()} ·{" "}
+          {remaining.toLocaleString()} libres
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <div className={tone} style={{ width: `${pct}%`, height: "100%" }} />
+      </div>
+    </div>
+  );
+}
 
 function Kpi({
   label,

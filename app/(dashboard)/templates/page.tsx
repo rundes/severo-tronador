@@ -1,8 +1,9 @@
-import { nuevaPlantilla } from "./actions";
+import { nuevaPlantilla, enviarPruebaTemplate } from "./actions";
 import { listTemplates, templateVars } from "@/lib/templates";
 import { SUPPORTED_VARS, buildVarMap } from "@/lib/interpolate-vars";
 import { loadContacts } from "@/lib/segments";
 import { requireProject } from "@/lib/workspace";
+import { auth } from "@/lib/auth";
 import { TemplateEditor } from "@/components/templates/template-editor";
 import type { Contact } from "@/lib/connectors/types";
 
@@ -36,6 +37,8 @@ export default async function TemplatesPage({
   const params = (await searchParams) ?? {};
   const { id: projectId } = await requireProject();
   const templates = await listTemplates();
+  const session = await auth();
+  const userEmail = session?.user?.email ?? undefined;
 
   // Sample contact para el preview. Tomamos el primero del padrón para
   // mantener el render puro (sin Math.random/Date.now de regla react/purity).
@@ -92,8 +95,10 @@ export default async function TemplatesPage({
         </h2>
         <TemplateEditor
           action={nuevaPlantilla}
+          testAction={enviarPruebaTemplate}
           varMap={varMap}
           sampleContactLabel={sampleLabel}
+          defaultTestEmail={userEmail}
           statusError={
             params.error === "campos"
               ? "Completá nombre y cuerpo de la plantilla."
@@ -123,7 +128,8 @@ export default async function TemplatesPage({
                     {t.nombre}
                   </span>
                   <span className="font-mono text-xs text-zinc-400">
-                    {CHANNEL_ICON[t.channel]} {t.channel} · {t.estado}
+                    {CHANNEL_ICON[t.channel]} {t.channel}
+                    {t.formato === "html" ? " · HTML" : ""} · {t.estado}
                   </span>
                 </div>
                 {t.asunto && (

@@ -14,6 +14,7 @@ import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
+import { renderCampaignEmailHtml, type EmailTemplateInput } from "@/lib/email-render";
 import { createToken } from "@/lib/survey";
 import { trackedLink, openPixel } from "@/lib/tracking";
 import { pickVariant, type Variant } from "@/lib/ab-test";
@@ -47,23 +48,24 @@ function baseUrl(): string {
 // Pregunta por defecto si la campaña no define ninguna.
 const DEFAULT_PREGUNTAS = ["¿Qué es lo que más te preocupa hoy de tu barrio?"];
 
-// Cuerpo final: interpola variables + (solo email) envuelve el link de
-// encuesta en un redirect rastreado y agrega el pixel de apertura.
+// Cuerpo final. Para canales no-email: texto plano interpolado. Para email:
+// HTML de marca (texto→HTML o HTML del editor sanitizado), con el link de
+// encuesta rastreado y el pixel de apertura inyectado al final.
 function buildBody(
-  cuerpo: string,
+  tpl: EmailTemplateInput,
   contact: Contact,
   encuestaUrl: string,
   token: string,
   channel: Channel,
 ): string {
   if (channel !== "email") {
-    return interpolateExtended(cuerpo, contact, { surveyUrl: encuestaUrl });
+    return interpolateExtended(tpl.cuerpo, contact, { surveyUrl: encuestaUrl });
   }
   const base = baseUrl();
-  const body = interpolateExtended(cuerpo, contact, {
+  return renderCampaignEmailHtml(tpl, contact, {
     surveyUrl: trackedLink(base, token, encuestaUrl),
+    trailingHtml: openPixel(base, token),
   });
-  return body + openPixel(base, token);
 }
 
 // Dato de contacto que usa cada canal.
@@ -456,7 +458,7 @@ export async function executeCampaign(
       const result = await connector.send(
         {
           subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : undefined,
-          body: buildBody(tpl.cuerpo, m.contact, url, token, input.channel),
+          body: buildBody(tpl, m.contact, url, token, input.channel),
           replyTo: isRepliesConfigured() ? buildReplyTo(token) : undefined,
         },
         m.contact,
@@ -512,7 +514,7 @@ export async function executeCampaign(
       contact: m.contact,
       template: {
         subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : null,
-        body: buildBody(tpl.cuerpo, m.contact, url, token, input.channel),
+        body: buildBody(tpl, m.contact, url, token, input.channel),
       },
       token,
       variant_id: variantId ?? null,

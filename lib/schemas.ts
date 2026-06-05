@@ -76,12 +76,22 @@ export const NuevaPlantillaSchema = z
     asunto: emptyToUndef.pipe(z.string().max(200).optional()),
     cuerpo: z.string().trim().min(1, "Cuerpo requerido").max(5000),
     channel: ChannelEnum.catch("email"),
+    // Diseño del email. "html" habilita un cuerpo HTML aparte (max más alto
+    // porque el markup pesa). Solo aplica a email.
+    formato: z.enum(["texto", "html"]).catch("texto"),
+    cuerpoHtml: emptyToUndef.pipe(z.string().max(50000).optional()),
   })
-  // asunto solo aplica a email; en otros canales se descarta.
-  .transform((v) => ({
-    ...v,
-    asunto: v.channel === "email" ? v.asunto : undefined,
-  }));
+  // asunto y formato/HTML solo aplican a email; en otros canales se descartan.
+  .transform((v) => {
+    const isEmail = v.channel === "email";
+    const formato = isEmail ? v.formato : "texto";
+    return {
+      ...v,
+      asunto: isEmail ? v.asunto : undefined,
+      formato,
+      cuerpoHtml: isEmail && formato === "html" ? v.cuerpoHtml : undefined,
+    };
+  });
 export type NuevaPlantillaInput = z.infer<typeof NuevaPlantillaSchema>;
 
 // ── Registrar llamada manual ─────────────────────────────────────────────

@@ -6,12 +6,20 @@ import type { Channel } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 
+export type TemplateFormato = "texto" | "html";
+
 export interface Template {
   id: string;
   channel: Channel;
   nombre: string;
   asunto?: string;
   cuerpo: string;
+  // Diseño del email: "texto" (default, retrocompatible) o "html". Solo aplica
+  // a email; los otros canales son siempre texto plano.
+  formato: TemplateFormato;
+  // HTML crudo del editor cuando formato = "html". El `cuerpo` en texto se
+  // conserva como fallback (preview/plaintext y canales no-email).
+  cuerpoHtml?: string;
   estado: "borrador" | "activo";
   createdAt: string;
 }
@@ -27,6 +35,7 @@ const SEED: Template[] = [
       "Estamos haciendo una encuesta de opinión sobre tu barrio ({{barrio}}). " +
       "No es campaña electoral ni vendemos nada. Respondé acá: {{encuesta_url}} " +
       "Para no recibir más mensajes, respondé BAJA.",
+    formato: "texto",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -38,6 +47,7 @@ const SEED: Template[] = [
     cuerpo:
       "Hola {{nombre}}, te escribimos ayer sobre una encuesta en {{barrio}}. " +
       "Si tenés un minuto, nos ayuda mucho. Para no recibir más, respondé BAJA.",
+    formato: "texto",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -50,6 +60,7 @@ const SEED: Template[] = [
       "minutos para una pregunta sobre {{barrio}}? Es investigación, no es " +
       "campaña electoral. Respondé acá: {{encuesta_url}} " +
       "Si no querés recibir más mensajes, respondé BAJA.",
+    formato: "texto",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -60,6 +71,7 @@ const SEED: Template[] = [
     cuerpo:
       "Relevamiento: {{nombre}}, encuesta de {{barrio}}: {{encuesta_url}} " +
       "Responder BAJA para no recibir más.",
+    formato: "texto",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -71,6 +83,7 @@ const SEED: Template[] = [
       "Hola {{nombre}}. Le habla el equipo de relevamiento. " +
       "Estamos haciendo una breve encuesta de opinión sobre {{barrio}}. " +
       "Si desea participar, presione 1. Para no recibir más llamados, presione 9.",
+    formato: "texto",
     estado: "activo",
     createdAt: "2026-05-01T00:00:00.000Z",
   },
@@ -82,6 +95,8 @@ interface TemplateRow {
   nombre: string;
   asunto: string | null;
   cuerpo: string;
+  formato?: string | null;
+  cuerpo_html?: string | null;
   estado: Template["estado"];
   created_at: string;
 }
@@ -96,6 +111,8 @@ function rowToTemplate(r: TemplateRow): Template {
     nombre: r.nombre,
     asunto: r.asunto ?? undefined,
     cuerpo: r.cuerpo,
+    formato: r.formato === "html" ? "html" : "texto",
+    cuerpoHtml: r.cuerpo_html ?? undefined,
     estado: r.estado,
     createdAt: r.created_at,
   };
@@ -109,6 +126,8 @@ function templateToRow(t: Template): TemplateRow {
     nombre: t.nombre,
     asunto: t.asunto ?? null,
     cuerpo: t.cuerpo,
+    formato: t.formato ?? "texto",
+    cuerpo_html: t.cuerpoHtml ?? null,
     estado: t.estado,
     created_at: t.createdAt,
   };
@@ -169,10 +188,13 @@ export async function getTemplate(id: string): Promise<Template | undefined> {
 }
 
 export async function createTemplate(
-  input: Omit<Template, "id" | "createdAt">,
+  input: Omit<Template, "id" | "createdAt" | "formato"> & {
+    formato?: TemplateFormato;
+  },
 ): Promise<Template> {
   const tpl: Template = {
     ...input,
+    formato: input.formato ?? "texto",
     id: `tpl-${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
   };

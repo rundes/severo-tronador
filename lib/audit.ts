@@ -13,6 +13,7 @@ export type AuditAction =
   | "segment.save"
   | "segment.delete"
   | "template.create"
+  | "template.test_send"
   | "connector.config"
   | "connector.toggle"
   | "listening.config"

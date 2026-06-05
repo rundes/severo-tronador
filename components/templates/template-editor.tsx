@@ -1,18 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   SUPPORTED_VARS,
   SUPPORTED_VAR_KEYS,
   extractUsedVars,
   interpolateWithMap,
 } from "@/lib/interpolate-vars";
+import { textToHtml, wrapEmailShell } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 interface VarOption {
   key: string;
   desc: string;
 }
+
+export interface PruebaState {
+  ok: boolean | null;
+  msg: string;
+}
+
+type TestAction = (
+  prev: PruebaState,
+  formData: FormData,
+) => Promise<PruebaState>;
 
 const CHANNEL_OPTS = [
   { value: "email", label: "📧 Email" },
@@ -24,25 +35,72 @@ const CHANNEL_OPTS = [
 const inputCls =
   "rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100";
 
+// Plantillas HTML prediseñadas (contenido, sin el shell). Variables {{...}}
+// se interpolan igual que en texto. El shell de marca + opt-out los agrega
+// el render al enviar.
+const HTML_PRESETS: { id: string; label: string; html: string }[] = [
+  {
+    id: "invitacion",
+    label: "Invitación con botón",
+    html: `<p>{{saludo}}, {{nombre}} 👋</p>
+<p>Desde <strong>{{org}}</strong> estamos haciendo un relevamiento de opinión sobre <strong>{{barrio}}</strong>. No es campaña electoral ni vendemos nada: es investigación social.</p>
+<p>¿Nos das 2 minutos?</p>
+<p>
+  <a href="{{encuesta_url}}" style="display:inline-block;padding:12px 26px;background:#2b3350;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">Responder la encuesta</a>
+</p>
+<p style="color:#6b6f7b;font-size:13px;">Si el botón no funciona, copiá este enlace: {{encuesta_url}}</p>
+<p>{{firma}}</p>`,
+  },
+  {
+    id: "recordatorio",
+    label: "Recordatorio breve",
+    html: `<p>Hola {{nombre}},</p>
+<p>Te escribimos hace unos días sobre una breve encuesta de opinión en {{barrio}}. Si tenés un minuto, tu respuesta nos ayuda mucho.</p>
+<p><a href="{{encuesta_url}}" style="color:#2b3350;font-weight:600;">Responder ahora →</a></p>
+<p>{{firma}}</p>`,
+  },
+  {
+    id: "aviso",
+    label: "Aviso / comunicación",
+    html: `<h2 style="margin:0 0 12px;color:#2b3350;font-size:20px;">Título del aviso</h2>
+<p>{{saludo}}, {{nombre}}. Escribí acá la comunicación para los vecinos de {{barrio}}.</p>
+<ul>
+  <li>Punto uno</li>
+  <li>Punto dos</li>
+</ul>
+<p>{{firma}}</p>`,
+  },
+];
+
+const DEFAULT_TEXT_BODY =
+  "{{saludo}}, {{nombre}}.\n\nDesde {{org}} estamos haciendo un relevamiento. ¿Podés responder unas preguntas?\n\n{{encuesta_url}}\n\n{{firma}}";
+
 export function TemplateEditor({
   action,
+  testAction,
   varMap,
   sampleContactLabel,
+  defaultTestEmail,
   statusOk,
   statusError,
 }: {
   action: (formData: FormData) => Promise<void>;
+  testAction?: TestAction;
   varMap: Record<string, string>;
   sampleContactLabel: string;
+  defaultTestEmail?: string;
   statusOk?: string | null;
   statusError?: string | null;
 }) {
   const [channel, setChannel] = useState<string>("email");
   const [nombre, setNombre] = useState("");
   const [asunto, setAsunto] = useState("");
-  const [cuerpo, setCuerpo] = useState(
-    "{{saludo}}, {{nombre}}.\n\nDesde {{org}} estamos haciendo un relevamiento. ¿Podés responder unas preguntas?\n\n{{encuesta_url}}\n\n{{firma}}",
-  );
+  const [formato, setFormato] = useState<"texto" | "html">("texto");
+  const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
+  const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
+
+  const isEmail = channel === "email";
+  const isHtml = isEmail && formato === "html";
 
   // Autocomplete: cuando el cursor está justo después de `{{`, mostramos el
   // dropdown filtrando por lo escrito hasta el cursor.
@@ -62,8 +120,6 @@ export function TemplateEditor({
   }
 
   function updateAutocomplete(text: string, cursor: number) {
-    // Buscar la `{{` más cercana hacia atrás. Si entre cursor y la `{{` hay
-    // un `}}` ya estamos fuera de una variable abierta.
     const before = text.slice(0, cursor);
     const open = before.lastIndexOf("{{");
     if (open < 0) return setAc({ open: false, prefix: "", insertAt: 0 });
@@ -93,7 +149,6 @@ export function TemplateEditor({
     const next = cuerpo.slice(0, start) + `{{${key}}}` + cuerpo.slice(cursor);
     setCuerpo(next);
     setAc({ open: false, prefix: "", insertAt: 0 });
-    // Reposicionar cursor al final del insert.
     requestAnimationFrame(() => {
       const pos = start + key.length + 4;
       ta.focus();
@@ -118,10 +173,8 @@ export function TemplateEditor({
   }
 
   // Validación: vars usadas vs soportadas + campos de Contact conocidos.
-  const usedVars = useMemo(() => extractUsedVars(asunto + " " + cuerpo), [
-    asunto,
-    cuerpo,
-  ]);
+  const sourceForVars = isHtml ? asunto + " " + cuerpoHtml : asunto + " " + cuerpo;
+  const usedVars = useMemo(() => extractUsedVars(sourceForVars), [sourceForVars]);
   const invalidVars = usedVars.filter(
     (v) => !SUPPORTED_VAR_KEYS.has(v) && !varMap[v],
   );
@@ -136,6 +189,20 @@ export function TemplateEditor({
     [cuerpo, varMap],
   );
 
+  // HTML del email para el preview (mismo shell que el envío real). En modo
+  // HTML usa el cuerpo HTML interpolado; en texto, convierte el texto a HTML.
+  const emailPreviewDoc = useMemo(() => {
+    if (!isEmail) return "";
+    const contentHtml = isHtml
+      ? interpolateWithMap(cuerpoHtml, varMap)
+      : textToHtml(previewCuerpo);
+    return wrapEmailShell({
+      contentHtml,
+      orgName: varMap.org,
+      preheader: previewAsunto || undefined,
+    });
+  }, [isEmail, isHtml, cuerpoHtml, varMap, previewCuerpo, previewAsunto]);
+
   // Cerrar dropdown al click fuera.
   useEffect(() => {
     if (!ac.open) return;
@@ -149,186 +216,349 @@ export function TemplateEditor({
   }, [ac.open]);
 
   return (
-    <form action={action} className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      {/* ── Editor ─────────────────────────────────────────────────────── */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Editor
-        </h2>
+    <div className="space-y-6">
+      <form action={action} className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* ── Editor ─────────────────────────────────────────────────────── */}
+        <div className="space-y-3">
+          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Editor
+          </h2>
 
-        <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-          Canal
-          <select
-            name="channel"
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            className={inputCls}
-          >
-            {CHANNEL_OPTS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-          Nombre interno
-          <input
-            name="nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            required
-            placeholder="ej: Invitación encuesta Mayo"
-            className={inputCls}
-          />
-        </label>
-
-        {channel === "email" && (
           <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-            Asunto
+            Canal
+            <select
+              name="channel"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+              className={inputCls}
+            >
+              {CHANNEL_OPTS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+            Nombre interno
             <input
-              name="asunto"
-              value={asunto}
-              onChange={(e) => setAsunto(e.target.value)}
-              placeholder="Admite variables: {{nombre}}, {{barrio}}, …"
+              name="nombre"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              required
+              placeholder="ej: Invitación encuesta Mayo"
               className={inputCls}
             />
           </label>
-        )}
 
-        <label className="relative flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-          Cuerpo
-          <textarea
-            ref={cuerpoRef}
-            name="cuerpo"
-            value={cuerpo}
-            onChange={handleCuerpoChange}
-            onKeyDown={onKeyDown}
-            onSelect={(e) => {
-              const ta = e.currentTarget;
-              updateAutocomplete(ta.value, ta.selectionStart ?? 0);
-            }}
-            required
-            rows={12}
-            className={`${inputCls} font-mono`}
-          />
-          {ac.open && filteredVars.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-              {filteredVars.map((v, i) => (
-                <button
-                  type="button"
-                  key={v.key}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    insertVar(v.key);
-                  }}
-                  onMouseEnter={() => setAcIdx(i)}
-                  className={`flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm ${
-                    i === acIdx
-                      ? "bg-zinc-100 dark:bg-zinc-800"
-                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-                  }`}
-                >
-                  <code className="font-mono text-xs text-zinc-800 dark:text-zinc-200">
-                    {`{{${v.key}}}`}
-                  </code>
-                  <span className="truncate text-[10px] text-zinc-500">
-                    {v.desc}
-                  </span>
-                </button>
-              ))}
+          {isEmail && (
+            <>
+              <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                Asunto
+                <input
+                  name="asunto"
+                  value={asunto}
+                  onChange={(e) => setAsunto(e.target.value)}
+                  placeholder="Admite variables: {{nombre}}, {{barrio}}, …"
+                  className={inputCls}
+                />
+              </label>
+
+              {/* Toggle de formato */}
+              <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+                {(["texto", "html"] as const).map((f) => (
+                  <button
+                    type="button"
+                    key={f}
+                    onClick={() => setFormato(f)}
+                    className={`rounded-full px-3 py-1 transition-colors ${
+                      formato === f
+                        ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {f === "texto" ? "Texto plano" : "Diseño HTML"}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Hidden inputs que siempre se envían */}
+          <input type="hidden" name="formato" value={isEmail ? formato : "texto"} />
+          {isHtml && (
+            <input type="hidden" name="cuerpoHtml" value={cuerpoHtml} />
+          )}
+
+          {/* Cuerpo texto (siempre presente: fallback + canales no-email) */}
+          <label
+            className={`relative flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500 ${
+              isHtml ? "hidden" : ""
+            }`}
+          >
+            Cuerpo
+            <textarea
+              ref={cuerpoRef}
+              name="cuerpo"
+              value={cuerpo}
+              onChange={handleCuerpoChange}
+              onKeyDown={onKeyDown}
+              onSelect={(e) => {
+                const ta = e.currentTarget;
+                updateAutocomplete(ta.value, ta.selectionStart ?? 0);
+              }}
+              required
+              rows={12}
+              className={`${inputCls} font-mono`}
+            />
+            {ac.open && filteredVars.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                {filteredVars.map((v, i) => (
+                  <button
+                    type="button"
+                    key={v.key}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertVar(v.key);
+                    }}
+                    onMouseEnter={() => setAcIdx(i)}
+                    className={`flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm ${
+                      i === acIdx
+                        ? "bg-zinc-100 dark:bg-zinc-800"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                    }`}
+                  >
+                    <code className="font-mono text-xs text-zinc-800 dark:text-zinc-200">
+                      {`{{${v.key}}}`}
+                    </code>
+                    <span className="truncate text-[10px] text-zinc-500">
+                      {v.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </label>
+
+          {/* Cuerpo HTML */}
+          {isHtml && (
+            <div className="space-y-2">
+              <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                <span className="flex items-center justify-between">
+                  Cuerpo HTML
+                  <select
+                    aria-label="Insertar plantilla prediseñada"
+                    className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] font-normal normal-case dark:border-zinc-700 dark:bg-zinc-900"
+                    value=""
+                    onChange={(e) => {
+                      const p = HTML_PRESETS.find((x) => x.id === e.target.value);
+                      if (p) setCuerpoHtml(p.html);
+                    }}
+                  >
+                    <option value="">Insertar diseño…</option>
+                    {HTML_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+                <textarea
+                  value={cuerpoHtml}
+                  onChange={(e) => setCuerpoHtml(e.target.value)}
+                  rows={14}
+                  spellCheck={false}
+                  className={`${inputCls} font-mono text-xs`}
+                />
+              </label>
+              <p className="text-[10px] text-zinc-400">
+                HTML seguro (se sanitiza al enviar: se permiten p, a, img, table,
+                listas, encabezados y <code>style</code> inline). El cuerpo de
+                texto plano de arriba se guarda como respaldo.
+              </p>
             </div>
           )}
-        </label>
 
-        {usedVars.length > 0 && (
-          <div className="space-y-1 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Variables usadas ({usedVars.length})
+          {usedVars.length > 0 && (
+            <div className="space-y-1 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                Variables usadas ({usedVars.length})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {usedVars.map((v) => {
+                  const ok = SUPPORTED_VAR_KEYS.has(v) || varMap[v];
+                  return (
+                    <code
+                      key={v}
+                      className={`rounded px-1.5 py-0.5 font-mono text-xs ${
+                        ok
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                          : "bg-red-50 text-red-700 ring-1 ring-red-300 dark:bg-red-950/30 dark:text-red-400"
+                      }`}
+                      title={ok ? "Reconocida" : "Variable desconocida"}
+                    >
+                      {`{{${v}}}`}
+                    </code>
+                  );
+                })}
+              </div>
+              {invalidVars.length > 0 && (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  {invalidVars.length} variable
+                  {invalidVars.length > 1 ? "s" : ""} desconocida
+                  {invalidVars.length > 1 ? "s" : ""}: van a quedar vacías al
+                  enviar.
+                </p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {usedVars.map((v) => {
-                const ok = SUPPORTED_VAR_KEYS.has(v) || varMap[v];
-                return (
-                  <code
-                    key={v}
-                    className={`rounded px-1.5 py-0.5 font-mono text-xs ${
-                      ok
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-                        : "bg-red-50 text-red-700 ring-1 ring-red-300 dark:bg-red-950/30 dark:text-red-400"
-                    }`}
-                    title={ok ? "Reconocida" : "Variable desconocida"}
-                  >
-                    {`{{${v}}}`}
-                  </code>
-                );
-              })}
-            </div>
-            {invalidVars.length > 0 && (
-              <p className="text-xs text-red-600 dark:text-red-400">
-                {invalidVars.length} variable{invalidVars.length > 1 ? "s" : ""}{" "}
-                desconocida{invalidVars.length > 1 ? "s" : ""}: van a quedar
-                vacías al enviar.
-              </p>
-            )}
+          )}
+
+          <div className="space-y-2">
+            <SubmitButton pendingLabel="Guardando…">
+              Guardar plantilla
+            </SubmitButton>
+            <FormStatus ok={statusOk} error={statusError} />
           </div>
-        )}
-
-        <div className="space-y-2">
-          <SubmitButton pendingLabel="Guardando…">Guardar plantilla</SubmitButton>
-          <FormStatus ok={statusOk} error={statusError} />
         </div>
+
+        {/* ── Preview ────────────────────────────────────────────────────── */}
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+              Preview {isEmail ? (isHtml ? "· HTML" : "· texto") : ""}
+            </h2>
+            <span className="font-mono text-[10px] text-zinc-400">
+              destinatario: {sampleContactLabel}
+            </span>
+          </div>
+
+          {isEmail && (
+            <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+              <div className="space-y-1 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/40">
+                <div>
+                  <span className="text-zinc-500">De: </span>
+                  Equipo · {varMap.org}
+                </div>
+                <div>
+                  <span className="text-zinc-500">Asunto: </span>
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {previewAsunto || "(sin asunto)"}
+                  </span>
+                </div>
+              </div>
+              <iframe
+                title="Preview del email"
+                srcDoc={emailPreviewDoc}
+                sandbox=""
+                className="h-[460px] w-full bg-white"
+              />
+            </div>
+          )}
+
+          {!isEmail && (
+            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <div className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
+                Mensaje
+              </div>
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+                {previewCuerpo}
+              </pre>
+            </div>
+          )}
+
+          <p className="text-xs text-zinc-500">
+            El preview usa un contacto del padrón. Las variables desconocidas se
+            renderizan como vacío. Tipeá <code>{`{{`}</code> para autocompletar
+            en el cuerpo de texto.
+          </p>
+        </div>
+      </form>
+
+      {/* ── Envío de prueba ─────────────────────────────────────────────── */}
+      {isEmail && testAction && (
+        <TestSendBox
+          testAction={testAction}
+          channel={channel}
+          asunto={asunto}
+          cuerpo={cuerpo}
+          formato={formato}
+          cuerpoHtml={cuerpoHtml}
+          defaultTestEmail={defaultTestEmail}
+        />
+      )}
+    </div>
+  );
+}
+
+// Caja de envío de prueba. Form separado (no anidado) con los valores actuales
+// del editor en hidden inputs + un override opcional de destinatario.
+function TestSendBox({
+  testAction,
+  channel,
+  asunto,
+  cuerpo,
+  formato,
+  cuerpoHtml,
+  defaultTestEmail,
+}: {
+  testAction: TestAction;
+  channel: string;
+  asunto: string;
+  cuerpo: string;
+  formato: "texto" | "html";
+  cuerpoHtml: string;
+  defaultTestEmail?: string;
+}) {
+  const [state, formAction, pending] = useActionState(testAction, {
+    ok: null,
+    msg: "",
+  } as PruebaState);
+
+  return (
+    <form
+      action={formAction}
+      className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/30"
+    >
+      <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+        Enviar prueba
+      </h3>
+      <p className="mt-1 text-xs text-zinc-500">
+        Mandate este email a tu casilla, renderizado igual que el envío real,
+        para ver el diseño antes de lanzar la campaña.
+      </p>
+      <input type="hidden" name="channel" value={channel} />
+      <input type="hidden" name="asunto" value={asunto} />
+      <input type="hidden" name="cuerpo" value={cuerpo} />
+      <input type="hidden" name="formato" value={formato} />
+      <input type="hidden" name="cuerpoHtml" value={cuerpoHtml} />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="email"
+          name="to"
+          defaultValue={defaultTestEmail ?? ""}
+          placeholder={defaultTestEmail || "tu@correo.com (default: tu sesión)"}
+          className={`${inputCls} min-w-[16rem] flex-1`}
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          {pending ? "Enviando…" : "Enviar prueba"}
+        </button>
       </div>
-
-      {/* ── Preview ────────────────────────────────────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-            Preview
-          </h2>
-          <span className="font-mono text-[10px] text-zinc-400">
-            destinatario: {sampleContactLabel}
-          </span>
-        </div>
-
-        {channel === "email" && (
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <div className="space-y-1 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/40">
-              <div>
-                <span className="text-zinc-500">De: </span>
-                Equipo · {varMap.org}
-              </div>
-              <div>
-                <span className="text-zinc-500">Asunto: </span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {previewAsunto || "(sin asunto)"}
-                </span>
-              </div>
-            </div>
-            <pre className="whitespace-pre-wrap p-4 font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-              {previewCuerpo}
-            </pre>
-          </div>
-        )}
-
-        {channel !== "email" && (
-          <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-            <div className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
-              Mensaje
-            </div>
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-              {previewCuerpo}
-            </pre>
-          </div>
-        )}
-
-        <p className="text-xs text-zinc-500">
-          El preview usa un contacto random del padrón. Las variables
-          desconocidas se renderizan como vacío. Tipeá <code>{`{{`}</code>{" "}
-          para autocompletar.
+      {state.ok !== null && (
+        <p
+          className={`mt-2 text-xs ${
+            state.ok
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          {state.msg}
         </p>
-      </div>
+      )}
     </form>
   );
 }
