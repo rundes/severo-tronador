@@ -36,27 +36,37 @@ export async function loadRawRelationships(
   if (!dbConfigured() || dnis.length === 0) return map;
 
   const db = getSupabase();
-  const [enviosRes, respRes, optoutsRes] = await Promise.all([
-    db
-      .from("envios")
-      .select("campaign_id, dni, token, created_at, estado")
-      .eq("project_id", projectId)
-      .in("dni", dnis),
-    db
-      .from("respuestas")
-      .select("token, dni, created_at")
-      .eq("project_id", projectId)
-      .in("dni", dnis),
-    db
-      .from("opt_outs")
-      .select("dni, at, reason")
-      .eq("project_id", projectId)
-      .in("dni", dnis),
-  ]);
+  // Filtramos por proyecto (NO por la lista de DNIs): con padrones grandes,
+  // un .in() con miles de DNIs revienta el largo de URL (414). La actividad
+  // (envios/respuestas/opt_outs) es mucho menor que el padrón. Paginamos
+  // porque PostgREST corta en 1000 filas por request.
+  const PAGE = 1000;
+  async function fetchAll<T>(
+    table: string,
+    cols: string,
+    order: string,
+  ): Promise<T[]> {
+    const out: T[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await db
+        .from(table)
+        .select(cols)
+        .eq("project_id", projectId)
+        .order(order, { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = (data ?? []) as T[];
+      out.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    return out;
+  }
 
-  const envios = (enviosRes.data ?? []) as EnvioRow[];
-  const respuestas = (respRes.data ?? []) as RespRow[];
-  const optouts = (optoutsRes.data ?? []) as OptOutRow[];
+  const [envios, respuestas, optouts] = await Promise.all([
+    fetchAll<EnvioRow>("envios", "campaign_id, dni, token, created_at, estado", "created_at"),
+    fetchAll<RespRow>("respuestas", "token, dni, created_at", "created_at"),
+    fetchAll<OptOutRow>("opt_outs", "dni, at, reason", "dni"),
+  ]);
 
   const campIds = Array.from(new Set(envios.map((e) => e.campaign_id)));
   let channelById = new Map<string, Channel>();
