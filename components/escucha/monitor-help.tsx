@@ -58,17 +58,38 @@ const STEPS: { t: string; d: React.ReactNode }[] = [
   },
 ];
 
-export function MonitorHelp() {
+function formatUpdate(iso: string | null): string {
+  if (!iso) return "sin datos aún";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "sin datos aún";
+  return d.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function MonitorHelp({ lastUpdate = null }: { lastUpdate?: string | null }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
-      >
-        {open ? "Ocultar pasos" : "¿Cómo actualizo el monitoreo de X?"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+        >
+          {open ? "Ocultar pasos" : "¿Cómo actualizo el monitoreo de X?"}
+        </button>
+        <span className="text-xs text-zinc-500">
+          Última actualización de X:{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">
+            {formatUpdate(lastUpdate)}
+          </span>
+        </span>
+      </div>
       {open && (
         <ol className="mt-3 space-y-3 rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/40">
           {STEPS.map((s, i) => (
