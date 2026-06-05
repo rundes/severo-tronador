@@ -9,6 +9,7 @@ import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
 import { Feed } from "@/components/escucha/feed";
 import { MapPicker } from "@/components/escucha/map-picker";
+import { MonitorHelp } from "@/components/escucha/monitor-help";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 // Revalida cada 60s para el "tiempo real" sin sobrecargar las APIs externas.
@@ -184,6 +185,8 @@ export default async function EscuchaPage({
         </dl>
       </section>
 
+
+      <MonitorHelp />
 
       <form
         action={guardarEscucha}
