@@ -33,20 +33,47 @@ export async function importPadron(
   return rows.length;
 }
 
+const PAGE = 1000; // PostgREST devuelve máximo 1000 filas por request.
+
 export async function readPadronFromDb(
   projectId: string,
   limit?: number,
 ): Promise<Contact[]> {
   if (!dbConfigured()) return [];
-  let q = getSupabase().from("padron").select("*").eq("project_id", projectId);
-  if (limit) q = q.limit(limit);
-  const { data, error } = await q;
-  if (error) {
-    // Mensaje user-friendly; el boundary muestra esto. El detail técnico ya
-    // está en el message original (`error.message`), no leakea info sensible.
-    throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+  const sb = getSupabase();
+
+  if (limit && limit <= PAGE) {
+    const { data, error } = await sb
+      .from("padron")
+      .select("*")
+      .eq("project_id", projectId)
+      .limit(limit);
+    if (error) {
+      throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+    }
+    return (data ?? []) as Contact[];
   }
-  return (data ?? []) as Contact[];
+
+  // Sin límite (o > PAGE): paginar con range() para traer TODO el padrón.
+  // Sin esto PostgREST corta en 1000 y los segmentos calcularían sobre una
+  // muestra parcial. order(dni) da paginación estable.
+  const out: Contact[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const to = limit ? Math.min(from + PAGE, limit) - 1 : from + PAGE - 1;
+    const { data, error } = await sb
+      .from("padron")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("dni", { ascending: true })
+      .range(from, to);
+    if (error) {
+      throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+    }
+    const batch = (data ?? []) as Contact[];
+    out.push(...batch);
+    if (batch.length < PAGE || (limit && out.length >= limit)) break;
+  }
+  return out;
 }
 
 export async function padronCount(projectId: string): Promise<number> {

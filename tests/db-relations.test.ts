@@ -12,11 +12,14 @@ interface Builder {
   select: () => Builder;
   eq: (col: string, val: unknown) => Builder;
   in: (col: string, vals: unknown[]) => Builder;
+  order: (col: string, opts?: unknown) => Builder;
+  range: (from: number, to: number) => Builder;
   then: (resolve: (v: unknown) => unknown) => unknown;
 }
 
 function makeBuilder(name: string): Builder {
   let inFilter: { col: string; vals: unknown[] } | null = null;
+  let ranged = false;
   const builder: Builder = {
     select: () => builder,
     // project_id scoping: no-op en el mock (el aislamiento por proyecto se
@@ -26,7 +29,14 @@ function makeBuilder(name: string): Builder {
       inFilter = { col, vals };
       return builder;
     },
+    order: () => builder,
+    range(from) {
+      // Solo la primera página trae datos; las siguientes vacías (corta el loop).
+      ranged = from > 0;
+      return builder;
+    },
     then(resolve) {
+      if (ranged) return resolve({ data: [], error: null });
       const all = tables[name] ?? [];
       const matched = inFilter
         ? all.filter((r) => inFilter!.vals.includes(r[inFilter!.col]))
