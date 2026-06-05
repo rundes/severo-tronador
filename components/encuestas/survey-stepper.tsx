@@ -87,8 +87,9 @@ export function SurveyStepper({
 
       {error && <p className="mt-4 text-sm text-[oklch(55%_0.18_25)]">{error}</p>}
 
-      {/* Navegación sticky */}
-      <div className="sticky bottom-0 -mx-5 mt-7 flex items-center gap-2.5 border-t border-[oklch(92%_0.01_95)] bg-[oklch(99.5%_0.004_95)]/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      {/* Navegación. Sin backdrop-blur: en iOS Safari un sticky con
+          backdrop-filter intercepta/rompe los taps de los hijos (botón). */}
+      <div className="mt-7 flex items-center gap-2.5 border-t border-[oklch(92%_0.01_95)] pt-4">
         {step > 0 && (
           <button
             type="button"

@@ -181,9 +181,10 @@ function aggregateQuestion(
     return { questionId: q.id, label: q.label, type: "scale", min, max, average, distribution, total };
   }
 
-  // single | multi | boolean → conteo por opción.
+  // single | multi | boolean → conteo por opción. Opciones trimeadas para
+  // matchear los valores guardados (que parseAnswers trimea).
   const options =
-    q.type === "boolean" ? ["Sí", "No"] : (q.options ?? []);
+    q.type === "boolean" ? ["Sí", "No"] : (q.options ?? []).map((o) => o.trim());
   const tally = new Map<string, number>(options.map((o) => [o, 0]));
   let total = 0;
   for (const r of responses) {
@@ -193,8 +194,8 @@ function aggregateQuestion(
       q.type === "boolean"
         ? [v === true || v === "Sí" || v === "true" ? "Sí" : "No"]
         : Array.isArray(v)
-          ? v.map(String)
-          : [String(v)];
+          ? v.map((x) => String(x).trim())
+          : [String(v).trim()];
     let counted = false;
     for (const p of picked) {
       if (tally.has(p)) {
