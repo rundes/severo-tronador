@@ -1,23 +1,21 @@
 """
-Worker twikit: trae los últimos tweets de cada handle (incluso cuentas chicas
-que la sindicación gratis NO sirve) y los escribe en listening_items de Supabase.
-La app ya lee de ese cache, así que NO requiere cambios en el código de la app.
+Worker de timelines de X → Supabase listening_items (la app lee de ese cache).
 
-Estrategia (lento pero funciona):
-  - Login UNA vez con una cuenta quemable; cookies persistidas (cookies.json),
-    se reusan en cada corrida (no re-loguea).
-  - Recorre los handles de a uno, con DELAY entre cada uno (default 45s).
-  - Ante rate-limit (429 / TooManyRequests) duerme largo y retoma.
-  - Upsert por url a listening_items (source='x-api'), idempotente.
+Usa twscrape (más mantenida que twikit) en modo COOKIES: en vez de login con
+usuario/pass (que X rompe con anti-bot), se cargan las cookies auth_token + ct0
+de una sesión ya logueada en el navegador. Persiste la cuenta en accounts.db.
 
-⚠️ Usar twikit/scraping con cuenta logueada viola los ToS de X y la cuenta
-puede ser suspendida. Usá una cuenta quemable. Esto NO corre en Vercel: va en
-un VPS chico / Fly / Railway / tu PC con cron.
+Estrategia lenta: recorre handles de a uno con delay; ante rate-limit twscrape
+espera; upsert idempotente por url.
 
-Uso:
-    pip install -r requirements.txt
-    cp .env.example .env   # completar credenciales
-    python worker.py
+⚠️ Scraping con cuenta logueada viola los ToS de X; la cuenta puede ser
+suspendida. No corre en Vercel (va en tu PC / VPS).
+
+Env (.env):
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PROJECT_ID
+  X_USERNAME, X_EMAIL, X_PASSWORD        (metadata de la cuenta)
+  X_AUTH_TOKEN, X_CT0                    (cookies de la sesión del navegador)
+  TWEETS_PER_HANDLE, DELAY_SECONDS
 """
 import asyncio
 import json
@@ -25,20 +23,27 @@ import os
 import sys
 
 import httpx
-from twikit import Client
-from twikit.errors import TooManyRequests
+from twscrape import API, gather
 
-SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
-SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-PROJECT_ID = os.environ.get("PROJECT_ID", "00000000-0000-0000-0000-000000000001")
-TWEETS_PER_HANDLE = int(os.environ.get("TWEETS_PER_HANDLE", "5"))
-DELAY_SECONDS = float(os.environ.get("DELAY_SECONDS", "45"))
-RATELIMIT_SLEEP = float(os.environ.get("RATELIMIT_SLEEP", "900"))  # 15 min
-COOKIES_FILE = os.environ.get("COOKIES_FILE", "cookies.json")
 
-X_USERNAME = os.environ.get("X_USERNAME", "")
-X_EMAIL = os.environ.get("X_EMAIL", "")
-X_PASSWORD = os.environ.get("X_PASSWORD", "")
+def load_env(path: str = ".env") -> dict:
+    kv = {}
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                kv[k.strip()] = v.strip()
+    kv.update({k: os.environ[k] for k in os.environ if k in kv or k.startswith("X_") or k.startswith("SUPABASE") or k in ("PROJECT_ID", "TWEETS_PER_HANDLE", "DELAY_SECONDS")})
+    return kv
+
+
+ENV = load_env()
+SUPABASE_URL = ENV["SUPABASE_URL"].rstrip("/")
+SERVICE_KEY = ENV["SUPABASE_SERVICE_ROLE_KEY"]
+PROJECT_ID = ENV.get("PROJECT_ID", "00000000-0000-0000-0000-000000000001")
+TWEETS_PER_HANDLE = int(ENV.get("TWEETS_PER_HANDLE", "5"))
+DELAY_SECONDS = float(ENV.get("DELAY_SECONDS", "45"))
 
 
 def rest(method: str, path: str, **kw) -> httpx.Response:
@@ -48,9 +53,7 @@ def rest(method: str, path: str, **kw) -> httpx.Response:
         "content-type": "application/json",
     }
     headers.update(kw.pop("headers", {}))
-    return httpx.request(
-        method, f"{SUPABASE_URL}/rest/v1/{path}", headers=headers, timeout=30, **kw
-    )
+    return httpx.request(method, f"{SUPABASE_URL}/rest/v1/{path}", headers=headers, timeout=30, **kw)
 
 
 def normalize_handle(raw: str) -> str:
@@ -59,27 +62,20 @@ def normalize_handle(raw: str) -> str:
         if s.lower().startswith(pre):
             s = s[len(pre):]
             break
-    s = s.split("/")[0].split("?")[0]
-    return s.lstrip("@").strip().lower()
+    return s.split("/")[0].split("?")[0].lstrip("@").strip().lower()
 
 
 def load_handles() -> list[str]:
-    """x_handles de listening_config + x_handle del padrón (dedupe)."""
     handles: set[str] = set()
     r = rest("GET", f"listening_config?project_id=eq.{PROJECT_ID}&select=x_handles")
     if r.status_code == 200 and r.json():
         for h in (r.json()[0].get("x_handles") or []):
-            n = normalize_handle(h)
-            if n:
+            if (n := normalize_handle(h)):
                 handles.add(n)
-    r = rest(
-        "GET",
-        f"padron?project_id=eq.{PROJECT_ID}&x_handle=not.is.null&select=x_handle&limit=2000",
-    )
+    r = rest("GET", f"padron?project_id=eq.{PROJECT_ID}&x_handle=not.is.null&select=x_handle&limit=2000")
     if r.status_code == 200:
         for row in r.json():
-            n = normalize_handle(row.get("x_handle") or "")
-            if n:
+            if (n := normalize_handle(row.get("x_handle") or "")):
                 handles.add(n)
     return sorted(handles)
 
@@ -89,7 +85,7 @@ def upsert_items(rows: list[dict]) -> None:
         return
     r = rest(
         "POST",
-        "listening_items?on_conflict=url",
+        "listening_items?on_conflict=project_id,url",
         headers={"prefer": "resolution=merge-duplicates,return=minimal"},
         content=json.dumps(rows),
     )
@@ -97,50 +93,56 @@ def upsert_items(rows: list[dict]) -> None:
         print(f"  upsert error {r.status_code}: {r.text[:200]}", file=sys.stderr)
 
 
-async def main() -> None:
-    client = Client("en-US")
-    if os.path.exists(COOKIES_FILE):
-        client.load_cookies(COOKIES_FILE)
-        print(f"cookies cargadas de {COOKIES_FILE}")
-    else:
-        if not (X_USERNAME and X_PASSWORD):
-            sys.exit("Falta X_USERNAME/X_PASSWORD para el primer login.")
-        await client.login(
-            auth_info_1=X_USERNAME, auth_info_2=X_EMAIL, password=X_PASSWORD
+async def ensure_account(api: API) -> None:
+    auth_token = ENV.get("X_AUTH_TOKEN", "")
+    ct0 = ENV.get("X_CT0", "")
+    if not (auth_token and ct0):
+        sys.exit("Faltan X_AUTH_TOKEN y X_CT0 (cookies del navegador). Ver README.")
+    cookies = f"auth_token={auth_token}; ct0={ct0}"
+    try:
+        await api.pool.add_account(
+            ENV["X_USERNAME"], ENV.get("X_PASSWORD", "x"),
+            ENV.get("X_EMAIL", ""), ENV.get("X_EMAIL_PASSWORD", ""),
+            cookies=cookies,
         )
-        client.save_cookies(COOKIES_FILE)
-        print(f"login ok, cookies guardadas en {COOKIES_FILE}")
+        print("cuenta agregada al pool")
+    except Exception as e:
+        print(f"cuenta ya existente o re-set ({e})")
+    await api.pool.login_all()  # con cookies marca la cuenta activa
+
+
+async def main() -> None:
+    api = API()  # accounts.db en el cwd
+    await ensure_account(api)
 
     handles = load_handles()
-    print(f"{len(handles)} handles a procesar (delay {DELAY_SECONDS}s)")
+    print(f"{len(handles)} handles a procesar (delay {DELAY_SECONDS}s, {TWEETS_PER_HANDLE}/handle)")
 
     ok = 0
     for i, handle in enumerate(handles, 1):
         try:
-            user = await client.get_user_by_screen_name(handle)
-            tweets = await user.get_tweets("Tweets", count=TWEETS_PER_HANDLE)
-            rows = []
-            for t in tweets:
-                rows.append(
+            user = await api.user_by_login(handle)
+            if not user:
+                print(f"[{i}/{len(handles)}] @{handle}: no existe", file=sys.stderr)
+            else:
+                tweets = await gather(api.user_tweets(user.id, limit=TWEETS_PER_HANDLE))
+                rows = [
                     {
                         "project_id": PROJECT_ID,
                         "connector_id": "x-api",
                         "source": "x-api",
-                        "text": t.text,
-                        "url": f"https://x.com/{handle}/status/{t.id}",
-                        "published_at": str(t.created_at) if t.created_at else None,
+                        "text": t.rawContent,
+                        "url": t.url,
+                        "published_at": t.date.isoformat() if t.date else None,
                         "author": handle,
                     }
-                )
-            upsert_items(rows)
-            ok += 1
-            print(f"[{i}/{len(handles)}] @{handle}: {len(rows)} tweets")
-        except TooManyRequests:
-            print(f"[{i}/{len(handles)}] rate limit; durmiendo {RATELIMIT_SLEEP}s")
-            await asyncio.sleep(RATELIMIT_SLEEP)
-            continue  # reintenta el mismo handle en la próxima corrida
-        except Exception as e:  # cuenta inexistente/privada/suspendida → seguir
-            print(f"[{i}/{len(handles)}] @{handle}: skip ({e})", file=sys.stderr)
+                    for t in tweets
+                ]
+                upsert_items(rows)
+                ok += 1
+                print(f"[{i}/{len(handles)}] @{handle}: {len(rows)} tweets")
+        except Exception as e:
+            print(f"[{i}/{len(handles)}] @{handle}: skip ({type(e).__name__}: {e})", file=sys.stderr)
         await asyncio.sleep(DELAY_SECONDS)
 
     print(f"listo: {ok}/{len(handles)} handles con datos")
