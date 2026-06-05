@@ -168,7 +168,7 @@ META_WA_APP_SECRET=<App Secret de la Meta App>
 
 > Fuera de la ventana de 24h, WhatsApp exige plantilla aprobada. El envío real
 > actual usa `type=text` (válido en 24h); mapear plantillas aprobadas es el
-> siguiente paso (ver [STABILIZATION.md](./STABILIZATION.md)).
+> siguiente paso (ver [PLAN.md → Mejoras incrementales](../PLAN.md)).
 >
 > Sin `META_WA_APP_SECRET`, todo POST al webhook devuelve 403. Para tests
 > locales, setear cualquier string y firmar el body con `createHmac("sha256",

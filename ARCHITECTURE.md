@@ -21,8 +21,8 @@
 >   quedó como modo opcional, no es el primario). Ver
 >   `infra/cloudflare-email-worker/`.
 > - **Registry** de conectores: es un **array** `connectors: Connector[]` en
->   `lib/connectors/registry.ts` (no el objeto de imports lazy del §2.3). **No
->   existe** un conector `bland-ai` (nunca se implementó).
+>   `lib/connectors/registry.ts`. **No existe** un conector `bland-ai` (nunca se
+>   implementó).
 > - **Creds** de conectores: encriptadas en Supabase (`conector_config`,
 >   `lib/crypto.ts` AES-GCM), nunca van a Sheets.
 > - Stack real: **Next.js 16**, React 19, NextAuth v5, Tailwind 4.
@@ -163,30 +163,40 @@ export interface AnalysisConnector extends Connector {
 
 ```ts
 // lib/connectors/registry.ts
-export const connectorRegistry = {
-  // outreach
-  'resend': () => import('./resend'),
-  'meta-wa-cloud': () => import('./meta-wa-cloud'),
-  'telnyx-sms': () => import('./telnyx-sms'),
-  'telnyx-voice': () => import('./telnyx-voice'),   // IVR de menú simple
-  'bland-ai': () => import('./bland-ai'),           // encuesta telefónica conversacional IA
-  'telegram-bot': () => import('./telegram-bot'),
+import { googleSheetsConnector } from "./google-sheets";
+import { googleSheetsArchiveConnector } from "./google-sheets-archive";
+import { googleOAuthConnector } from "./google-oauth";
+import { resendConnector } from "./resend";
+import { metaWaCloudConnector } from "./meta-wa-cloud";
+import { telnyxSmsConnector } from "./telnyx-sms";
+import { telnyxVoiceConnector } from "./telnyx-voice";   // IVR de menú simple
+import { telegramBotConnector } from "./telegram-bot";
+import { claudeApiConnector } from "./claude-api";
+import { gdeltConnector } from "./gdelt";
+import { xApiConnector } from "./x-api";
+import { redditApiConnector } from "./reddit-api";
+import { metaContentLibraryConnector } from "./meta-content-library";
+import { rssConnector } from "./rss";
 
-  // listening
-  'gdelt': () => import('./gdelt'),
-  'x-api': () => import('./x-api'),
-  'reddit-api': () => import('./reddit-api'),
-
-  // analysis
-  'claude-api': () => import('./claude-api'),
-
-  // data + auth
-  'google-sheets': () => import('./google-sheets'),
-  'google-oauth': () => import('./google-oauth'),
-} as const;
+export const connectors: Connector[] = [
+  googleSheetsConnector,
+  googleSheetsArchiveConnector,
+  googleOAuthConnector,
+  resendConnector,
+  metaWaCloudConnector,
+  telnyxSmsConnector,
+  telnyxVoiceConnector,
+  telegramBotConnector,
+  claudeApiConnector,
+  gdeltConnector,
+  xApiConnector,
+  redditApiConnector,
+  metaContentLibraryConnector,
+  rssConnector,
+];
 ```
 
-Agregar Brandwatch, Atribus, Brand24 o Listmonk en el futuro = un archivo nuevo + una línea acá. Cero cambios en UI o lógica de negocio.
+Agregar Brandwatch, Atribus, Brand24 o Listmonk en el futuro = un archivo nuevo + un import + una línea en el array. Cero cambios en UI o lógica de negocio. (La voz conversacional con IA — Bland AI / Vapi — figura en el catálogo de [PROVIDERS.md](./PROVIDERS.md) como opción futura, **no implementada**: la voz hoy es Telnyx IVR.)
 
 ---
 
@@ -647,15 +657,15 @@ F1 ya construye **la infraestructura de conectores** aunque solo tenga uno vivo 
 
 | Capa | Elección | Por qué |
 |---|---|---|
-| Framework | Next.js 15 + App Router | Server-side seguro para credenciales, deploy simple Vercel |
+| Framework | Next.js 16 + App Router (Turbopack) | Server-side seguro para credenciales, deploy simple Vercel |
 | Lenguaje | TypeScript estricto | El modelo de conectores depende de tipos firmes |
-| UI | Tailwind + shadcn/ui (subset) | Minimalismo, componentes accesibles, fácil de personalizar |
-| Auth | NextAuth + Google OAuth + allowlist | Como las otras apps de Severo |
-| Persistencia | Google Sheets API (service account) | Decisión ya tomada, encaja con el catálogo de conectores (Sheets = un conector más) |
-| Queue | Vercel Cron + tabla `pendientes_envio` en Sheets | Sin infra extra; suficiente hasta 10k envíos/día |
-| Encriptación de creds | `@better-auth/secrets` o equivalente, master key en env | Las API keys de conectores nunca van plain a Sheets |
-| Logs | Sheets `logs` + Vercel logs nativos | Auditoría humana-legible + debug técnico |
-| Tests | Vitest + MSW para mocks de APIs | Los conectores deben ser testeables sin tocar el provider real |
+| UI | Tailwind v4 + componentes propios | Minimalismo, componentes accesibles, fácil de personalizar |
+| Auth | NextAuth v5 + Google OAuth + allowlist | Como las otras apps de Severo |
+| Persistencia | Supabase (Postgres), service-role server-side | Fuente de verdad operativa; Google Sheets queda como espejo de preservación (`lib/db/mirror.ts`) |
+| Queue | Vercel Cron + GitHub Actions + tabla `envio_queue` en Supabase | Sin infra extra; suficiente hasta 10k envíos/día |
+| Encriptación de creds | AES-GCM (`lib/crypto.ts`), master key `CONFIG_MASTER_KEY` en env | Las API keys de conectores se guardan encriptadas en Supabase, nunca plain |
+| Logs | Audit log en Supabase (`lib/audit.ts`) + Vercel logs nativos | Auditoría humana-legible + debug técnico |
+| Tests | Vitest | Los conectores deben ser testeables sin tocar el provider real |
 
 ---
 
@@ -687,16 +697,21 @@ Para mantener el foco, dejamos fuera:
 
 ---
 
-## 13. Próximo paso concreto
+## 13. Origen del scaffold (histórico)
 
-**F1 — scaffold inicial.** Cuando me des el OK arranco con:
+> **Nota:** esta sección documenta cómo arrancó F1. Ya está **entregado** y en
+> producción; se conserva como registro de las decisiones iniciales. El roadmap
+> completo (F1–F8, todas shipped) vive en [PLAN.md](./PLAN.md).
 
-1. `npx create-next-app severo-tronador` (en la raíz del repo actual)
-2. Setup de Tailwind + shadcn/ui (instalando solo los componentes minimalistas que usamos)
-3. NextAuth + Google OAuth con allowlist por email
-4. Estructura `lib/connectors/` con el tipo `Connector` y el registry vacío
+**F1 — scaffold inicial.** Constó de:
+
+1. `create-next-app` en la raíz del repo (hoy Next.js 16 + Turbopack)
+2. Setup de Tailwind v4 + componentes minimalistas propios
+3. NextAuth v5 + Google OAuth con allowlist por email
+4. Estructura `lib/connectors/` con el tipo `Connector` y el registry
 5. Primer conector: Google Sheets — implementado completo
-6. Pantalla `/conectores` con un solo conector visible (Sheets) y el botón "+ Agregar conector" deshabilitado por ahora
-7. Conexión a un Sheet placeholder de prueba con 100 filas mock
+6. Pantalla `/conectores` con los conectores agrupados por categoría
+7. Lectura del padrón (mock de 100 filas sin credenciales; Sheet real vía config)
 
-Sin credenciales reales todavía: todo corre local con un Sheet de prueba propio. Cuando me pases el del padrón real, swap de 1 línea en el config.
+El patrón mock-capable de F1 sigue vigente: sin credenciales, cada conector
+simula su función para poder probar el flujo completo en dev local.

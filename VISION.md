@@ -145,7 +145,6 @@ Definir el sentido es también definir los límites:
 - **No es un CRM de ventas.** No hay pipeline, ni deals, ni tareas comerciales. Es investigación, no comercial.
 - **No es una herramienta de campaña electoral.** Ver pilar 6.
 - **No es un blaster de spam.** El sistema empuja activamente en contra del envío masivo indiscriminado.
-- **No es multi-tenant.** Una instalación = un proyecto = un padrón. Otro municipio, otra instalación.
 - **No reemplaza el listening enterprise** (Zencity/Brandwatch). Lo **complementa**: el listening descubre temas, Severo Tronador mide prevalencia preguntando directo a una muestra del padrón.
 
 ---
