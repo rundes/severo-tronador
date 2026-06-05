@@ -6,17 +6,26 @@ import type { Question } from "@/lib/encuestas/types";
 
 export function SurveyRender({
   layout,
+  stepMode = "one",
   questions,
   action,
   hidden,
 }: {
   layout: string;
+  stepMode?: string;
   questions: Question[];
   action: (formData: FormData) => void;
   hidden: Record<string, string>;
 }) {
   if (layout === "stepper") {
-    return <SurveyStepper questions={questions} action={action} hidden={hidden} />;
+    return (
+      <SurveyStepper
+        questions={questions}
+        stepMode={stepMode}
+        action={action}
+        hidden={hidden}
+      />
+    );
   }
   return <SurveyForm questions={questions} action={action} hidden={hidden} />;
 }

@@ -8,6 +8,8 @@ import {
   type EncuestaEstado,
   type Question,
   validateQuestions,
+  safeHttpUrl,
+  normalizeStepMode,
 } from "@/lib/encuestas/types";
 import { normalizeLayout } from "@/lib/encuestas/layouts";
 
@@ -19,6 +21,11 @@ interface EncuestaRow {
   slug: string | null;
   estado: EncuestaEstado;
   layout: string | null;
+  step_mode: string | null;
+  image_url: string | null;
+  mensaje_final: string | null;
+  cta_label: string | null;
+  cta_url: string | null;
   preguntas: Question[];
   published_at: string | null;
   created_at: string;
@@ -36,6 +43,11 @@ function rowToEncuesta(r: EncuestaRow): Encuesta {
     slug: r.slug,
     estado: r.estado,
     layout: normalizeLayout(r.layout),
+    stepMode: normalizeStepMode(r.step_mode),
+    imageUrl: r.image_url,
+    mensajeFinal: r.mensaje_final,
+    ctaLabel: r.cta_label,
+    ctaUrl: r.cta_url,
     preguntas: Array.isArray(r.preguntas) ? r.preguntas : [],
     publishedAt: r.published_at,
     createdAt: r.created_at,
@@ -115,6 +127,11 @@ export async function createEncuesta(
     slug: null,
     estado: "borrador",
     layout: normalizeLayout(input.layout),
+    step_mode: "one",
+    image_url: null,
+    mensaje_final: null,
+    cta_label: null,
+    cta_url: null,
     preguntas: [],
     published_at: null,
     created_at: now,
@@ -141,6 +158,11 @@ export async function updateEncuesta(
     descripcion?: string | null;
     preguntas?: Question[];
     layout?: string;
+    stepMode?: string;
+    imageUrl?: string | null;
+    mensajeFinal?: string | null;
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
   },
 ): Promise<Encuesta | null> {
   if (patch.preguntas) {
@@ -153,6 +175,14 @@ export async function updateEncuesta(
     upd.descripcion = patch.descripcion?.trim() || null;
   if (patch.preguntas !== undefined) upd.preguntas = patch.preguntas;
   if (patch.layout !== undefined) upd.layout = normalizeLayout(patch.layout);
+  if (patch.stepMode !== undefined) upd.step_mode = normalizeStepMode(patch.stepMode);
+  if (patch.imageUrl !== undefined)
+    upd.image_url = safeHttpUrl(patch.imageUrl);
+  if (patch.mensajeFinal !== undefined)
+    upd.mensaje_final = patch.mensajeFinal?.trim() || null;
+  if (patch.ctaLabel !== undefined)
+    upd.cta_label = patch.ctaLabel?.trim() || null;
+  if (patch.ctaUrl !== undefined) upd.cta_url = safeHttpUrl(patch.ctaUrl);
 
   if (!dbConfigured()) {
     const r = mem.find((x) => x.id === id && x.project_id === projectId);

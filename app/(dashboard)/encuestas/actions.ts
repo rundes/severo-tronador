@@ -48,6 +48,11 @@ export async function guardarPreguntas(formData: FormData) {
   const titulo = String(formData.get("titulo") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const layout = String(formData.get("layout") ?? "minimal");
+  const stepMode = String(formData.get("step_mode") ?? "one");
+  const imageUrl = String(formData.get("image_url") ?? "").trim();
+  const mensajeFinal = String(formData.get("mensaje_final") ?? "").trim();
+  const ctaLabel = String(formData.get("cta_label") ?? "").trim();
+  const ctaUrl = String(formData.get("cta_url") ?? "").trim();
   let preguntas: Question[];
   try {
     preguntas = JSON.parse(String(formData.get("preguntas") ?? "[]")) as Question[];
@@ -62,6 +67,11 @@ export async function guardarPreguntas(formData: FormData) {
       descripcion,
       preguntas,
       layout,
+      stepMode,
+      imageUrl,
+      mensajeFinal,
+      ctaLabel,
+      ctaUrl,
     });
   } catch (err) {
     redirect(

@@ -86,6 +86,11 @@ export function QuestionEditor({
   titulo,
   descripcion,
   layout,
+  stepMode,
+  imageUrl,
+  mensajeFinal,
+  ctaLabel,
+  ctaUrl,
   initial,
   readOnly,
   action,
@@ -94,12 +99,18 @@ export function QuestionEditor({
   titulo: string;
   descripcion: string;
   layout: string;
+  stepMode: string;
+  imageUrl: string;
+  mensajeFinal: string;
+  ctaLabel: string;
+  ctaUrl: string;
   initial: Question[];
   readOnly: boolean;
   action: (formData: FormData) => void;
 }) {
   const [questions, setQuestions] = useState<Question[]>(initial);
   const [layoutId, setLayoutId] = useState(layout);
+  const [stepModeId, setStepModeId] = useState(stepMode === "manual" ? "manual" : "one");
   const [showPreview, setShowPreview] = useState(false);
 
   function patch(id: string, p: Partial<Question>) {
@@ -124,6 +135,7 @@ export function QuestionEditor({
       <input type="hidden" name="id" value={encuestaId} />
       <input type="hidden" name="preguntas" value={JSON.stringify(questions)} />
       <input type="hidden" name="layout" value={layoutId} />
+      <input type="hidden" name="step_mode" value={stepModeId} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -139,6 +151,20 @@ export function QuestionEditor({
           <input name="descripcion" defaultValue={descripcion} disabled={readOnly} className={inputCls} />
         </label>
       </div>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Imagen de portada <span className="font-normal normal-case text-zinc-400">(URL, opcional)</span>
+        </span>
+        <input
+          name="image_url"
+          type="url"
+          defaultValue={imageUrl}
+          placeholder="https://…/imagen.jpg"
+          disabled={readOnly}
+          className={inputCls}
+        />
+      </label>
 
       <fieldset className="space-y-2">
         <legend className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
@@ -170,6 +196,30 @@ export function QuestionEditor({
             </label>
           ))}
         </div>
+
+        {layoutId === "stepper" && (
+          <div className="mt-2 flex flex-wrap gap-4 rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
+            <span className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+              Pasos
+            </span>
+            {[
+              { id: "one", label: "1 pregunta por paso" },
+              { id: "manual", label: "Agrupar manualmente" },
+            ].map((m) => (
+              <label key={m.id} className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="step_mode_pick"
+                  value={m.id}
+                  checked={stepModeId === m.id}
+                  onChange={() => setStepModeId(m.id)}
+                  disabled={readOnly}
+                />
+                {m.label}
+              </label>
+            ))}
+          </div>
+        )}
       </fieldset>
 
       <ol className="space-y-3">
@@ -221,6 +271,21 @@ export function QuestionEditor({
                     />
                     Obligatoria
                   </label>
+                  {layoutId === "stepper" && stepModeId === "manual" && (
+                    <label className="flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+                      Paso
+                      <input
+                        type="number"
+                        min={1}
+                        value={q.step ?? 1}
+                        onChange={(e) =>
+                          patch(q.id, { step: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                        disabled={readOnly}
+                        className="w-14 rounded border border-zinc-300 bg-white px-1.5 py-0.5 dark:border-zinc-700 dark:bg-zinc-900"
+                      />
+                    </label>
+                  )}
                 </div>
 
                 {(q.type === "single" || q.type === "multi") && (
@@ -271,6 +336,46 @@ export function QuestionEditor({
           </li>
         ))}
       </ol>
+
+      <fieldset className="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <legend className="px-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+          Cierre (al finalizar)
+        </legend>
+        <label className="block">
+          <span className="mb-1 block text-xs text-zinc-500">Mensaje final</span>
+          <textarea
+            name="mensaje_final"
+            defaultValue={mensajeFinal}
+            placeholder="¡Gracias por responder! Tu respuesta quedó registrada."
+            rows={2}
+            disabled={readOnly}
+            className={`${inputCls} resize-y`}
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">Texto del botón</span>
+            <input
+              name="cta_label"
+              defaultValue={ctaLabel}
+              placeholder="Visitá nuestro sitio"
+              disabled={readOnly}
+              className={inputCls}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">Link del botón (URL)</span>
+            <input
+              name="cta_url"
+              type="url"
+              defaultValue={ctaUrl}
+              placeholder="https://…"
+              disabled={readOnly}
+              className={inputCls}
+            />
+          </label>
+        </div>
+      </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
         {!readOnly && (

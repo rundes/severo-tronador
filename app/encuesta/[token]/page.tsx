@@ -2,6 +2,7 @@ import { responderEncuesta, optarBaja } from "./actions";
 import { getCampaign } from "@/lib/campaigns";
 import { hasResponded, resolveToken } from "@/lib/survey";
 import { getEncuesta } from "@/lib/encuestas";
+import { safeHttpUrl } from "@/lib/encuestas/types";
 import { hasRespondedToken } from "@/lib/encuestas/responses";
 import { SurveyRender } from "@/components/encuestas/survey-render";
 import { isOptedOut } from "@/lib/optout";
@@ -64,12 +65,27 @@ export default async function EncuestaPage({
     ? await hasRespondedToken(token)
     : await hasResponded(token);
   if (sp.gracias || yaRespondio) {
+    const encF = ref.encuestaId
+      ? await getEncuesta(ref.projectId, ref.encuestaId)
+      : null;
+    const cu = safeHttpUrl(encF?.ctaUrl);
     return (
       <Shell>
         <h1 className="text-lg font-semibold">¡Gracias por responder!</h1>
         <p className="mt-2 text-sm text-zinc-500">
-          Tu respuesta quedó registrada. Nos ayuda a entender mejor el barrio.
+          {encF?.mensajeFinal?.trim() ||
+            "Tu respuesta quedó registrada. Nos ayuda a entender mejor el barrio."}
         </p>
+        {encF?.ctaLabel && cu && (
+          <a
+            href={cu}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="mt-5 inline-block rounded-lg bg-zinc-900 px-5 py-3 text-base font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            {encF.ctaLabel}
+          </a>
+        )}
       </Shell>
     );
   }
@@ -100,14 +116,26 @@ export default async function EncuestaPage({
     }
     return (
       <Shell>
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          {enc.titulo}
-        </h1>
-        {enc.descripcion && (
-          <p className="mt-1 text-sm text-zinc-500">{enc.descripcion}</p>
-        )}
+        <header className="space-y-2">
+          {enc.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={enc.imageUrl}
+              alt=""
+              className="mb-1 max-h-48 w-full rounded-lg object-cover"
+            />
+          )}
+          <h1 className="text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
+            {enc.titulo}
+          </h1>
+          {enc.descripcion && (
+            <p className="text-sm text-zinc-500">{enc.descripcion}</p>
+          )}
+        </header>
+        <div className="mt-4 border-t border-zinc-200 pt-2 dark:border-zinc-800" />
         <SurveyRender
           layout={enc.layout}
+          stepMode={enc.stepMode}
           questions={enc.preguntas}
           action={responderEncuesta}
           hidden={{ token }}

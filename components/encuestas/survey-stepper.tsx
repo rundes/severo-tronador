@@ -2,18 +2,21 @@
 
 import { useRef, useState } from "react";
 import { QuestionField } from "@/components/encuestas/survey-form";
-import type { Question } from "@/lib/encuestas/types";
+import { buildSteps, type Question } from "@/lib/encuestas/types";
 
-// Diseño "paso a paso": una pregunta por pantalla + barra de progreso.
+// Diseño "paso a paso" con barra de progreso. Los pasos se arman según
+// stepMode: "one" = una pregunta por paso; "manual" = agrupadas por step.
 // Todas las preguntas se montan (ocultas) para que el submit final incluya
-// todas las respuestas; la validación de requeridas es manual (no usamos el
-// `required` nativo porque un control oculto rompe el submit del browser).
+// todas las respuestas; validación de requeridas manual (un control oculto con
+// `required` nativo rompe el submit del browser).
 export function SurveyStepper({
   questions,
+  stepMode,
   action,
   hidden,
 }: {
   questions: Question[];
+  stepMode: string;
   action: (formData: FormData) => void;
   hidden: Record<string, string>;
 }) {
@@ -21,7 +24,8 @@ export function SurveyStepper({
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const total = questions.length;
+  const steps = buildSteps(questions, stepMode);
+  const total = steps.length;
   const isLast = step >= total - 1;
   const pct = total ? Math.round(((step + 1) / total) * 100) : 0;
 
@@ -33,10 +37,13 @@ export function SurveyStepper({
     return vals.length > 0;
   }
 
+  function stepValid(): boolean {
+    return (steps[step] ?? []).every((q) => !q.required || answered(q));
+  }
+
   function next() {
-    const q = questions[step];
-    if (q?.required && !answered(q)) {
-      setError("Esta pregunta es obligatoria.");
+    if (!stepValid()) {
+      setError("Respondé las preguntas obligatorias de este paso.");
       return;
     }
     setError(null);
@@ -47,10 +54,9 @@ export function SurveyStepper({
     setStep((s) => Math.max(s - 1, 0));
   }
   function onSubmit(e: React.FormEvent) {
-    const q = questions[step];
-    if (q?.required && !answered(q)) {
+    if (!stepValid()) {
       e.preventDefault();
-      setError("Esta pregunta es obligatoria.");
+      setError("Respondé las preguntas obligatorias de este paso.");
     }
   }
 
@@ -63,7 +69,7 @@ export function SurveyStepper({
       {/* Progreso */}
       <div className="mb-5">
         <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
-          <span>Pregunta {Math.min(step + 1, total)} de {total}</span>
+          <span>Paso {Math.min(step + 1, total)} de {total}</span>
           <span>{pct}%</span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
@@ -74,19 +80,23 @@ export function SurveyStepper({
         </div>
       </div>
 
-      {/* Preguntas: todas montadas, solo la actual visible. Sin required nativo. */}
-      {questions.map((q, i) => (
-        <div key={q.id} hidden={i !== step} className="space-y-2">
-          <label className="block text-lg font-medium leading-snug text-zinc-900 dark:text-zinc-100">
-            {q.label}
-            {q.required && <span className="ml-0.5 text-red-500">*</span>}
-          </label>
-          {q.description && (
-            <p className="text-sm leading-snug text-zinc-500">{q.description}</p>
-          )}
-          <div className="pt-1">
-            <QuestionField q={{ ...q, required: false }} />
-          </div>
+      {/* Pasos: todos montados, solo el actual visible. Sin required nativo. */}
+      {steps.map((group, gi) => (
+        <div key={gi} hidden={gi !== step} className="space-y-6">
+          {group.map((q) => (
+            <div key={q.id} className="space-y-2">
+              <label className="block text-lg font-medium leading-snug text-zinc-900 dark:text-zinc-100">
+                {q.label}
+                {q.required && <span className="ml-0.5 text-red-500">*</span>}
+              </label>
+              {q.description && (
+                <p className="text-sm leading-snug text-zinc-500">{q.description}</p>
+              )}
+              <div className="pt-1">
+                <QuestionField q={{ ...q, required: false }} />
+              </div>
+            </div>
+          ))}
         </div>
       ))}
 

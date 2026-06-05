@@ -69,6 +69,11 @@ export default async function EncuestaDetailPage({
         titulo={enc.titulo}
         descripcion={enc.descripcion ?? ""}
         layout={enc.layout}
+        stepMode={enc.stepMode}
+        imageUrl={enc.imageUrl ?? ""}
+        mensajeFinal={enc.mensajeFinal ?? ""}
+        ctaLabel={enc.ctaLabel ?? ""}
+        ctaUrl={enc.ctaUrl ?? ""}
         initial={enc.preguntas}
         readOnly={isClosed}
         action={guardarPreguntas}
