@@ -19,6 +19,9 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "mailbox.provision": "Casilla provisionada",
   "mailbox.send": "Mail enviado",
   "mailbox.address.update": "Dirección de casilla cambiada",
+  "survey.create": "Encuesta creada",
+  "survey.publish": "Encuesta publicada",
+  "survey.send": "Encuesta enviada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -36,6 +39,9 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "mailbox.provision": "bg-teal-500",
   "mailbox.send": "bg-teal-500",
   "mailbox.address.update": "bg-teal-500",
+  "survey.create": "bg-indigo-500",
+  "survey.publish": "bg-indigo-500",
+  "survey.send": "bg-indigo-500",
 };
 
 function ago(iso: string): string {
