@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-12">
-      <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+    <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-4 py-8 sm:px-6 sm:py-12">
+      <div className="rounded-xl border border-zinc-200 p-5 sm:p-6 dark:border-zinc-800">
         {children}
       </div>
       <p className="mt-4 text-center text-xs text-zinc-400">
