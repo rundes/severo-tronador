@@ -49,8 +49,8 @@ function sourceStatuses(rssCount = 0): SourceStatus[] {
     {
       id: "x-api",
       label: "X",
-      real: xToken,
-      reason: xToken ? "token presente" : "sin token",
+      real: true,
+      reason: xToken ? "API paga" : "sindicación (gratis, timelines de handles)",
     },
     {
       id: "reddit-api",

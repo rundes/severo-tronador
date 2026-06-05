@@ -13,6 +13,7 @@ import type {
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { mockListenItems } from "@/lib/mock/listening";
 import { demoData } from "@/lib/connectors/demo";
+import { fetchXSyndication } from "./x-syndication";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
 import { getMappedXHandles } from "@/lib/padron-handles";
@@ -186,8 +187,23 @@ export const xApiConnector: ListeningConnector = {
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
     const cfg = await getConnectorConfig(ID);
     if (!cfg.X_API_BEARER_TOKEN) {
-      if (!demoData()) return [];
-      return mockListenItems("x-api").filter((i) => matches(i, query));
+      if (demoData()) {
+        return mockListenItems("x-api").filter((i) => matches(i, query));
+      }
+      // Sin token pago: vía GRATIS por sindicación sobre los handles mapeados
+      // (timelines públicos, ~20 por handle, sin búsqueda por keyword).
+      try {
+        const handles = await getMappedXHandles();
+        const items = await fetchXSyndication(handles);
+        log.debug("listening.x_syndication.fetch", {
+          count: items.length,
+          handles: handles.length,
+        });
+        return items.filter((i) => matches(i, query));
+      } catch (e) {
+        log.warn("listening.x_syndication.failed", { error: (e as Error).message });
+        return [];
+      }
     }
     try {
       const handles = await getMappedXHandles();
