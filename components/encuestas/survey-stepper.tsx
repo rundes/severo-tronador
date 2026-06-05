@@ -3,6 +3,12 @@
 import { useRef, useState } from "react";
 import { FieldBlock } from "@/components/encuestas/survey-form";
 import { buildSteps, type Question } from "@/lib/encuestas/types";
+import {
+  nextStep,
+  prevStep,
+  resolveSubmit,
+  stepComplete,
+} from "@/lib/encuestas/stepper-logic";
 
 // Stepper con progreso y navegación sticky (alcanzable con el pulgar en mobile).
 // Pasos según stepMode ("one" = 1 por paso; "manual" = agrupadas por step).
@@ -38,7 +44,7 @@ export function SurveyStepper({
       .filter(Boolean);
     return vals.length > 0;
   }
-  const stepValid = () => (steps[step] ?? []).every((q) => !q.required || answered(q));
+  const stepValid = () => stepComplete(steps[step] ?? [], answered);
 
   // Al cambiar de paso, volver al inicio de la página para empezar la nueva
   // tanda desde arriba con el título a la vista (si no, en mobile el usuario
@@ -57,26 +63,23 @@ export function SurveyStepper({
   function next() {
     if (!stepValid()) return setError("Respondé las preguntas obligatorias.");
     setError(null);
-    setStep((s) => Math.min(s + 1, total - 1));
+    setStep((s) => nextStep(s, total));
     scrollToTop();
   }
   function back() {
     setError(null);
-    setStep((s) => Math.max(s - 1, 0));
+    setStep((s) => prevStep(s));
     scrollToTop();
   }
   function onSubmit(e: React.FormEvent) {
-    // Submit implícito (Enter en un campo) en un paso intermedio: NO finalizar
-    // la encuesta — tratarlo como "Siguiente". Solo el último paso envía.
-    if (!isLast) {
-      e.preventDefault();
-      next();
-      return;
-    }
-    if (!stepValid()) {
-      e.preventDefault();
-      setError("Respondé las preguntas obligatorias.");
-    }
+    // El submit del form (botón final, Enter, o submit implícito en un paso
+    // intermedio) se resuelve con la misma regla pura. "advance"/"block" no
+    // finalizan: solo "finalize" deja pasar el submit a la action.
+    const outcome = resolveSubmit(isLast, stepValid());
+    if (outcome === "finalize") return;
+    e.preventDefault();
+    if (outcome === "advance") next();
+    else setError("Respondé las preguntas obligatorias.");
   }
 
   return (
