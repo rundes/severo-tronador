@@ -9,6 +9,7 @@ import {
 } from "@/lib/interpolate-vars";
 import { textToHtml, wrapEmailShell } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
+import { VisualEditor } from "@/components/templates/visual-editor";
 
 interface VarOption {
   key: string;
@@ -98,6 +99,8 @@ export function TemplateEditor({
   const [formato, setFormato] = useState<"texto" | "html">("texto");
   const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
   const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
+  // Sub-vista del modo HTML: editor visual (WYSIWYG) o código crudo.
+  const [htmlView, setHtmlView] = useState<"visual" | "code">("visual");
 
   const isEmail = channel === "email";
   const isHtml = isEmail && formato === "html";
@@ -341,15 +344,34 @@ export function TemplateEditor({
             )}
           </label>
 
-          {/* Cuerpo HTML */}
+          {/* Cuerpo HTML — editor visual o código */}
           {isHtml && (
             <div className="space-y-2">
-              <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                <span className="flex items-center justify-between">
-                  Cuerpo HTML
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                  Cuerpo del email
+                </span>
+                <div className="flex items-center gap-2">
+                  {/* Toggle Visual / Código */}
+                  <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-0.5 text-[11px] dark:border-zinc-800">
+                    {(["visual", "code"] as const).map((v) => (
+                      <button
+                        type="button"
+                        key={v}
+                        onClick={() => setHtmlView(v)}
+                        className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                          htmlView === v
+                            ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        }`}
+                      >
+                        {v === "visual" ? "Visual" : "Código"}
+                      </button>
+                    ))}
+                  </div>
                   <select
                     aria-label="Insertar plantilla prediseñada"
-                    className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] font-normal normal-case dark:border-zinc-700 dark:bg-zinc-900"
+                    className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-700 dark:bg-zinc-900"
                     value=""
                     onChange={(e) => {
                       const p = HTML_PRESETS.find((x) => x.id === e.target.value);
@@ -363,15 +385,20 @@ export function TemplateEditor({
                       </option>
                     ))}
                   </select>
-                </span>
+                </div>
+              </div>
+
+              {htmlView === "visual" ? (
+                <VisualEditor value={cuerpoHtml} onChange={setCuerpoHtml} />
+              ) : (
                 <textarea
                   value={cuerpoHtml}
                   onChange={(e) => setCuerpoHtml(e.target.value)}
                   rows={14}
                   spellCheck={false}
-                  className={`${inputCls} font-mono text-xs`}
+                  className={`${inputCls} w-full font-mono text-xs`}
                 />
-              </label>
+              )}
               <p className="text-[10px] text-zinc-400">
                 HTML seguro (se sanitiza al enviar: se permiten p, a, img, table,
                 listas, encabezados y <code>style</code> inline). El cuerpo de
