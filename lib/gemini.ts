@@ -1,8 +1,10 @@
 // Cliente mínimo de Google AI Studio (Gemini / Generative Language API).
 // Server-only. Usa la API key del conector google-ai. Fetch directo, sin SDK.
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-2.0-flash";
-const DEFAULT_IMAGE_MODEL = "gemini-2.0-flash-preview-image-generation";
+// Modelos vigentes (los 2.0 quedaron deprecados). Override por
+// GOOGLE_AI_MODEL / GOOGLE_AI_IMAGE_MODEL o el campo "Modelo" del conector.
+const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
 
 export interface GeminiInput {
   apiKey: string;
