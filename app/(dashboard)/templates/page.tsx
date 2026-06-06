@@ -1,4 +1,4 @@
-import { nuevaPlantilla, enviarPruebaTemplate } from "./actions";
+import { nuevaPlantilla, enviarPruebaTemplate, generarHtmlConIA } from "./actions";
 import { listTemplates, templateVars } from "@/lib/templates";
 import { SUPPORTED_VARS, buildVarMap } from "@/lib/interpolate-vars";
 import { loadContacts } from "@/lib/segments";
@@ -96,6 +96,7 @@ export default async function TemplatesPage({
         <TemplateEditor
           action={nuevaPlantilla}
           testAction={enviarPruebaTemplate}
+          aiAction={generarHtmlConIA}
           varMap={varMap}
           sampleContactLabel={sampleLabel}
           defaultTestEmail={userEmail}

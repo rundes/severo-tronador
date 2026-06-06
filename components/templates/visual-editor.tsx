@@ -20,6 +20,12 @@ const WIDTH_PRESETS: { label: string; value: string }[] = [
   { label: "Full", value: "100%" },
 ];
 
+// Estilo inline de celda, email-safe (sobrevive la sanitización: td/style).
+const CELL_STYLE =
+  "border:1px solid #d4d4d8;padding:8px;font-size:14px;vertical-align:top;";
+const TABLE_STYLE =
+  "border-collapse:collapse;width:100%;margin:8px 0;";
+
 type Align = "left" | "center" | "right";
 
 export function VisualEditor({
@@ -49,6 +55,13 @@ export function VisualEditor({
   const [areaPx, setAreaPx] = useState<PixelCrop | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Tabla: `inCell` indica si el cursor está dentro de una celda → muestra la
+  // barra de tabla. `tablePicker` controla el popover de insertar tabla.
+  const [inCell, setInCell] = useState(false);
+  const [tablePicker, setTablePicker] = useState(false);
+  const [tRows, setTRows] = useState(2);
+  const [tCols, setTCols] = useState(2);
 
   // ── Sincronización contentEditable (uncontrolled) ──────────────────────
   // Lee el HTML sin el marcador de selección de imágenes (data-ve-sel).
@@ -104,6 +117,108 @@ export function VisualEditor({
 
   function insertVar(key: string) {
     exec("insertText", `{{${key}}}`);
+  }
+
+  // ── Tablas ────────────────────────────────────────────────────────────
+  // Celda con cursor (sube desde la selección hasta un td/th del editor).
+  function currentCell(): HTMLTableCellElement | null {
+    const sel = document.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    let node: Node | null = sel.anchorNode;
+    while (node && node !== editorRef.current) {
+      if (node instanceof HTMLTableCellElement) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  function refreshCellState() {
+    setInCell(Boolean(currentCell()));
+  }
+
+  function newCell(): HTMLTableCellElement {
+    const td = document.createElement("td");
+    td.setAttribute("style", CELL_STYLE);
+    td.innerHTML = "<br>";
+    return td;
+  }
+
+  function insertTable() {
+    const rows = Math.max(1, Math.min(20, tRows));
+    const cols = Math.max(1, Math.min(10, tCols));
+    let html = `<table style="${TABLE_STYLE}" role="presentation"><tbody>`;
+    for (let r = 0; r < rows; r++) {
+      html += "<tr>";
+      for (let c = 0; c < cols; c++) html += `<td style="${CELL_STYLE}"><br></td>`;
+      html += "</tr>";
+    }
+    html += "</tbody></table><p><br></p>";
+    editorRef.current?.focus();
+    document.execCommand("insertHTML", false, html);
+    setTablePicker(false);
+    emit();
+  }
+
+  function addRow(after: boolean) {
+    const cell = currentCell();
+    if (!cell) return;
+    const tr = cell.parentElement as HTMLTableRowElement | null;
+    if (!tr) return;
+    const cols = tr.children.length;
+    const nr = document.createElement("tr");
+    for (let i = 0; i < cols; i++) nr.appendChild(newCell());
+    if (after) tr.after(nr);
+    else tr.before(nr);
+    emit();
+  }
+
+  function deleteRow() {
+    const cell = currentCell();
+    if (!cell) return;
+    const tr = cell.parentElement as HTMLTableRowElement | null;
+    const table = cell.closest("table");
+    if (!tr || !table) return;
+    if (table.rows.length <= 1) table.remove();
+    else tr.remove();
+    setInCell(false);
+    emit();
+  }
+
+  function addCol(after: boolean) {
+    const cell = currentCell();
+    const table = cell?.closest("table");
+    if (!cell || !table) return;
+    const idx = cell.cellIndex + (after ? 1 : 0);
+    for (const row of Array.from(table.rows)) {
+      const c = row.insertCell(Math.min(idx, row.cells.length));
+      c.setAttribute("style", CELL_STYLE);
+      c.innerHTML = "<br>";
+    }
+    emit();
+  }
+
+  function deleteCol() {
+    const cell = currentCell();
+    const table = cell?.closest("table");
+    if (!cell || !table) return;
+    const idx = cell.cellIndex;
+    if ((table.rows[0]?.cells.length ?? 0) <= 1) {
+      table.remove();
+      setInCell(false);
+    } else {
+      for (const row of Array.from(table.rows)) {
+        if (row.cells[idx]) row.deleteCell(idx);
+      }
+    }
+    emit();
+  }
+
+  function deleteTable() {
+    const table = currentCell()?.closest("table");
+    if (!table) return;
+    table.remove();
+    setInCell(false);
+    emit();
   }
 
   // ── Imágenes ────────────────────────────────────────────────────────────
@@ -182,6 +297,7 @@ export function VisualEditor({
       selImgRef.current = null;
       setHasSel(false);
     }
+    refreshCellState();
   }
 
   function setImgWidth(w: string) {
@@ -260,6 +376,26 @@ export function VisualEditor({
         <button type="button" className={btn} title="Insertar enlace" onMouseDown={(e) => e.preventDefault()} onClick={insertLink} disabled={disabled}>🔗</button>
         <button type="button" className={btn} title="Quitar enlace" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("unlink")} disabled={disabled}>⛓️‍💥</button>
         <button type="button" className={btn} title="Insertar imagen" onMouseDown={(e) => e.preventDefault()} onClick={() => fileRef.current?.click()} disabled={disabled}>🖼️</button>
+        <div className="relative">
+          <button type="button" className={btn} title="Insertar tabla" onMouseDown={(e) => e.preventDefault()} onClick={() => setTablePicker((o) => !o)} disabled={disabled}>▦</button>
+          {tablePicker && (
+            <div className="absolute left-0 top-full z-20 mt-1 w-44 space-y-2 rounded-lg border border-zinc-300 bg-white p-3 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="font-medium text-zinc-600 dark:text-zinc-300">Nueva tabla</div>
+              <label className="flex items-center justify-between gap-2">
+                Filas
+                <input type="number" min={1} max={20} value={tRows} onChange={(e) => setTRows(Number(e.target.value))} className="w-14 rounded border border-zinc-300 bg-white px-1.5 py-0.5 dark:border-zinc-700 dark:bg-zinc-900" />
+              </label>
+              <label className="flex items-center justify-between gap-2">
+                Columnas
+                <input type="number" min={1} max={10} value={tCols} onChange={(e) => setTCols(Number(e.target.value))} className="w-14 rounded border border-zinc-300 bg-white px-1.5 py-0.5 dark:border-zinc-700 dark:bg-zinc-900" />
+              </label>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={btn} onClick={() => setTablePicker(false)}>Cancelar</button>
+                <button type="button" className="rounded bg-zinc-900 px-2 py-1 text-white dark:bg-zinc-100 dark:text-zinc-900" onClick={insertTable}>Insertar</button>
+              </div>
+            </div>
+          )}
+        </div>
         <button type="button" className={btn} title="Limpiar formato" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("removeFormat")} disabled={disabled}>✕</button>
         <div className={sep} aria-hidden />
         {/* Insertar variable */}
@@ -302,6 +438,24 @@ export function VisualEditor({
         </div>
       )}
 
+      {/* Controles de tabla (cursor dentro de una celda) */}
+      {inCell && !hasSel && !disabled && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-[oklch(52%_0.13_255)]/40 bg-[oklch(52%_0.13_255)]/8 px-2 py-1.5 text-xs">
+          <span className="font-medium text-zinc-600 dark:text-zinc-300">Tabla:</span>
+          <span className="text-zinc-500">Fila</span>
+          <button type="button" className={btn} title="Insertar fila arriba" onMouseDown={(e) => e.preventDefault()} onClick={() => addRow(false)}>↑+</button>
+          <button type="button" className={btn} title="Insertar fila abajo" onMouseDown={(e) => e.preventDefault()} onClick={() => addRow(true)}>↓+</button>
+          <button type="button" className={btn} title="Eliminar fila" onMouseDown={(e) => e.preventDefault()} onClick={deleteRow}>✕fila</button>
+          <div className={sep} aria-hidden />
+          <span className="text-zinc-500">Columna</span>
+          <button type="button" className={btn} title="Insertar columna a la izquierda" onMouseDown={(e) => e.preventDefault()} onClick={() => addCol(false)}>←+</button>
+          <button type="button" className={btn} title="Insertar columna a la derecha" onMouseDown={(e) => e.preventDefault()} onClick={() => addCol(true)}>+→</button>
+          <button type="button" className={btn} title="Eliminar columna" onMouseDown={(e) => e.preventDefault()} onClick={deleteCol}>✕col</button>
+          <div className={sep} aria-hidden />
+          <button type="button" className="rounded px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onMouseDown={(e) => e.preventDefault()} onClick={deleteTable}>Borrar tabla</button>
+        </div>
+      )}
+
       {/* Lienzo editable */}
       <div
         ref={editorRef}
@@ -309,6 +463,7 @@ export function VisualEditor({
         suppressContentEditableWarning
         onInput={emit}
         onClick={onEditorClick}
+        onKeyUp={refreshCellState}
         role="textbox"
         aria-multiline="true"
         aria-label="Cuerpo del email"
