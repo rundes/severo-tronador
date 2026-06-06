@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listFlows } from "@/lib/flows";
 import { requireProject } from "@/lib/workspace";
 import { Hint } from "@/components/ui/hint";
+import { PageHeader } from "@/components/ui/page-header";
 import { borrarFlow, iniciarFlow } from "./actions";
 
 export const metadata = { title: "Flows · Tronador" };
@@ -39,24 +40,18 @@ export default async function FlowsPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Drip flows
-          </h1>
-          <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
-            Secuencias multi-step con delays y condiciones. Por ejemplo:
-            invitación WhatsApp en día 0, si no respondió un recordatorio
-            email en día 3, llamada en día 7.
-          </p>
-        </div>
-        <Link
-          href="/campanas/flows/nueva"
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          + Nuevo flow
-        </Link>
-      </header>
+      <PageHeader
+        title="Flows"
+        subtitle="Secuencias multi-step con delays y condiciones: ej. invitación día 0; si no respondió, recordatorio día 3; llamada día 7."
+        action={
+          <Link
+            href="/campanas/flows/nueva"
+            className="rounded-lg bg-[oklch(52%_0.13_255)] px-3.5 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
+          >
+            + Nuevo flow
+          </Link>
+        }
+      />
 
       <Hint id="flows-intro" title="Cuándo usar un Flow" cta={{ href: "/campanas/flows/nueva", label: "Crear un flow" }}>
         Un flow encadena pasos sobre un segmento con <strong>delays</strong> y{" "}
@@ -78,9 +73,21 @@ export default async function FlowsPage({
       )}
 
       {flows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Sin flows aún. Creá el primero para arrancar.
-        </p>
+        <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+            Sin flows todavía
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-500">
+            Un flow encadena envíos con esperas y condiciones para subir la tasa
+            de respuesta sin reenviar a mano.
+          </p>
+          <Link
+            href="/campanas/flows/nueva"
+            className="mt-4 inline-block rounded-lg bg-[oklch(52%_0.13_255)] px-4 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
+          >
+            Crear primer flow
+          </Link>
+        </div>
       ) : (
         <ul className="space-y-3">
           {flows.map((flow) => (
