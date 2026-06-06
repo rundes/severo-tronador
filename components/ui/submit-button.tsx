@@ -6,6 +6,7 @@
 // debajo del botón según ?ok=/?error= en searchParams.
 
 import { useFormStatus } from "react-dom";
+import { buttonClass, Spinner } from "./button";
 
 export function SubmitButton({
   children,
@@ -18,42 +19,18 @@ export function SubmitButton({
   pendingLabel?: string;
   className?: string;
   disabled?: boolean;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "accent";
 }) {
   const { pending } = useFormStatus();
-  const variants = {
-    primary:
-      "bg-zinc-900 text-white hover:bg-zinc-700 disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700",
-    secondary:
-      "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900",
-    danger:
-      "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300",
-  } as const;
   return (
     <button
       type="submit"
       disabled={disabled || pending}
-      className={`inline-flex items-center gap-2 rounded px-4 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${variants[variant]} ${className ?? ""}`}
+      className={`${buttonClass(variant)} disabled:cursor-not-allowed ${className ?? ""}`}
     >
       {pending && <Spinner />}
       <span>{pending && pendingLabel ? pendingLabel : children}</span>
     </button>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      className="animate-spin"
-    >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
-      <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
   );
 }
 

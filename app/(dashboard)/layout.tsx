@@ -6,22 +6,44 @@ import { getActiveProject, listMyProjects } from "@/lib/workspace";
 import { setActiveProject } from "./proyectos/actions";
 import { cerrarSesion } from "./sign-out-action";
 
+// Nav agrupada por etapa del trabajo: el operador encuentra más rápido cuando
+// la estructura agrupa por intención, no por lista plana de 15 ítems.
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/contactos", label: "Contactos" },
-  { href: "/escucha", label: "Escucha" },
-  { href: "/segmentos", label: "Segmentos" },
-  { href: "/campanas", label: "Campañas" },
-  { href: "/campanas/flows", label: "Flows" },
-  { href: "/encuestas", label: "Encuestas" },
-  { href: "/respuestas", label: "Respuestas" },
-  { href: "/mail", label: "Mail" },
-  { href: "/publicaciones", label: "Estudio" },
-  { href: "/difusion", label: "Difusión" },
-  { href: "/templates", label: "Plantillas" },
-  { href: "/conectores", label: "Conectores" },
-  { href: "/proyectos", label: "Proyecto" },
-  { href: "/auditoria", label: "Auditoría" },
+  {
+    section: "Operación",
+    items: [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/contactos", label: "Contactos" },
+      { href: "/segmentos", label: "Segmentos" },
+      { href: "/campanas", label: "Campañas" },
+      { href: "/campanas/flows", label: "Flows" },
+    ],
+  },
+  {
+    section: "Investigación",
+    items: [
+      { href: "/encuestas", label: "Encuestas" },
+      { href: "/respuestas", label: "Respuestas" },
+      { href: "/escucha", label: "Escucha" },
+    ],
+  },
+  {
+    section: "Contenido",
+    items: [
+      { href: "/publicaciones", label: "Estudio" },
+      { href: "/difusion", label: "Difusión" },
+      { href: "/templates", label: "Plantillas" },
+      { href: "/mail", label: "Mail" },
+    ],
+  },
+  {
+    section: "Sistema",
+    items: [
+      { href: "/conectores", label: "Conectores" },
+      { href: "/proyectos", label: "Proyecto" },
+      { href: "/auditoria", label: "Auditoría" },
+    ],
+  },
 ];
 
 export default async function DashboardLayout({

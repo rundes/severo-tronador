@@ -11,6 +11,11 @@ interface NavItem {
   label: string;
 }
 
+interface NavGroup {
+  section: string;
+  items: NavItem[];
+}
+
 interface UserInfo {
   name: string | null;
   email: string | null;
@@ -32,7 +37,7 @@ export function Sidebar({
   activeProjectId,
   switchProjectAction,
 }: {
-  nav: NavItem[];
+  nav: NavGroup[];
   user: UserInfo | null;
   versionString: string;
   signOutAction: () => Promise<void>;
@@ -127,28 +132,42 @@ export function Sidebar({
             switchAction={switchProjectAction}
           />
         )}
-        <nav className="flex-1 overflow-y-auto px-4 font-mono text-sm">
-          <ul className="flex flex-col gap-0.5">
-            {nav.map((item) => {
-              const active =
-                pathname === item.href ||
-                (item.href !== "/" && pathname?.startsWith(item.href));
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`block rounded px-2 py-1.5 transition-colors ${
-                      active
-                        ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
-                    }`}
-                  >
-                    ▸ {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav className="flex-1 overflow-y-auto px-3 pb-2 font-mono text-sm">
+          {nav.map((group) => (
+            <div key={group.section} className="mb-3">
+              <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
+                {group.section}
+              </div>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    (item.href !== "/" && pathname?.startsWith(item.href));
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 ${
+                          active
+                            ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                            : "text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                        }`}
+                      >
+                        <span
+                          aria-hidden
+                          className={`h-1 w-1 shrink-0 rounded-full transition-colors ${
+                            active ? "bg-[var(--accent)]" : "bg-zinc-400/50"
+                          }`}
+                        />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
         <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[#eae9e4] px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <UserPill user={user} signOutAction={signOutAction} />
