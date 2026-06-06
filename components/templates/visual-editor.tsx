@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Cropper from "react-easy-crop";
-import { getCroppedBlob, type PixelCrop } from "@/components/encuestas/crop-utils";
+import { getCroppedBlob, getResizedBlob, type PixelCrop } from "@/components/encuestas/crop-utils";
 import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
 
 // Editor visual (WYSIWYG) para el cuerpo HTML de las plantillas de email.
@@ -50,6 +50,9 @@ export function VisualEditor({
   // existente cuando se recorta una ya insertada (null = inserción nueva).
   const cropTargetRef = useRef<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState<{ src: string } | null>(null);
+  // true = se está insertando una imagen nueva (permite insertar sin recortar);
+  // false = se está recortando una imagen ya insertada.
+  const [cropNew, setCropNew] = useState(false);
   const [cropPos, setCropPos] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [areaPx, setAreaPx] = useState<PixelCrop | null>(null);
@@ -244,11 +247,40 @@ export function VisualEditor({
     const reader = new FileReader();
     reader.onload = () => {
       cropTargetRef.current = null;
+      setCropNew(true);
       setCrop({ src: String(reader.result) });
       setZoom(1);
       setCropPos({ x: 0, y: 0 });
     };
     reader.readAsDataURL(f);
+  }
+
+  // Inserta la imagen completa optimizada (sin recortar): la redimensiona al
+  // ancho de mail y la sube. El recorte queda como opción, no obligatorio.
+  async function insertOptimized() {
+    if (!crop) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const blob = await getResizedBlob(crop.src, 1200);
+      const fd = new FormData();
+      fd.append("file", new File([blob], "img.jpg", { type: "image/jpeg" }));
+      const res = await fetch("/api/encuestas/upload", { method: "POST", body: fd });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "falló la subida");
+      editorRef.current?.focus();
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<img src="${data.url}" alt="" style="max-width:100%;height:auto;display:block;" />`,
+      );
+      setCrop(null);
+      emit();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const onCropComplete = useCallback((_a: unknown, px: PixelCrop) => {
@@ -343,6 +375,7 @@ export function VisualEditor({
     const img = selImgRef.current;
     if (!img) return;
     cropTargetRef.current = img;
+    setCropNew(false);
     setCrop({ src: img.src });
     setZoom(1);
     setCropPos({ x: 0, y: 0 });
@@ -506,8 +539,14 @@ export function VisualEditor({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Recortar imagen
+              {cropNew ? "Insertar imagen" : "Recortar imagen"}
             </h3>
+            {cropNew && (
+              <p className="text-xs text-zinc-500">
+                El recorte es opcional. Podés insertarla completa (se optimiza al
+                ancho de mail) o ajustar el encuadre.
+              </p>
+            )}
             <div className="relative h-64 w-full overflow-hidden rounded-lg bg-zinc-900">
               <Cropper
                 image={crop.src}
@@ -528,7 +567,7 @@ export function VisualEditor({
               className="w-full"
               aria-label="Zoom"
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCrop(null)}
@@ -537,6 +576,16 @@ export function VisualEditor({
               >
                 Cancelar
               </button>
+              {cropNew && (
+                <button
+                  type="button"
+                  onClick={insertOptimized}
+                  disabled={busy}
+                  className="rounded border border-zinc-400 px-3 py-1.5 text-sm font-medium text-zinc-700 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200"
+                >
+                  {busy ? "Subiendo…" : "Insertar sin recortar"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={confirmCrop}
