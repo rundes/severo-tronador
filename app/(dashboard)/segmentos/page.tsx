@@ -23,7 +23,7 @@ import {
 } from "@/lib/relationship";
 import { listSavedSegments } from "@/lib/segments-store";
 import { requireProject } from "@/lib/workspace";
-import { borrarSegmento, guardarSegmento } from "./actions";
+import { borrarSegmento, guardarSegmento, crearSegmentoIA } from "./actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 export const metadata = { title: "Segmentos · Severo Tronador" };
@@ -121,6 +121,36 @@ export default async function SegmentosPage({
         </>
       ) : (
         <>
+          {/* Crear con IA: descripción en lenguaje natural → filtros aplicados */}
+          <form
+            action={crearSegmentoIA}
+            className="space-y-2 rounded-xl border border-[oklch(52%_0.13_255)]/30 bg-[oklch(52%_0.13_255)]/[0.04] p-4"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                ✦ Crear segmento con IA
+              </span>
+              <span className="text-[11px] text-zinc-400">usa tu cuenta de Claude</span>
+            </div>
+            <textarea
+              name="prompt"
+              rows={2}
+              placeholder="Describí la audiencia. Ej: «mujeres de 40 a 65 del Centro con email», «vecinos que no contactamos hace más de 60 días»."
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div className="flex items-center gap-3">
+              <SubmitButton pendingLabel="Generando…">Generar filtros</SubmitButton>
+              <span className="text-[11px] text-zinc-400">
+                Revisás y ajustás antes de guardar.
+              </span>
+            </div>
+            <FormStatus
+              ok={params.ia === "ok" ? "Filtros generados. Revisalos abajo y guardá el segmento." : null}
+              error={params.error === "ia" ? "No se pudo crear con IA." : null}
+              detalle={params.error === "ia" ? params.detalle ?? null : null}
+            />
+          </form>
+
           <FilterForm barrios={barriosDisponibles(all)} />
           <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
             <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
