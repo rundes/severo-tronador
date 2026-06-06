@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-06T00:00:00.000Z",
+  "title": "Design System: Tronador",
+  "extensions": {
+    "colorMeta": {
+      "accent-indigo": {
+        "role": "primary",
+        "displayName": "Índigo de operación",
+        "canonical": "oklch(52% 0.13 255)",
+        "tonalRamp": ["oklch(22% 0.07 255)", "oklch(30% 0.09 255)", "oklch(38% 0.11 255)", "oklch(45% 0.13 255)", "oklch(52% 0.13 255)", "oklch(64% 0.12 255)", "oklch(78% 0.08 255)", "oklch(92% 0.03 255)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta (zinc-900)",
+        "canonical": "#18181b",
+        "tonalRamp": ["#09090b", "#18181b", "#27272a", "#3f3f46", "#71717a", "#a1a1aa", "#d4d4d8", "#fafafa"]
+      },
+      "ok": { "role": "tertiary", "displayName": "OK (emerald)", "canonical": "#059669", "tonalRamp": [] },
+      "warn": { "role": "tertiary", "displayName": "Aviso (amber)", "canonical": "#d97706", "tonalRamp": [] },
+      "danger": { "role": "tertiary", "displayName": "Peligro (red)", "canonical": "#dc2626", "tonalRamp": [] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Título de página (h1). Uno por pantalla." },
+      "section": { "displayName": "Section", "purpose": "Encabezado de sección/tarjeta, tamaño cuerpo con peso 600." },
+      "body": { "displayName": "Body", "purpose": "Texto general; 65-75ch en lectura." },
+      "label": { "displayName": "Label", "purpose": "Rótulos en mayúsculas con tracking." },
+      "mono": { "displayName": "Mono", "purpose": "IDs, fechas, métricas; tabular-nums." }
+    },
+    "shadows": [
+      { "name": "rest", "value": "0 1px 2px rgba(9,9,11,0.04)", "purpose": "Tarjetas y contenedores en reposo." },
+      { "name": "raised", "value": "0 6px 20px rgba(9,9,11,0.08)", "purpose": "Tarjetas accionables / modales al interactuar." }
+    ],
+    "motion": [
+      { "name": "ease-state", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Transición de color/estado 150-200ms." },
+      { "name": "loading-bar", "value": "tronador-loading-bar 1.2s ease-in-out infinite", "purpose": "Barra de carga indeterminada." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción neutra de confirmar/guardar. Invierte en oscuro.",
+      "html": "<button class=\"ds-btn-primary\">Guardar</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:8px;background:#18181b;color:#fff;border:none;border-radius:4px;padding:6px 16px;font:500 0.875rem Geist,sans-serif;cursor:pointer;transition:background .18s cubic-bezier(0.4,0,0.2,1)}.ds-btn-primary:hover{background:#3f3f46}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(79,91,213,0.12)}.ds-btn-primary:disabled{background:#d4d4d8;cursor:not-allowed}"
+    },
+    {
+      "name": "Botón acento",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "Acción generativa/avance principal. Único uso del índigo en botones.",
+      "html": "<button class=\"ds-btn-accent\">Generar</button>",
+      "css": ".ds-btn-accent{display:inline-flex;align-items:center;gap:8px;background:oklch(52% 0.13 255);color:#fff;border:none;border-radius:8px;padding:8px 16px;font:500 0.875rem Geist,sans-serif;cursor:pointer;transition:background .18s cubic-bezier(0.4,0,0.2,1)}.ds-btn-accent:hover{background:oklch(47% 0.13 255)}.ds-btn-accent:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(79,91,213,0.12)}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de texto con foco en acento.",
+      "html": "<input class=\"ds-input\" placeholder=\"Buscar…\" />",
+      "css": ".ds-input{width:100%;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:6px;padding:6px 10px;font:400 0.875rem Geist,sans-serif;outline:none;transition:border-color .15s,box-shadow .15s}.ds-input:focus-visible{border-color:oklch(52% 0.13 255);box-shadow:0 0 0 4px rgba(79,91,213,0.12)}"
+    },
+    {
+      "name": "Tarjeta",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Contenedor de contenido, sutilmente elevado, borde 1px.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-h\">Sección</div><p class=\"ds-card-b\">Contenido</p></div>",
+      "css": ".ds-card{background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(9,9,11,0.04)}.ds-card-h{font:600 0.875rem Geist,sans-serif;color:#18181b;margin:0 0 8px}.ds-card-b{font:400 0.875rem Geist,sans-serif;color:#3f3f46;margin:0}"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Píldora de filtro/estado; seleccionado vira a índigo tenue.",
+      "html": "<label class=\"ds-chip\"><input type=\"checkbox\" hidden />🟢 Sanas</label>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;background:#fafafa;color:#3f3f46;border:1px solid #e4e4e7;border-radius:9999px;padding:6px 12px;font:500 0.75rem Geist,sans-serif;cursor:pointer}.ds-chip:has(:checked){border-color:oklch(52% 0.13 255);background:rgba(79,91,213,0.08);color:#18181b}"
+    },
+    {
+      "name": "Punto de estado",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Indicador de estado: color SIEMPRE con texto (a11y daltonismo).",
+      "html": "<span class=\"ds-status\"><span class=\"ds-dot\"></span>Activo</span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:6px;font:400 0.875rem Geist,sans-serif;color:#3f3f46}.ds-dot{width:6px;height:6px;border-radius:9999px;background:#059669}"
+    }
+  ],
+  "narrative": {
+    "northStar": "La mesa de operaciones",
+    "overview": "Tronador es el tablero de trabajo de un equipo de estudios de opinión. La interfaz es un instrumento, no una vitrina: densa donde el operador repite tareas, ordenada donde el dato tiene que leerse sin ambigüedad. La estética es sobria por convicción; el rigor se transmite con orden y neutralidad, no con decoración. El color trabaja en un solo registro: neutros zinc cargan la pantalla y un único acento índigo marca la acción o el foco.",
+    "keyCharacteristics": [
+      "Neutros zinc + un solo acento índigo (regla de una sola voz).",
+      "Tarjetas sutilmente elevadas, bordes de 1px, modo claro y oscuro equivalentes.",
+      "Densidad al servicio de la repetición; jerarquía por tipografía y espacio antes que color.",
+      "Datos en monoespaciada con tabular-nums."
+    ],
+    "rules": [
+      { "name": "La regla de una sola voz", "body": "El acento índigo ocupa 10% o menos de cualquier pantalla. Su rareza es lo que lo hace legible como acción.", "section": "colors" },
+      { "name": "La regla sin partido", "body": "Prohibido cualquier color que lea como identidad partidaria. La paleta es neutra porque el producto es neutral.", "section": "colors" },
+      { "name": "La regla de peso sobre escala", "body": "La jerarquía se construye con peso y color de texto, no inflando tamaños.", "section": "typography" },
+      { "name": "La regla de la cifra tabular", "body": "Todo número alineable usa monoespaciada con tabular-nums.", "section": "typography" },
+      { "name": "La regla de la sombra silenciosa", "body": "Las sombras nunca son oscuras ni grandes; se leen como aire, no como caja.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar un solo acento índigo (oklch(52% 0.13 255)) reservado a la acción principal y al foco.",
+      "Do construir jerarquía con peso y color de texto antes que con tamaño.",
+      "Do poner todo número alineable en Geist Mono con tabular-nums.",
+      "Do acompañar siempre el color de estado con texto o ícono.",
+      "Do mantener foco visible, teclado y contraste AA en claro y oscuro.",
+      "Do elegir el ancho del contenedor según la densidad de la pantalla."
+    ],
+    "donts": [
+      "Don't usar gradientes decorativos, glassmorphism porque sí ni la plantilla hero-metric.",
+      "Don't repetir grillas de cards idénticas como recurso de layout.",
+      "Don't usar border-left/right mayor a 1px como franja de color de acento.",
+      "Don't introducir un segundo acento ni colores de identidad partidaria.",
+      "Don't usar #000 ni #fff planos como tinta/fondo de marca.",
+      "Don't usar sombras oscuras o grandes; ni inflar tamaños de fuente para marcar jerarquía."
+    ]
+  }
+}
