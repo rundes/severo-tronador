@@ -1,7 +1,9 @@
 // Cliente de SiliconFlow (API OpenAI-compatible que hostea muchos modelos:
 // Qwen, DeepSeek, GLM, Llama, FLUX, video, etc.). Server-only. Usa la key del
 // conector siliconflow. Fetch directo.
-const BASE = "https://api.siliconflow.cn/v1";
+// La plataforma tiene dos regiones con keys distintas: .com (internacional) y
+// .cn (China). Default .com; override con SILICONFLOW_BASE si tu key es de .cn.
+const BASE = (process.env.SILICONFLOW_BASE || "https://api.siliconflow.com/v1").replace(/\/$/, "");
 const URL = `${BASE}/chat/completions`;
 
 // Modelos de imagen y video por defecto (override con env).

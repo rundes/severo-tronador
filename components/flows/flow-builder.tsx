@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { SegmentFilter } from "@/lib/segments";
+import { buttonClass } from "@/components/ui/button";
 
 interface TemplateRef {
   id: string;
@@ -236,7 +237,7 @@ export function FlowBuilder({
 
       <button
         type="submit"
-        className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        className={buttonClass("primary")}
       >
         Crear flow
       </button>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCampaign } from "@/lib/campaigns";
@@ -110,7 +111,7 @@ export default async function CampanaPage({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link
             href={`/campanas/${campaign.id}/cierre`}
-            className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+            className={buttonClass("primary")}
           >
             Ver dashboard de cierre →
           </Link>

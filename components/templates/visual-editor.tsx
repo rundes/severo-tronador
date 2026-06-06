@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Cropper from "react-easy-crop";
 import { getCroppedBlob, getResizedBlob, type PixelCrop } from "@/components/encuestas/crop-utils";
+import { buttonClass } from "@/components/ui/button";
 import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
 
 // Editor visual (WYSIWYG) para el cuerpo HTML de las plantillas de email.
@@ -434,7 +435,7 @@ export function VisualEditor({
               </label>
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" className={btn} onClick={() => setTablePicker(false)}>Cancelar</button>
-                <button type="button" className="rounded bg-zinc-900 px-2 py-1 text-white dark:bg-zinc-100 dark:text-zinc-900" onClick={insertTable}>Insertar</button>
+                <button type="button" className={buttonClass("primary", "sm")} onClick={insertTable}>Insertar</button>
               </div>
             </div>
           )}
@@ -590,7 +591,7 @@ export function VisualEditor({
                 type="button"
                 onClick={confirmCrop}
                 disabled={busy}
-                className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                className={buttonClass("primary")}
               >
                 {busy ? "Subiendo…" : "Recortar y usar"}
               </button>

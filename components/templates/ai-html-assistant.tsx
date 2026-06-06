@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect } from "react";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
+import { buttonClass } from "@/components/ui/button";
 
 type AiAction = (prev: AiHtmlState, formData: FormData) => Promise<AiHtmlState>;
 
@@ -51,7 +52,7 @@ export function AiHtmlAssistant({
         <button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center gap-2 rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass("accent")}
         >
           {pending ? "Generando…" : current.trim() ? "✦ Generar / refinar" : "✦ Generar HTML"}
         </button>

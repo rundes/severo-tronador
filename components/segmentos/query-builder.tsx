@@ -9,6 +9,7 @@
 // "Aplicar" navega a /segmentos?q=...
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { buttonClass } from "@/components/ui/button";
 import {
   FIELD_LABELS,
   OP_LABELS,
@@ -174,7 +175,7 @@ export function QueryBuilder({
         <button
           type="button"
           onClick={apply}
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass("accent")}
         >
           Aplicar query
         </button>

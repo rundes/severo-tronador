@@ -9,6 +9,7 @@
 // - Botón "reintentar" que rellama el server component (reset()).
 // - Link a /conectores por si la causa es config rota.
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 
 export default function DashboardError({
   error,
@@ -35,7 +36,7 @@ export default function DashboardError({
       <div className="flex gap-2">
         <button
           onClick={reset}
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass("primary")}
         >
           Reintentar
         </button>
