@@ -11,9 +11,11 @@ import {
   promotePagePost,
 } from "@/lib/meta";
 import { getConnectorConfig } from "@/lib/connectors/config";
-import { generateGeminiText } from "@/lib/gemini";
+import { generateGeminiText, generateGeminiImage } from "@/lib/gemini";
 import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
+import { getSupabase, dbConfigured } from "@/lib/db/supabase";
+import { randomUUID } from "crypto";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
@@ -81,6 +83,61 @@ export async function generarContenidoPostIA(
     return { ok: true, text: clean, msg: google.GOOGLE_AI_API_KEY ? "Generado con Gemini." : "Generado con Claude (configurá Google AI para usar Gemini)." };
   } catch (e) {
     return { ok: false, text: "", msg: `Error al generar: ${(e as Error).message}` };
+  }
+}
+
+export interface AiImageState {
+  ok: boolean | null;
+  url: string;
+  msg: string;
+}
+
+const IMG_BUCKET = "encuesta-img";
+
+// Genera una imagen para la publicación con Gemini (Google AI Studio) y la
+// sube a Storage; devuelve su URL pública. Sin Supabase devuelve un data URL
+// (sirve para previsualizar en modo local/mock).
+export async function generarImagenIA(
+  _prev: AiImageState,
+  formData: FormData,
+): Promise<AiImageState> {
+  const { id: projectId } = await requireMember("editor");
+  const prompt = String(formData.get("prompt") ?? "").trim();
+  if (!prompt) return { ok: false, url: "", msg: "Describí la imagen que querés." };
+
+  const cfg = await getConnectorConfig("google-ai");
+  if (!cfg.GOOGLE_AI_API_KEY) {
+    return {
+      ok: false,
+      url: "",
+      msg: "Configurá Google AI Studio (Conectores → Google AI) para generar imágenes.",
+    };
+  }
+
+  try {
+    const img = await generateGeminiImage({ apiKey: cfg.GOOGLE_AI_API_KEY, prompt });
+    await incrementUsage("google-ai", 1000, projectId);
+
+    if (!dbConfigured()) {
+      return { ok: true, url: `data:${img.mime};base64,${img.base64}`, msg: "Imagen generada (local)." };
+    }
+    const sb = getSupabase();
+    // Asegura el bucket (idempotente).
+    await sb.storage
+      .createBucket(IMG_BUCKET, { public: true, allowedMimeTypes: ["image/png", "image/jpeg"] })
+      .catch(() => undefined);
+    const ext = img.mime.includes("jpeg") ? "jpg" : "png";
+    const path = `${projectId}/ai-${randomUUID()}.${ext}`;
+    const bytes = Buffer.from(img.base64, "base64");
+    const up = await sb.storage.from(IMG_BUCKET).upload(path, bytes, {
+      contentType: img.mime,
+      upsert: false,
+    });
+    if (up.error) return { ok: false, url: "", msg: `No se pudo guardar la imagen: ${up.error.message}` };
+    const { data } = sb.storage.from(IMG_BUCKET).getPublicUrl(path);
+    return { ok: true, url: data.publicUrl, msg: "Imagen generada con Gemini." };
+  } catch (e) {
+    return { ok: false, url: "", msg: `Error al generar la imagen: ${(e as Error).message}` };
   }
 }
 
