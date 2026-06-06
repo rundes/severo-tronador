@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Hint } from "@/components/ui/hint";
+import { PageHeader } from "@/components/ui/page-header";
 import { FilterForm } from "@/components/segmentos/filter-form";
 import { SavedList } from "@/components/segmentos/saved-list";
 import { HealthBadge } from "@/components/health-badge";
@@ -89,15 +90,10 @@ export default async function SegmentosPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          Segmentos
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Constructor de audiencias sobre el padrón. La calidad sobre la
-          cantidad: 80 correctos valen más que 8.000 random.
-        </p>
-      </div>
+      <PageHeader
+        title="Segmentos"
+        subtitle="Constructor de audiencias sobre el padrón. Calidad sobre cantidad: 80 correctos valen más que 8.000 al azar."
+      />
 
       <Hint id="segmentos-flujo" title="Cómo seguir">
         Definí filtros, mirá el contador, <strong>Guardá</strong> el segmento y
