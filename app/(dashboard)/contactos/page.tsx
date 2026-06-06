@@ -1,7 +1,14 @@
 import Link from "next/link";
-import { importarCsv, previewGoogleSheet, importarConMapeo } from "./actions";
+import {
+  importarCsv,
+  previewGoogleSheet,
+  importarConMapeo,
+  crearGrupo,
+  agregarContacto,
+} from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
 import { padronCount, readPadronPage } from "@/lib/db/padron";
+import { listGrupos } from "@/lib/grupos";
 import type { Contact } from "@/lib/connectors/types";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { requireProject } from "@/lib/workspace";
@@ -37,6 +44,8 @@ export default async function ContactosPage({
       ? await readPadronPage(projectId, (cpage - 1) * PAGE_SIZE, PAGE_SIZE)
       : [];
 
+  const grupos = persistOk ? await listGrupos(projectId) : [];
+
   // Detectar si Google Sheets está configurado para habilitar el botón.
   const gsCfg = persistOk
     ? await getConnectorConfig("google-sheets-padron")
@@ -45,12 +54,13 @@ export default async function ContactosPage({
     gsCfg.GOOGLE_SHEETS_SHEET_ID && gsCfg.GOOGLE_SERVICE_ACCOUNT_KEY,
   );
 
-  const okMsg =
-    params.ok === "csv"
-      ? `CSV importado: ${params.n ?? "?"} contactos`
-      : params.ok === "gsheet"
-        ? `Google Sheet sincronizado: ${params.n ?? "?"} contactos`
-        : null;
+  const okMap: Record<string, string> = {
+    csv: `CSV importado: ${params.n ?? "?"} contactos`,
+    gsheet: `Google Sheet sincronizado: ${params.n ?? "?"} contactos`,
+    grupo: "Grupo creado.",
+    manual: "Contacto cargado.",
+  };
+  const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMap: Record<string, string> = {
     no_db: "Supabase no configurado — no se puede persistir.",
     no_file: "Adjuntá un archivo CSV.",
@@ -60,6 +70,9 @@ export default async function ContactosPage({
     empty_after_mapping:
       "Ninguna fila tenía DNI luego del mapeo. Revisá la columna asignada.",
     gsheet: `Error sincronizando: ${params.msg ?? ""}`,
+    grupo_nombre: "El nombre del grupo es obligatorio.",
+    manual_dni: "El DNI / identificador es obligatorio.",
+    manual_grupo: "El grupo elegido no existe.",
   };
   const errMsg = params.error ? errMap[params.error] ?? params.error : null;
 
@@ -113,6 +126,119 @@ export default async function ContactosPage({
           </span>
         </div>
       </div>
+
+      {/* ── Grupos ────────────────────────────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          👥 Grupos de contactos
+        </h2>
+        <p className="text-xs text-zinc-500">
+          Colecciones con nombre para organizar contactos (ej. &ldquo;Referentes
+          barriales&rdquo;). Asignás un grupo al cargar contactos a mano.
+        </p>
+        {grupos.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {grupos.map((gr) => (
+              <li
+                key={gr.id}
+                className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+              >
+                {gr.nombre}{" "}
+                <span className="font-mono text-zinc-400">· {gr.count}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearGrupo} className="flex flex-wrap items-center gap-2">
+          <input
+            name="nombre"
+            required
+            placeholder="Nombre del grupo"
+            disabled={!persistOk}
+            className={`${inputCls} w-56`}
+          />
+          <SubmitButton pendingLabel="Creando…" disabled={!persistOk}>
+            Crear grupo
+          </SubmitButton>
+        </form>
+        <FormStatus
+          ok={params.ok === "grupo" ? okMsg : null}
+          error={params.error === "grupo_nombre" ? errMap.grupo_nombre : null}
+        />
+      </section>
+
+      {/* ── Agregar contacto a mano ───────────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          ➕ Agregar contacto a mano
+        </h2>
+        <form action={agregarContacto} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              DNI / ID <span className="text-red-500">*</span>
+              <input name="dni" required disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Nombre
+              <input name="nombre" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Apellido
+              <input name="apellido" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Email
+              <input name="email" type="email" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Teléfono
+              <input name="telefono" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Año nac.
+              <input name="fecha_nac" placeholder="ej 1985" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Sexo
+              <select name="sexo" defaultValue="" disabled={!persistOk} className={inputCls}>
+                <option value="">—</option>
+                <option value="F">F</option>
+                <option value="M">M</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Barrio
+              <input name="barrio" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Cuenta de X
+              <input name="x_handle" placeholder="@usuario" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Grupo
+              <select name="grupo_id" defaultValue="" disabled={!persistOk} className={inputCls}>
+                <option value="">— sin grupo —</option>
+                {grupos.map((gr) => (
+                  <option key={gr.id} value={gr.id}>{gr.nombre}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <SubmitButton pendingLabel="Guardando…" disabled={!persistOk}>
+            Agregar contacto
+          </SubmitButton>
+          <FormStatus
+            ok={params.ok === "manual" ? okMsg : null}
+            error={
+              params.error === "manual_dni"
+                ? errMap.manual_dni
+                : params.error === "manual_grupo"
+                  ? errMap.manual_grupo
+                  : null
+            }
+          />
+        </form>
+      </section>
 
       {/* ── Sync con Google Sheet ─────────────────────────────────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">

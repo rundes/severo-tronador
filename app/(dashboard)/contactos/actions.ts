@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { importPadron, parsePadronCsv } from "@/lib/db/padron";
+import { importPadron, parsePadronCsv, addPadronContact } from "@/lib/db/padron";
+import { createGrupo, grupoExiste } from "@/lib/grupos";
+import type { Contact } from "@/lib/connectors/types";
 import {
   readPadronPreview,
   readPadronMapped,
@@ -26,6 +28,61 @@ async function enqueueImportedHandles(
   } catch (e) {
     log.warn("contactos.enqueue_x.failed", { error: (e as Error).message });
   }
+}
+
+export async function crearGrupo(formData: FormData) {
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  if (!nombre) redirect("/contactos?error=grupo_nombre");
+  const { id: projectId } = await requireMember("editor");
+  const grupo = await createGrupo(projectId, nombre);
+  await logAudit({
+    action: "group.create",
+    projectId,
+    actor: (await auth())?.user?.email ?? null,
+    entity_type: "grupo",
+    entity_id: grupo.id,
+    details: { nombre },
+  });
+  revalidatePath("/contactos");
+  redirect("/contactos?ok=grupo");
+}
+
+export async function agregarContacto(formData: FormData) {
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const dni = String(formData.get("dni") ?? "").trim();
+  if (!dni) redirect("/contactos?error=manual_dni");
+  const { id: projectId } = await requireMember("editor");
+
+  const grupoId = String(formData.get("grupo_id") ?? "").trim() || null;
+  if (grupoId && !(await grupoExiste(projectId, grupoId))) {
+    redirect("/contactos?error=manual_grupo");
+  }
+
+  const field = (k: string) => String(formData.get(k) ?? "").trim() || undefined;
+  const contact = {
+    dni,
+    nombre: field("nombre"),
+    apellido: field("apellido"),
+    email: field("email"),
+    telefono: field("telefono"),
+    fecha_nac: field("fecha_nac"),
+    sexo: field("sexo"),
+    barrio: field("barrio"),
+    x_handle: field("x_handle"),
+  } as Contact;
+
+  await addPadronContact(projectId, contact, grupoId);
+  await logAudit({
+    action: "contact.create",
+    projectId,
+    actor: (await auth())?.user?.email ?? null,
+    entity_type: "contacto",
+    entity_id: dni,
+    details: { manual: true, grupo_id: grupoId },
+  });
+  revalidatePath("/contactos");
+  redirect("/contactos?ok=manual");
 }
 
 export async function importarCsv(formData: FormData) {
