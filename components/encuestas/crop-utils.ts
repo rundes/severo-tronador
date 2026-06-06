@@ -20,6 +20,30 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+// Redimensiona la imagen completa (sin recortar) a un ancho máximo y la
+// exporta como JPEG. Pensado para optimizar imágenes para email (ancho típico
+// del contenido ~600px; default 1200 para retina).
+export async function getResizedBlob(
+  imageSrc: string,
+  maxWidth = 1200,
+): Promise<Blob> {
+  const image = await loadImage(imageSrc);
+  const scale = image.width > maxWidth ? maxWidth / image.width : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(image.width * scale);
+  canvas.height = Math.round(image.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas no disponible");
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("falló la optimización"))),
+      "image/jpeg",
+      0.9,
+    );
+  });
+}
+
 export async function getCroppedBlob(
   imageSrc: string,
   crop: PixelCrop,
