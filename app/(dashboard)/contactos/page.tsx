@@ -5,6 +5,7 @@ import {
   importarConMapeo,
   crearGrupo,
   agregarContacto,
+  asignarGrupoMasivo,
 } from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
 import { padronCount, readPadronPage } from "@/lib/db/padron";
@@ -59,6 +60,7 @@ export default async function ContactosPage({
     gsheet: `Google Sheet sincronizado: ${params.n ?? "?"} contactos`,
     grupo: "Grupo creado.",
     manual: "Contacto cargado.",
+    bulk: `Grupo asignado a ${params.n ?? "?"} contactos.`,
   };
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMap: Record<string, string> = {
@@ -73,6 +75,8 @@ export default async function ContactosPage({
     grupo_nombre: "El nombre del grupo es obligatorio.",
     manual_dni: "El DNI / identificador es obligatorio.",
     manual_grupo: "El grupo elegido no existe.",
+    bulk_grupo: "El grupo elegido no existe.",
+    bulk_dnis: "Pegá al menos un DNI para asignar a algunos contactos.",
   };
   const errMsg = params.error ? errMap[params.error] ?? params.error : null;
 
@@ -165,6 +169,64 @@ export default async function ContactosPage({
           ok={params.ok === "grupo" ? okMsg : null}
           error={params.error === "grupo_nombre" ? errMap.grupo_nombre : null}
         />
+
+        {/* Asignación masiva de grupo: a todos o a algunos (por DNI). */}
+        {grupos.length > 0 && (
+          <div className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Asignar grupo en masa
+            </h3>
+            <form action={asignarGrupoMasivo} className="space-y-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                  Grupo destino
+                  <select name="grupo_id" defaultValue="" disabled={!persistOk} className={inputCls}>
+                    <option value="">— quitar grupo —</option>
+                    {grupos.map((gr) => (
+                      <option key={gr.id} value={gr.id}>{gr.nombre}</option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset className="flex flex-col gap-1 text-xs text-zinc-500">
+                  <span>Alcance</span>
+                  <div className="flex items-center gap-3 pt-1.5 text-sm text-zinc-700 dark:text-zinc-200">
+                    <label className="flex items-center gap-1.5">
+                      <input type="radio" name="modo" value="todos" defaultChecked />
+                      Todos los contactos ({count.toLocaleString()})
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input type="radio" name="modo" value="dnis" />
+                      Algunos (por DNI)
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+              <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                DNIs (solo si elegís «Algunos») — separados por coma, espacio o salto de línea
+                <textarea
+                  name="dnis"
+                  rows={2}
+                  placeholder="30123456, 28987654, 41222333"
+                  disabled={!persistOk}
+                  className={`${inputCls} font-mono`}
+                />
+              </label>
+              <SubmitButton pendingLabel="Asignando…" disabled={!persistOk}>
+                Asignar grupo
+              </SubmitButton>
+              <FormStatus
+                ok={params.ok === "bulk" ? okMsg : null}
+                error={
+                  params.error === "bulk_grupo"
+                    ? errMap.bulk_grupo
+                    : params.error === "bulk_dnis"
+                      ? errMap.bulk_dnis
+                      : null
+                }
+              />
+            </form>
+          </div>
+        )}
       </section>
 
       {/* ── Agregar contacto a mano ───────────────────────────────────── */}

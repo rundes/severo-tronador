@@ -26,6 +26,7 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "survey.delete": "Encuesta eliminada",
   "survey.responses_reset": "Respuestas borradas",
   "group.create": "Grupo creado",
+  "group.assign": "Grupo asignado",
   "contact.create": "Contacto cargado",
 };
 
@@ -51,6 +52,7 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "survey.delete": "bg-red-500",
   "survey.responses_reset": "bg-red-400",
   "group.create": "bg-amber-500",
+  "group.assign": "bg-amber-500",
   "contact.create": "bg-emerald-500",
 };
 
