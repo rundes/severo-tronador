@@ -12,6 +12,9 @@ import {
   generarPropuestas,
   afinarPropuesta,
   publicarDirecto,
+  generarImagenPropuesta,
+  generarVideoPropuesta,
+  estadoVideoPropuesta,
 } from "./actions";
 
 export const metadata = { title: "Publicaciones · Tronador" };
@@ -103,6 +106,9 @@ export default async function PublicacionesPage({
           genAction={generarPropuestas}
           refineAction={afinarPropuesta}
           publishAction={publicarDirecto}
+          imageAction={generarImagenPropuesta}
+          videoAction={generarVideoPropuesta}
+          videoStatusAction={estadoVideoPropuesta}
           models={studioModels}
         />
       </section>

@@ -23,6 +23,11 @@ import {
   type Proposal,
   type Platform,
 } from "@/lib/ad-proposals";
+import {
+  generateProposalImage,
+  submitProposalVideo,
+  checkProposalVideo,
+} from "@/lib/media-gen";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
@@ -191,16 +196,44 @@ export async function afinarPropuesta(
   }
 }
 
-// Publica un texto en Facebook directamente desde el estudio (sin redirect).
+// Genera una imagen para una propuesta del estudio.
+export async function generarImagenPropuesta(
+  prompt: string,
+): Promise<{ ok: boolean; url?: string; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  if (!prompt?.trim()) return { ok: false, msg: "Falta el prompt de la imagen." };
+  return generateProposalImage(projectId, prompt.trim());
+}
+
+// Envía un job de video para una propuesta (SiliconFlow, async).
+export async function generarVideoPropuesta(
+  prompt: string,
+): Promise<{ ok: boolean; requestId?: string; msg: string }> {
+  await requireMember("editor");
+  if (!prompt?.trim()) return { ok: false, msg: "Falta el prompt del video." };
+  return submitProposalVideo(prompt.trim());
+}
+
+// Consulta el estado de un job de video.
+export async function estadoVideoPropuesta(
+  requestId: string,
+): Promise<{ ok: boolean; status: string; url?: string; reason?: string }> {
+  await requireMember("editor");
+  if (!requestId) return { ok: false, status: "failed", reason: "Sin requestId." };
+  return checkProposalVideo(requestId);
+}
+
+// Publica un texto (con imagen opcional) en Facebook desde el estudio.
 export async function publicarDirecto(
   mensaje: string,
   targets: string[],
+  imageUrl?: string,
 ): Promise<{ ok: boolean; msg: string }> {
   const { id: projectId } = await requireMember("editor");
-  if (!mensaje?.trim()) return { ok: false, msg: "Sin contenido para publicar." };
+  if (!mensaje?.trim() && !imageUrl) return { ok: false, msg: "Sin contenido para publicar." };
   const done: string[] = [];
   if (targets.includes("fb")) {
-    const r = await publishToPage({ message: mensaje });
+    const r = await publishToPage({ message: mensaje, imageUrl: imageUrl || undefined });
     if (!r.ok) return { ok: false, msg: `Facebook: ${r.error}` };
     done.push(`Facebook${r.mode === "mock" ? " (mock)" : ""}: ${r.id ?? ""}`);
   }
