@@ -6,6 +6,7 @@
 export type ConnectorCategory =
   | "data" // fuente de contactos (Google Sheets)
   | "outreach" // canal saliente (Email, WhatsApp, SMS, Voz, Telegram)
+  | "publishing" // publicación/promoción en redes (Meta: FB/IG + ads)
   | "listening" // canal entrante (GDELT, X API, Reddit…)
   | "analysis" // procesamiento (Claude API, embeddings)
   | "auth"; // autenticación (Google OAuth)

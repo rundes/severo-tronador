@@ -16,6 +16,7 @@ const NAV = [
   { href: "/encuestas", label: "Encuestas" },
   { href: "/respuestas", label: "Respuestas" },
   { href: "/mail", label: "Mail" },
+  { href: "/publicaciones", label: "Publicaciones" },
   { href: "/templates", label: "Plantillas" },
   { href: "/conectores", label: "Conectores" },
   { href: "/proyectos", label: "Proyecto" },
