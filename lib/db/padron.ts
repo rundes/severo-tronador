@@ -35,6 +35,26 @@ export async function importPadron(
 
 const PAGE = 1000; // PostgREST devuelve máximo 1000 filas por request.
 
+// Alta/edición manual de un contacto (upsert por (project_id, dni)). Opcional
+// grupo_id. source 'manual' para distinguir de los importados.
+export async function addPadronContact(
+  projectId: string,
+  contact: Contact,
+  grupoId?: string | null,
+): Promise<void> {
+  if (!dbConfigured()) throw new Error("Supabase no configurado");
+  const row = {
+    ...contact,
+    project_id: projectId,
+    source: "manual",
+    grupo_id: grupoId ?? null,
+  };
+  const { error } = await getSupabase()
+    .from("padron")
+    .upsert(row, { onConflict: "project_id,dni" });
+  if (error) throw error;
+}
+
 export async function readPadronFromDb(
   projectId: string,
   limit?: number,
