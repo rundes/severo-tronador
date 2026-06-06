@@ -6,6 +6,7 @@ import type {
   Platform,
 } from "@/lib/ad-proposals";
 import type { GenProposalsResult } from "@/app/(dashboard)/publicaciones/actions";
+import { buttonClass } from "@/components/ui/button";
 
 type GenAction = (prompt: string, platforms: string[]) => Promise<GenProposalsResult>;
 type RefineAction = (
@@ -286,7 +287,7 @@ export function AdStudio({
                 type="button"
                 onClick={() => setStep(3)}
                 disabled={selected.size === 0}
-                className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                className={buttonClass("primary", "sm")}
               >
                 Afinar {selected.size} →
               </button>
@@ -309,7 +310,7 @@ export function AdStudio({
               <button type="button" onClick={() => setStep(2)} className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700">
                 ← Propuestas
               </button>
-              <button type="button" onClick={() => setStep(4)} className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
+              <button type="button" onClick={() => setStep(4)} className={buttonClass("primary", "sm")}>
                 Difundir →
               </button>
             </div>
@@ -329,7 +330,7 @@ export function AdStudio({
                     type="button"
                     onClick={() => afinar(p)}
                     disabled={pending || !(refinePrompts[p.id] ?? "").trim()}
-                    className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    className={buttonClass("primary")}
                   >
                     {busyId === p.id ? "Afinando…" : "Afinar"}
                   </button>

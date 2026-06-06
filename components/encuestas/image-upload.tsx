@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Cropper from "react-easy-crop";
 import { getCroppedBlob, type PixelCrop } from "./crop-utils";
+import { buttonClass } from "@/components/ui/button";
 
 // Sube una imagen PNG/JPG con recorte (aspecto fijo) a /api/encuestas/upload.
 // La URL resultante se guarda en un input hidden `name` (la consume el form
@@ -123,7 +124,7 @@ export function ImageUpload({
               type="button"
               onClick={confirmCrop}
               disabled={busy}
-              className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              className={buttonClass("primary")}
             >
               {busy ? "Subiendo…" : "Recortar y subir"}
             </button>

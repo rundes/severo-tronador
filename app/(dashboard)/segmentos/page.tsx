@@ -24,6 +24,7 @@ import {
 import { listSavedSegments } from "@/lib/segments-store";
 import { requireProject } from "@/lib/workspace";
 import { borrarSegmento, guardarSegmento, crearSegmentoIA } from "./actions";
+import { buttonClass } from "@/components/ui/button";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
 export const metadata = { title: "Segmentos · Severo Tronador" };
@@ -287,7 +288,7 @@ export default async function SegmentosPage({
           <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <Link
               href={qs ? `/campanas/nueva?${qs}` : "/campanas/nueva"}
-              className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+              className={buttonClass("accent")}
             >
               Iniciar campaña →
             </Link>

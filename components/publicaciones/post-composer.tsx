@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ImageUpload } from "@/components/encuestas/image-upload";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { buttonClass } from "@/components/ui/button";
 import type { AiTextState, AiImageState } from "@/app/(dashboard)/publicaciones/actions";
 
 type AiAction = (prev: AiTextState, fd: FormData) => Promise<AiTextState>;
@@ -102,7 +103,7 @@ export function PostComposer({
             type="button"
             onClick={generar}
             disabled={pending || !prompt.trim()}
-            className="inline-flex items-center gap-2 rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            className={buttonClass("accent")}
           >
             {pending ? "Generando…" : mensaje.trim() ? "✦ Ajustar" : "✦ Generar"}
           </button>

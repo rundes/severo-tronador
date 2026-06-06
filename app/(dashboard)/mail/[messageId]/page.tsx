@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getCredentialFor } from "@/lib/mailbox/credentials";
@@ -61,7 +62,7 @@ export default async function MessageDetailPage({
         </Link>
         <Link
           href={replyHref}
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className={buttonClass("primary")}
         >
           Responder
         </Link>

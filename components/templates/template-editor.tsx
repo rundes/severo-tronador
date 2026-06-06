@@ -9,6 +9,7 @@ import {
 } from "@/lib/interpolate-vars";
 import { textToHtml, wrapEmailShell, wrapEmailMinimal } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
+import { buttonClass } from "@/components/ui/button";
 import { VisualEditor } from "@/components/templates/visual-editor";
 import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
@@ -705,7 +706,7 @@ function TestSendBox({
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass("primary")}
         >
           {pending ? "Enviando…" : "Enviar prueba"}
         </button>

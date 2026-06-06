@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import type { FieldStatus } from "@/lib/connectors/config";
+import { buttonClass } from "@/components/ui/button";
 
 interface Props {
   name: string;
@@ -87,7 +88,7 @@ export function ConfigModal(p: Props) {
             <button
               type="submit"
               disabled={pending}
-              className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              className={buttonClass("primary")}
             >
               Guardar
             </button>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { getCredentialFor } from "@/lib/mailbox/credentials";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
@@ -39,7 +40,7 @@ export default async function ComposePage({
         </p>
         <Link
           href="/mail"
-          className="inline-block rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass("primary")}
         >
           Ir a Mail
         </Link>

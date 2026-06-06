@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 import { crearCampana } from "./actions";
 import { outreachConnectorFor, OUTREACH_CHANNELS } from "@/lib/campaigns";
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
@@ -269,7 +270,7 @@ export default async function NuevaCampanaPage({
           <button
             type="submit"
             disabled={sendable.length === 0}
-            className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+            className={buttonClass("accent")}
           >
             Ejecutar envío a {sendable.length} →
           </button>
