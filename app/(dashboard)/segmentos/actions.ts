@@ -16,6 +16,10 @@ import {
 } from "@/lib/segments-store";
 import { logAudit } from "@/lib/audit";
 import { requireMember } from "@/lib/workspace";
+import { getConnectorConfig } from "@/lib/connectors/config";
+import { generateText } from "@/lib/anthropic";
+import { incrementUsage } from "@/lib/quota";
+import { barriosDisponibles, loadContacts } from "@/lib/segments";
 
 const GuardarSegmentoSchema = z.object({
   nombre: z.string().trim().min(1, "Nombre requerido").max(120),
@@ -70,6 +74,98 @@ export async function guardarSegmento(formData: FormData) {
   });
   revalidatePath("/segmentos");
   redirect("/segmentos?guardado=1");
+}
+
+// Crea un segmento a partir de una descripción en lenguaje natural usando la
+// cuenta de Claude (conector claude-api). Claude devuelve un SegmentFilter
+// JSON que validamos; luego redirige a /segmentos con esos filtros aplicados
+// (el form y el contador se prellenan desde la URL) para revisar y guardar.
+export async function crearSegmentoIA(formData: FormData) {
+  const prompt = String(formData.get("prompt") ?? "").trim();
+  const fail = (detalle: string) =>
+    redirect(`/segmentos?error=ia&detalle=${encodeURIComponent(detalle)}`);
+
+  if (!prompt) fail("Describí el segmento que querés.");
+  const { id: projectId } = await requireMember("editor");
+
+  const cfg = await getConnectorConfig("claude-api");
+  const apiKey = cfg.ANTHROPIC_API_KEY;
+  if (!apiKey) fail("Falta la API key de Claude. Cargala en Conectores → Claude API.");
+
+  const all = await loadContacts(projectId);
+  const barrios = barriosDisponibles(all).slice(0, 200);
+
+  const system = [
+    "Convertís una descripción en español de una audiencia en un filtro de",
+    "segmento JSON para una base de contactos. Devolvé SOLO el JSON (sin",
+    "explicaciones ni bloque de código).",
+    "",
+    "Esquema (todas las claves opcionales; omití las que no apliquen):",
+    "- sexo: \"F\" | \"M\"",
+    "- edadMin, edadMax: enteros 0..120",
+    "- barrio: string EXACTO de la lista de barrios provista",
+    "- circuito, mesa: string",
+    "- healthMin: entero 0..100 (salud de la relación)",
+    "- healthBands: array de \"green\"|\"yellow\"|\"red\"",
+    "- respondedWithinDays: entero (respondió en últimos N días)",
+    "- notContactedDays: entero (sin contacto hace >= N días)",
+    "- hasEmail, hasTelefono: boolean",
+    "- preferredChannel: \"email\"|\"whatsapp\"|\"sms\"|\"voice\"",
+    "",
+    "Reglas: mapeá edades (\"jóvenes\"≈18-29, \"adultos mayores\"≈65+) con",
+    "criterio. Para barrio usá SOLO un valor de la lista (si no hay match claro,",
+    "omitilo). No inventes claves fuera del esquema.",
+    "",
+    "Barrios disponibles: " + (barrios.length ? barrios.join(", ") : "(ninguno)"),
+  ].join("\n");
+
+  let text: string | null = null;
+  let apiErr: string | null = null;
+  try {
+    const r = await generateText({ apiKey, system, prompt: `Descripción: ${prompt}`, maxTokens: 1024 });
+    text = r.text;
+    await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
+  } catch (e) {
+    apiErr = (e as Error).message;
+  }
+  if (apiErr || !text) fail(`Error al generar: ${apiErr ?? "sin respuesta"}`);
+
+  const stripped = (text as string)
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  let obj: unknown;
+  try {
+    obj = JSON.parse(stripped);
+  } catch {
+    fail("El asistente no devolvió un filtro válido. Probá reformular.");
+  }
+  const parsed = SegmentFilterSchema.safeParse(obj);
+  if (!parsed.success) {
+    fail(`Filtro inválido: ${summarizeZodError(parsed.error)}`);
+  }
+  const f = parsed.data!;
+
+  const qs = new URLSearchParams();
+  const setStr = (k: string, v: string | number | undefined) => {
+    if (v != null && String(v) !== "") qs.set(k, String(v));
+  };
+  setStr("sexo", f.sexo);
+  setStr("edadMin", f.edadMin);
+  setStr("edadMax", f.edadMax);
+  setStr("barrio", f.barrio);
+  setStr("circuito", f.circuito);
+  setStr("mesa", f.mesa);
+  setStr("healthMin", f.healthMin);
+  if (f.healthBands && f.healthBands.length > 0) qs.set("healthBands", f.healthBands.join(","));
+  setStr("respondedWithinDays", f.respondedWithinDays);
+  setStr("notContactedDays", f.notContactedDays);
+  if (f.hasEmail !== undefined) qs.set("hasEmail", f.hasEmail ? "1" : "0");
+  if (f.hasTelefono !== undefined) qs.set("hasTelefono", f.hasTelefono ? "1" : "0");
+  setStr("preferredChannel", f.preferredChannel);
+  qs.set("ia", "ok");
+
+  redirect(`/segmentos?${qs.toString()}`);
 }
 
 export async function borrarSegmento(formData: FormData) {
