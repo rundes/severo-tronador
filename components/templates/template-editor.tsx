@@ -10,6 +10,8 @@ import {
 import { textToHtml, wrapEmailShell } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { VisualEditor } from "@/components/templates/visual-editor";
+import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
+import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
 
 interface VarOption {
   key: string;
@@ -79,6 +81,7 @@ const DEFAULT_TEXT_BODY =
 export function TemplateEditor({
   action,
   testAction,
+  aiAction,
   varMap,
   sampleContactLabel,
   defaultTestEmail,
@@ -87,6 +90,7 @@ export function TemplateEditor({
 }: {
   action: (formData: FormData) => Promise<void>;
   testAction?: TestAction;
+  aiAction?: (prev: AiHtmlState, formData: FormData) => Promise<AiHtmlState>;
   varMap: Record<string, string>;
   sampleContactLabel: string;
   defaultTestEmail?: string;
@@ -99,8 +103,8 @@ export function TemplateEditor({
   const [formato, setFormato] = useState<"texto" | "html">("texto");
   const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
   const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
-  // Sub-vista del modo HTML: editor visual (WYSIWYG) o código crudo.
-  const [htmlView, setHtmlView] = useState<"visual" | "code">("visual");
+  // Sub-vista del modo HTML: editor visual (WYSIWYG), código crudo o asistente IA.
+  const [htmlView, setHtmlView] = useState<"visual" | "code" | "ia">("visual");
 
   const isEmail = channel === "email";
   const isHtml = isEmail && formato === "html";
@@ -352,9 +356,9 @@ export function TemplateEditor({
                   Cuerpo del email
                 </span>
                 <div className="flex items-center gap-2">
-                  {/* Toggle Visual / Código */}
+                  {/* Toggle Visual / Código / IA */}
                   <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-0.5 text-[11px] dark:border-zinc-800">
-                    {(["visual", "code"] as const).map((v) => (
+                    {(["visual", "code", ...(aiAction ? (["ia"] as const) : [])] as const).map((v) => (
                       <button
                         type="button"
                         key={v}
@@ -365,7 +369,7 @@ export function TemplateEditor({
                             : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                         }`}
                       >
-                        {v === "visual" ? "Visual" : "Código"}
+                        {v === "visual" ? "Visual" : v === "code" ? "Código" : "✦ Asistente IA"}
                       </button>
                     ))}
                   </div>
@@ -388,15 +392,26 @@ export function TemplateEditor({
                 </div>
               </div>
 
-              {htmlView === "visual" ? (
+              {htmlView === "visual" && (
                 <VisualEditor value={cuerpoHtml} onChange={setCuerpoHtml} />
-              ) : (
+              )}
+              {htmlView === "code" && (
                 <textarea
                   value={cuerpoHtml}
                   onChange={(e) => setCuerpoHtml(e.target.value)}
                   rows={14}
                   spellCheck={false}
                   className={`${inputCls} w-full font-mono text-xs`}
+                />
+              )}
+              {htmlView === "ia" && aiAction && (
+                <AiHtmlAssistant
+                  action={aiAction}
+                  current={cuerpoHtml}
+                  onApply={(html) => {
+                    setCuerpoHtml(html);
+                    setHtmlView("visual");
+                  }}
                 />
               )}
               <p className="text-[10px] text-zinc-400">
