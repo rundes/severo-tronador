@@ -93,7 +93,7 @@ export default async function DifusionPage({
       <FormStatus ok={okMsg} error={errMsg} detalle={params.error ? params.detalle ?? null : null} />
 
       {/* ── Componer publicación ──────────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           ✍️ Nueva publicación
         </h2>
@@ -107,7 +107,7 @@ export default async function DifusionPage({
       </section>
 
       {/* ── Promocionar ───────────────────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           🚀 Promocionar una publicación
         </h2>
@@ -149,7 +149,7 @@ export default async function DifusionPage({
       </section>
 
       {/* ── Reportes de rendimiento ───────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           📊 Reporte de rendimiento
         </h2>

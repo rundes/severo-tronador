@@ -129,7 +129,7 @@ export default async function ContactosPage({
       </div>
 
       {/* ── Grupos ────────────────────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           👥 Grupos de contactos
         </h2>
@@ -227,7 +227,7 @@ export default async function ContactosPage({
       </section>
 
       {/* ── Agregar contacto a mano ───────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           ➕ Agregar contacto a mano
         </h2>
@@ -300,7 +300,7 @@ export default async function ContactosPage({
       </section>
 
       {/* ── Sync con Google Sheet ─────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
             🔄 Sincronizar con Google Sheet
@@ -355,7 +355,7 @@ export default async function ContactosPage({
       </section>
 
       {/* ── Importar CSV ──────────────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           ⬆️ Importar desde CSV
         </h2>
