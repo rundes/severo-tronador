@@ -2,12 +2,27 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #18181b;
+
+  /* Acento de marca (índigo de operación) y derivados. Una sola voz. */
+  --accent: oklch(52% 0.13 255);
+  --accent-strong: oklch(47% 0.13 255);
+  --accent-soft: oklch(52% 0.13 255 / 0.08);
+  --ring: oklch(52% 0.13 255 / 0.45);
+
+  /* Elevación silenciosa: sombras como aire, no como caja. */
+  --shadow-rest: 0 1px 2px oklch(0% 0 0 / 0.04);
+  --shadow-raised: 0 6px 20px oklch(0% 0 0 / 0.08);
+
+  /* Motion: ease-out estándar, 150-200ms. */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --animate-tronador-loading-bar: tronador-loading-bar 1.2s ease-in-out infinite;
@@ -15,15 +30,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #09090b;
     --foreground: #ededed;
+    --shadow-rest: 0 1px 2px oklch(0% 0 0 / 0.3);
+    --shadow-raised: 0 8px 24px oklch(0% 0 0 / 0.45);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visible consistente en toda la app (WCAG AA): contorno de acento que
+   respeta la forma del control, en vez de anillos ad-hoc por componente. */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Las cifras alineables se comparan en columna: tabular siempre. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes tronador-loading-bar {
