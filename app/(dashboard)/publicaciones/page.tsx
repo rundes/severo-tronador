@@ -1,8 +1,8 @@
 import { requireProject } from "@/lib/workspace";
-import { getMetaConfig } from "@/lib/meta";
-import { ImageUpload } from "@/components/encuestas/image-upload";
+import { getMetaConfig, getInsights } from "@/lib/meta";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { publicarPost, promocionarPost } from "./actions";
+import { PostComposer } from "@/components/publicaciones/post-composer";
+import { publicarPost, promocionarPost, generarContenidoPostIA } from "./actions";
 
 export const metadata = { title: "Publicaciones · Tronador" };
 
@@ -45,6 +45,11 @@ export default async function PublicacionesPage({
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMsg = params.error ? errMap[params.error] ?? "No se pudo completar." : null;
 
+  // Reporte de rendimiento (cuando hay un id consultado).
+  const rtype = params.rtype === "ad" ? "ad" : "post";
+  const rid = (params.rid ?? "").trim();
+  const insights = rid ? await getInsights(rtype, rid) : null;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header>
@@ -71,58 +76,17 @@ export default async function PublicacionesPage({
 
       <FormStatus ok={okMsg} error={errMsg} detalle={params.error ? params.detalle ?? null : null} />
 
-      {/* ── Componer publicación ──────────────────────────────────────────── */}
+      {/* ── Componer publicación (con asistente Gemini + preview) ────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           ✍️ Nueva publicación
         </h2>
-        <form action={publicarPost} className="space-y-4">
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Mensaje
-            <textarea
-              name="mensaje"
-              rows={4}
-              placeholder="Texto del aviso / contenido a publicar…"
-              className={`${inputCls} w-full`}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Enlace (opcional, solo Facebook)
-            <input
-              name="link"
-              placeholder="https://…"
-              className={`${inputCls} w-full`}
-            />
-          </label>
-
-          <ImageUpload
-            name="imageUrl"
-            value=""
-            aspect={1}
-            recommend="Cuadrada (1:1). Obligatoria para Instagram."
-            label="Imagen"
-          />
-
-          <fieldset className="flex flex-col gap-1 text-xs text-zinc-500">
-            <span>Publicar en</span>
-            <div className="flex flex-wrap items-center gap-4 pt-1 text-sm text-zinc-700 dark:text-zinc-200">
-              <label className="flex items-center gap-1.5">
-                <input type="checkbox" name="targets" value="fb" defaultChecked />
-                📘 Facebook
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input type="checkbox" name="targets" value="ig" disabled={!igReady && ready} />
-                📸 Instagram
-                {!igReady && (
-                  <span className="text-[11px] text-zinc-400">(falta IG en el conector)</span>
-                )}
-              </label>
-            </div>
-          </fieldset>
-
-          <SubmitButton pendingLabel="Publicando…">Publicar</SubmitButton>
-        </form>
+        <PostComposer
+          publishAction={publicarPost}
+          aiAction={generarContenidoPostIA}
+          igReady={igReady}
+          ready={ready}
+        />
       </section>
 
       {/* ── Promocionar ───────────────────────────────────────────────────── */}
@@ -184,6 +148,71 @@ export default async function PublicacionesPage({
             Crear anuncio (pausado)
           </SubmitButton>
         </form>
+      </section>
+
+      {/* ── Reportes de rendimiento ───────────────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          📊 Reporte de rendimiento
+        </h2>
+        <p className="text-xs text-zinc-500">
+          Consultá las métricas de una publicación o anuncio por su ID
+          (impresiones, alcance, clics…). Volvé a consultar para actualizar.
+        </p>
+        <form method="get" className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            Tipo
+            <select name="rtype" defaultValue={rtype} className={inputCls}>
+              <option value="post">Publicación</option>
+              <option value="ad">Anuncio</option>
+            </select>
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-xs text-zinc-500">
+            ID
+            <input
+              name="rid"
+              defaultValue={rid}
+              placeholder="ID del post o del anuncio"
+              className={`${inputCls} w-full font-mono`}
+            />
+          </label>
+          <SubmitButton pendingLabel="Consultando…" variant="secondary">
+            Ver métricas
+          </SubmitButton>
+        </form>
+
+        {insights && (
+          <div className="space-y-2">
+            {insights.ok ? (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {insights.metrics.map((m) => (
+                    <div
+                      key={m.label}
+                      className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+                    >
+                      <div className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                        {m.value.toLocaleString("es-AR")}
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500">
+                        {m.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {insights.mode === "mock" && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Datos de ejemplo (modo mock, sin credenciales de Meta).
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                No se pudieron obtener métricas: {insights.error}
+              </p>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

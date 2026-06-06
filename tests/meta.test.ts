@@ -3,6 +3,7 @@ import {
   publishToPage,
   publishToInstagram,
   promotePagePost,
+  getInsights,
 } from "@/lib/meta";
 
 // Sin credenciales (ni env ni Supabase) → modo mock determinístico.
@@ -47,5 +48,19 @@ describe("meta · modo mock (sin credenciales)", () => {
     const a = await publishToPage({ message: "igual" });
     const b = await publishToPage({ message: "igual" });
     expect(a.id).toBe(b.id);
+  });
+
+  it("getInsights devuelve métricas mock estables", async () => {
+    const post = await getInsights("post", "123_456");
+    expect(post.ok).toBe(true);
+    expect(post.mode).toBe("mock");
+    expect(post.metrics.length).toBeGreaterThan(0);
+    expect(post.metrics[0]).toHaveProperty("label");
+    expect(post.metrics[0]).toHaveProperty("value");
+    const again = await getInsights("post", "123_456");
+    expect(again.metrics[0].value).toBe(post.metrics[0].value);
+
+    const ad = await getInsights("ad", "999");
+    expect(ad.metrics.some((m) => m.label.includes("Gasto"))).toBe(true);
   });
 });
