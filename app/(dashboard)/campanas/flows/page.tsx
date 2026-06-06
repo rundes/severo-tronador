@@ -41,6 +41,7 @@ export default async function FlowsPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
+        eyebrow="Operación"
         title="Flows"
         subtitle="Secuencias multi-step con delays y condiciones: ej. invitación día 0; si no respondió, recordatorio día 3; llamada día 7."
         action={

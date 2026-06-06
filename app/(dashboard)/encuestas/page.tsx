@@ -3,13 +3,16 @@ import { listEncuestas } from "@/lib/encuestas";
 import { requireProject } from "@/lib/workspace";
 import type { EncuestaEstado } from "@/lib/encuestas/types";
 import { duplicarEncuesta } from "./actions";
+import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata = { title: "Encuestas · Tronador" };
 
-const ESTADO_BADGE: Record<EncuestaEstado, string> = {
-  borrador: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  publicada: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  cerrada: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+const ESTADO_TONE: Record<EncuestaEstado, "neutral" | "ok" | "warn"> = {
+  borrador: "neutral",
+  publicada: "ok",
+  cerrada: "warn",
 };
 
 export default async function EncuestasPage() {
@@ -18,22 +21,16 @@ export default async function EncuestasPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Encuestas
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Creá encuestas, publicá un link público y enviálas por mail a un segmento.
-          </p>
-        </div>
-        <Link
-          href="/encuestas/nueva"
-          className="rounded bg-[oklch(35%_0.04_240)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-        >
-          Nueva encuesta
-        </Link>
-      </header>
+      <PageHeader
+        eyebrow="Investigación"
+        title="Encuestas"
+        subtitle="Creá encuestas, publicá un link público y enviálas por mail a un segmento."
+        action={
+          <Link href="/encuestas/nueva" className={buttonClass("accent")}>
+            Nueva encuesta
+          </Link>
+        }
+      />
 
       {encuestas.length === 0 ? (
         <p className="rounded border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
@@ -56,10 +53,10 @@ export default async function EncuestasPage() {
                     {new Date(e.createdAt).toLocaleDateString("es-AR")}
                   </div>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${ESTADO_BADGE[e.estado]}`}
-                >
-                  {e.estado}
+                <span className="shrink-0">
+                  <Badge tone={ESTADO_TONE[e.estado]} dot>
+                    {e.estado}
+                  </Badge>
                 </span>
               </Link>
               <form action={duplicarEncuesta} className="shrink-0 pr-3">

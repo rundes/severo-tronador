@@ -13,6 +13,7 @@ import {
   toggleConector,
   borrarConfig,
 } from "./actions";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Conectores · Severo Tronador" };
 
@@ -37,13 +38,11 @@ export default async function ConectoresPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        Conectores
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500">
-        El abanico de servicios como plugins activables. En F1 viven los
-        conectores de datos y autenticación.
-      </p>
+      <PageHeader
+        eyebrow="Sistema"
+        title="Conectores"
+        subtitle="El abanico de servicios como plugins activables: datos, canales, publicación, escucha y análisis."
+      />
 
       <div className="mt-8 space-y-8">
         {byCategory.map(({ cat, items }) => (

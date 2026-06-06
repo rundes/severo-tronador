@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCampaign } from "@/lib/campaigns";
 import { listResponses } from "@/lib/survey";
 import { requireProject } from "@/lib/workspace";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Respuestas · Severo Tronador" };
 
@@ -26,14 +27,11 @@ export default async function RespuestasPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          Respuestas
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Respuestas a encuestas tokenizadas, logueadas contra cada contacto.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Investigación"
+        title="Respuestas"
+        subtitle="Respuestas a encuestas tokenizadas, logueadas contra cada contacto."
+      />
 
       {responses.length === 0 ? (
         <p className="text-sm text-zinc-400">

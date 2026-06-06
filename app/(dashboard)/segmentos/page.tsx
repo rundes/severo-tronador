@@ -91,6 +91,7 @@ export default async function SegmentosPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
+        eyebrow="Operación"
         title="Segmentos"
         subtitle="Constructor de audiencias sobre el padrón. Calidad sobre cantidad: 80 correctos valen más que 8.000 al azar."
       />
