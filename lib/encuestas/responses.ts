@@ -219,6 +219,30 @@ function aggregateQuestion(
   };
 }
 
+// Borra TODAS las respuestas de una encuesta (mantiene la encuesta), para
+// arrancar de cero. Devuelve cuántas borró.
+export async function deleteResponses(
+  projectId: string,
+  encuestaId: string,
+): Promise<number> {
+  if (!dbConfigured()) {
+    const before = mem.length;
+    const kept = mem.filter(
+      (r) => !(r.project_id === projectId && r.encuesta_id === encuestaId),
+    );
+    mem.length = 0;
+    mem.push(...kept);
+    return before - mem.length;
+  }
+  const { error, count } = await getSupabase()
+    .from("encuesta_respuestas")
+    .delete({ count: "exact" })
+    .eq("project_id", projectId)
+    .eq("encuesta_id", encuestaId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export function _clearEncRespuestasMem() {
   mem.length = 0;
 }

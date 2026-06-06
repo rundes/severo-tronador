@@ -267,6 +267,30 @@ export async function closeEncuesta(
   return data ? rowToEncuesta(data as EncuestaRow) : null;
 }
 
+// Duplica una encuesta (contenido reutilizable). La copia nace en borrador,
+// sin slug ni published_at, con título "… (copia)".
+export async function duplicateEncuesta(
+  projectId: string,
+  id: string,
+): Promise<Encuesta | null> {
+  const src = await getEncuesta(projectId, id);
+  if (!src) return null;
+  const copy = await createEncuesta(projectId, {
+    titulo: `${src.titulo} (copia)`,
+    descripcion: src.descripcion ?? null,
+    layout: src.layout,
+  });
+  return updateEncuesta(projectId, copy.id, {
+    preguntas: src.preguntas,
+    stepMode: src.stepMode,
+    imageUrl: src.imageUrl ?? null,
+    imageEndUrl: src.imageEndUrl ?? null,
+    mensajeFinal: src.mensajeFinal ?? null,
+    ctaLabel: src.ctaLabel ?? null,
+    ctaUrl: src.ctaUrl ?? null,
+  });
+}
+
 export async function deleteEncuesta(
   projectId: string,
   id: string,

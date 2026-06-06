@@ -8,11 +8,13 @@ import {
   getEncuestaBySlug,
   listEncuestas,
   deleteEncuesta,
+  duplicateEncuesta,
   _clearEncuestasMem,
 } from "@/lib/encuestas";
 import {
   addEncuestaResponse,
   listEncuestaResponses,
+  deleteResponses,
   aggregate,
   _clearEncRespuestasMem,
 } from "@/lib/encuestas/responses";
@@ -126,6 +128,24 @@ describe("encuestas · CRUD + publish", () => {
     expect(await listEncuestas("otro-proj")).toHaveLength(0);
     expect(await listEncuestas(P)).toHaveLength(1);
   });
+
+  it("duplica contenido en borrador con título (copia)", async () => {
+    const enc = await createEncuesta(P, { titulo: "Original", descripcion: "d", layout: "stepper" });
+    await updateEncuesta(P, enc.id, { preguntas: QS, mensajeFinal: "Gracias" });
+    await publishEncuesta(P, enc.id);
+
+    const copy = await duplicateEncuesta(P, enc.id);
+    expect(copy).toBeTruthy();
+    expect(copy!.id).not.toBe(enc.id);
+    expect(copy!.titulo).toBe("Original (copia)");
+    expect(copy!.estado).toBe("borrador");
+    expect(copy!.slug).toBeNull();
+    expect(copy!.layout).toBe("stepper");
+    expect(copy!.mensajeFinal).toBe("Gracias");
+    expect(copy!.preguntas.map((q) => q.id)).toEqual(QS.map((q) => q.id));
+    // original intacto + ahora hay 2
+    expect(await listEncuestas(P)).toHaveLength(2);
+  });
 });
 
 describe("encuestas · respuestas + agregación", () => {
@@ -176,5 +196,21 @@ describe("encuestas · respuestas + agregación", () => {
     if (q3?.type === "paragraph") {
       expect(q3.values).toEqual(["todo ok"]);
     }
+  });
+
+  it("deleteResponses borra solo las de esa encuesta y mantiene la encuesta", async () => {
+    const a = await createEncuesta(P, { titulo: "A" });
+    const b = await createEncuesta(P, { titulo: "B" });
+    const ans = [{ questionId: "q", label: "Q", type: "text" as const, value: "x" }];
+    await addEncuestaResponse({ projectId: P, encuestaId: a.id, source: "publica", answers: ans });
+    await addEncuestaResponse({ projectId: P, encuestaId: a.id, source: "publica", answers: ans });
+    await addEncuestaResponse({ projectId: P, encuestaId: b.id, source: "publica", answers: ans });
+
+    const n = await deleteResponses(P, a.id);
+    expect(n).toBe(2);
+    expect(await listEncuestaResponses(P, a.id)).toHaveLength(0);
+    expect(await listEncuestaResponses(P, b.id)).toHaveLength(1);
+    // la encuesta sigue existiendo
+    expect(await getEncuesta(P, a.id)).toBeTruthy();
   });
 });

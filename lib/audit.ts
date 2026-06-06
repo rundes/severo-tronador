@@ -24,6 +24,7 @@ export type AuditAction =
   | "survey.publish"
   | "survey.send"
   | "survey.delete"
+  | "survey.responses_reset"
   | "group.create"
   | "contact.create";
 

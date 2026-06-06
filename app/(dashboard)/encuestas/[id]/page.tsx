@@ -10,12 +10,14 @@ import { QuestionEditor } from "@/components/encuestas/question-editor";
 import { EncuestaDashboard } from "@/components/encuestas/dashboard";
 import { EditTabs } from "@/components/encuestas/edit-tabs";
 import { DeleteEncuestaButton } from "@/components/encuestas/delete-button";
+import { ResetResponsesButton } from "@/components/encuestas/reset-responses-button";
 import {
   guardarPreguntas,
   publicarEncuesta,
   cerrarEncuesta,
   enviarEncuestaPorMail,
   eliminarEncuesta,
+  borrarRespuestas,
 } from "../actions";
 
 export const metadata = { title: "Editar encuesta · Tronador" };
@@ -51,6 +53,8 @@ export default async function EncuestaDetailPage({
     publicada: "Encuesta publicada. Ya podés distribuir el link público.",
     cerrada: "Encuesta cerrada. No recibe más respuestas.",
     enviada: "Encuesta encolada para envío por mail al segmento.",
+    duplicada: "Encuesta duplicada. Estás editando la copia.",
+    respuestas_borradas: `Respuestas borradas (${sp.n ?? 0}). La encuesta arranca de cero.`,
   };
   const errDetalleMap: Record<string, string> = {
     validacion: sp.detalle ?? "Revisá las preguntas.",
@@ -116,12 +120,20 @@ export default async function EncuestaDetailPage({
           Monitoreo
         </h2>
         {responses.length > 0 && (
-          <a
-            href={`/encuestas/${enc.id}/export`}
-            className="text-xs text-zinc-500 underline-offset-4 hover:underline"
-          >
-            Exportar CSV
-          </a>
+          <div className="flex items-center gap-3">
+            <a
+              href={`/encuestas/${enc.id}/export`}
+              className="text-xs text-zinc-500 underline-offset-4 hover:underline"
+            >
+              Exportar CSV
+            </a>
+            <ResetResponsesButton
+              id={enc.id}
+              total={responses.length}
+              exportHref={`/encuestas/${enc.id}/export`}
+              action={borrarRespuestas}
+            />
+          </div>
         )}
       </div>
       <EncuestaDashboard encuesta={enc} responses={responses} />

@@ -12,7 +12,9 @@ import {
   closeEncuesta,
   getEncuesta,
   deleteEncuesta,
+  duplicateEncuesta,
 } from "@/lib/encuestas";
+import { deleteResponses } from "@/lib/encuestas/responses";
 import { executeCampaign } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
 import type { SegmentFilter } from "@/lib/segments";
@@ -162,6 +164,44 @@ export async function eliminarEncuesta(formData: FormData) {
   });
   revalidatePath("/encuestas");
   redirect("/encuestas?ok=eliminada");
+}
+
+// Duplica una encuesta para reutilizar su contenido. La copia queda en
+// borrador; redirige a su editor.
+export async function duplicarEncuesta(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const { id: projectId } = await requireMember("editor");
+  const copy = await duplicateEncuesta(projectId, id);
+  if (!copy) redirect("/encuestas?error=duplicar");
+  await logAudit({
+    action: "survey.create",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "survey",
+    entity_id: copy.id,
+    details: { titulo: copy.titulo, duplicada_de: id },
+  });
+  revalidatePath("/encuestas");
+  redirect(`/encuestas/${copy.id}?ok=duplicada`);
+}
+
+// Borra TODAS las respuestas de una encuesta (mantiene la encuesta) para
+// arrancar de cero. El modal de la UI ofrece exportar antes de confirmar.
+export async function borrarRespuestas(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const { id: projectId } = await requireMember("editor");
+  const enc = await getEncuesta(projectId, id);
+  const n = await deleteResponses(projectId, id);
+  await logAudit({
+    action: "survey.responses_reset",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "survey",
+    entity_id: id,
+    details: { titulo: enc?.titulo, borradas: n },
+  });
+  revalidatePath(`/encuestas/${id}`);
+  redirect(`/encuestas/${id}?ok=respuestas_borradas&n=${n}`);
 }
 
 export async function cerrarEncuesta(formData: FormData) {
