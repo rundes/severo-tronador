@@ -10,9 +10,78 @@ import {
   publishToInstagram,
   promotePagePost,
 } from "@/lib/meta";
+import { getConnectorConfig } from "@/lib/connectors/config";
+import { generateGeminiText } from "@/lib/gemini";
+import { generateText } from "@/lib/anthropic";
+import { incrementUsage } from "@/lib/quota";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
+}
+
+export interface AiTextState {
+  ok: boolean | null;
+  text: string;
+  msg: string;
+}
+
+// Genera/refina el texto de una publicación. Usa Google AI Studio (Gemini) si
+// está configurado; si no, cae a Claude (claude-api). Soporta ajustes
+// acumulativos: `current` es el texto actual y `prompt` la nueva indicación.
+export async function generarContenidoPostIA(
+  _prev: AiTextState,
+  formData: FormData,
+): Promise<AiTextState> {
+  const { id: projectId } = await requireMember("editor");
+  const prompt = String(formData.get("prompt") ?? "").trim();
+  const current = String(formData.get("current") ?? "").trim();
+  const red = String(formData.get("red") ?? "ambos");
+  if (!prompt) return { ok: false, text: "", msg: "Escribí qué querés generar." };
+
+  const redLabel =
+    red === "facebook" ? "Facebook" : red === "instagram" ? "Instagram" : "Facebook e Instagram";
+  const system = [
+    "Escribís contenido para publicaciones y avisos de una organización de",
+    "relevamiento de opinión pública en redes sociales (" + redLabel + ").",
+    "Devolvé SOLO el texto del posteo (sin comillas, sin markdown, sin",
+    "explicaciones). Español rioplatense, claro y cercano. Podés usar emojis con",
+    "moderación y hasta 3 hashtags relevantes al final si aportan.",
+    "No inventes datos, fechas ni cifras que no estén en la indicación.",
+  ].join("\n");
+  const userPrompt = current
+    ? `Texto actual:\n${current}\n\nAjustá el texto según esta indicación (manteniendo lo bueno):\n${prompt}`
+    : `Generá el texto del posteo según esta indicación:\n${prompt}`;
+
+  const google = await getConnectorConfig("google-ai");
+  const claude = await getConnectorConfig("claude-api");
+
+  try {
+    let text = "";
+    if (google.GOOGLE_AI_API_KEY) {
+      const r = await generateGeminiText({
+        apiKey: google.GOOGLE_AI_API_KEY,
+        system,
+        prompt: userPrompt,
+      });
+      text = r.text;
+      await incrementUsage("google-ai", Math.ceil((userPrompt.length + text.length) / 4), projectId);
+    } else if (claude.ANTHROPIC_API_KEY) {
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1024 });
+      text = r.text;
+      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
+    } else {
+      return {
+        ok: false,
+        text: "",
+        msg: "Configurá Google AI Studio (Conectores → Google AI) o Claude API para generar contenido.",
+      };
+    }
+    const clean = text.replace(/^["“']|["”']$/g, "").trim();
+    if (!clean) return { ok: false, text: "", msg: "No se obtuvo texto. Probá reformular." };
+    return { ok: true, text: clean, msg: google.GOOGLE_AI_API_KEY ? "Generado con Gemini." : "Generado con Claude (configurá Google AI para usar Gemini)." };
+  } catch (e) {
+    return { ok: false, text: "", msg: `Error al generar: ${(e as Error).message}` };
+  }
 }
 
 // Publica en Facebook y/o Instagram según los destinos elegidos.

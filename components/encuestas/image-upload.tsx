@@ -14,6 +14,7 @@ export function ImageUpload({
   recommend,
   label,
   disabled,
+  onChange,
 }: {
   name: string;
   value: string;
@@ -21,8 +22,14 @@ export function ImageUpload({
   recommend: string;
   label: string;
   disabled?: boolean;
+  // Notifica la URL actual (subida o quitada) para previews externos.
+  onChange?: (url: string) => void;
 }) {
-  const [url, setUrl] = useState(value);
+  const [url, setUrlState] = useState(value);
+  const setUrl = (u: string) => {
+    setUrlState(u);
+    onChange?.(u);
+  };
   const [src, setSrc] = useState<string | null>(null); // imagen en edición (dataURL)
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);

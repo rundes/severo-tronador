@@ -175,6 +175,114 @@ export async function promotePagePost(input: PromoteInput): Promise<MetaResult> 
   }
 }
 
+export interface Metric {
+  label: string;
+  value: number;
+}
+export interface InsightsResult {
+  ok: boolean;
+  mode: "mock" | "live";
+  metrics: Metric[];
+  error?: string;
+}
+
+// Métricas de rendimiento de un post o un anuncio (medición ~en vivo vía
+// Graph Insights). Mock determinístico sin credenciales.
+export async function getInsights(
+  kind: "post" | "ad",
+  id: string,
+): Promise<InsightsResult> {
+  const { token } = await getMetaConfig();
+  if (!token || !id) return mockInsights(kind, id);
+  try {
+    if (kind === "ad") {
+      const res = await fetch(
+        `${GRAPH}/${id}/insights?fields=impressions,reach,clicks,spend,ctr&access_token=${encodeURIComponent(token)}`,
+      );
+      const data = (await res.json()) as {
+        data?: Record<string, string>[];
+        error?: { message?: string };
+      };
+      if (!res.ok || data.error) throw new Error(data.error?.message ?? `HTTP ${res.status}`);
+      const row = data.data?.[0] ?? {};
+      return {
+        ok: true,
+        mode: "live",
+        metrics: [
+          { label: "Impresiones", value: num(row.impressions) },
+          { label: "Alcance", value: num(row.reach) },
+          { label: "Clics", value: num(row.clicks) },
+          { label: "Gasto (USD)", value: num(row.spend) },
+          { label: "CTR (%)", value: num(row.ctr) },
+        ],
+      };
+    }
+    const metrics = "post_impressions,post_impressions_unique,post_engaged_users,post_clicks";
+    const res = await fetch(
+      `${GRAPH}/${id}/insights?metric=${metrics}&access_token=${encodeURIComponent(token)}`,
+    );
+    const data = (await res.json()) as {
+      data?: { name: string; values?: { value?: number }[] }[];
+      error?: { message?: string };
+    };
+    if (!res.ok || data.error) throw new Error(data.error?.message ?? `HTTP ${res.status}`);
+    const pick = (name: string) =>
+      num(data.data?.find((d) => d.name === name)?.values?.[0]?.value);
+    return {
+      ok: true,
+      mode: "live",
+      metrics: [
+        { label: "Impresiones", value: pick("post_impressions") },
+        { label: "Alcance", value: pick("post_impressions_unique") },
+        { label: "Personas que interactuaron", value: pick("post_engaged_users") },
+        { label: "Clics", value: pick("post_clicks") },
+      ],
+    };
+  } catch (e) {
+    return { ok: false, mode: "live", metrics: [], error: (e as Error).message };
+  }
+}
+
+function mockInsights(kind: "post" | "ad", id: string): InsightsResult {
+  const seed = Math.abs(hashSeed(id || kind));
+  const imp = 800 + (seed % 4000);
+  const reach = Math.round(imp * 0.72);
+  const clicks = Math.round(imp * 0.04);
+  if (kind === "ad") {
+    return {
+      ok: true,
+      mode: "mock",
+      metrics: [
+        { label: "Impresiones", value: imp },
+        { label: "Alcance", value: reach },
+        { label: "Clics", value: clicks },
+        { label: "Gasto (USD)", value: Math.round(clicks * 0.12 * 100) / 100 },
+        { label: "CTR (%)", value: Math.round((clicks / imp) * 1000) / 10 },
+      ],
+    };
+  }
+  return {
+    ok: true,
+    mode: "mock",
+    metrics: [
+      { label: "Impresiones", value: imp },
+      { label: "Alcance", value: reach },
+      { label: "Personas que interactuaron", value: Math.round(imp * 0.09) },
+      { label: "Clics", value: clicks },
+    ],
+  };
+}
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h;
+}
+
 // Sufijo determinístico para ids mock (sin Date.now para no romper purity en
 // contextos donde no está disponible; basta con algo estable por contenido).
 function idStamp(seed: string): string {
