@@ -13,7 +13,29 @@ type RefineAction = (
   refinePrompt: string,
   platforms: string[],
 ) => Promise<{ ok: boolean; proposal?: Proposal; msg: string }>;
-type PublishAction = (mensaje: string, targets: string[]) => Promise<{ ok: boolean; msg: string }>;
+type PublishAction = (
+  mensaje: string,
+  targets: string[],
+  imageUrl?: string,
+) => Promise<{ ok: boolean; msg: string }>;
+type ImageAction = (prompt: string) => Promise<{ ok: boolean; url?: string; msg: string }>;
+type VideoAction = (prompt: string) => Promise<{ ok: boolean; requestId?: string; msg: string }>;
+type VideoStatusAction = (
+  requestId: string,
+) => Promise<{ ok: boolean; status: string; url?: string; reason?: string }>;
+
+interface MediaState {
+  imgPrompt?: string;
+  imageUrl?: string;
+  imgBusy?: boolean;
+  imgMsg?: string;
+  vidPrompt?: string;
+  videoReq?: string;
+  videoUrl?: string;
+  videoStatus?: string;
+  vidBusy?: boolean;
+  vidMsg?: string;
+}
 
 const PLATFORMS: { id: Platform; label: string; icon: string }[] = [
   { id: "instagram", label: "Instagram", icon: "📸" },
@@ -40,11 +62,17 @@ export function AdStudio({
   genAction,
   refineAction,
   publishAction,
+  imageAction,
+  videoAction,
+  videoStatusAction,
   models,
 }: {
   genAction: GenAction;
   refineAction: RefineAction;
   publishAction: PublishAction;
+  imageAction: ImageAction;
+  videoAction: VideoAction;
+  videoStatusAction: VideoStatusAction;
   models: string[];
 }) {
   const [step, setStep] = useState(1);
@@ -55,9 +83,14 @@ export function AdStudio({
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refinePrompts, setRefinePrompts] = useState<Record<string, string>>({});
+  const [media, setMedia] = useState<Record<string, MediaState>>({});
   const [msg, setMsg] = useState<{ ok: boolean | null; text: string }>({ ok: null, text: "" });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  function patchMedia(id: string, patch: Partial<MediaState>) {
+    setMedia((m) => ({ ...m, [id]: { ...m[id], ...patch } }));
+  }
 
   const platformList = [...platforms];
 
@@ -107,12 +140,57 @@ export function AdStudio({
     });
   }
 
-  function publicarFb(text: string, id: string) {
+  function publicarFb(text: string, id: string, imageUrl?: string) {
     setBusyId(id);
     start(async () => {
-      const r = await publishAction(text, ["fb"]);
+      const r = await publishAction(text, ["fb"], imageUrl);
       setBusyId(null);
       setMsg({ ok: r.ok, text: r.msg });
+    });
+  }
+
+  function genImagen(p: Proposal) {
+    const prompt = (media[p.id]?.imgPrompt ?? p.angle ?? "").trim();
+    if (!prompt) {
+      patchMedia(p.id, { imgMsg: "Escribí un prompt para la imagen." });
+      return;
+    }
+    patchMedia(p.id, { imgBusy: true, imgMsg: "" });
+    start(async () => {
+      const r = await imageAction(prompt);
+      patchMedia(p.id, { imgBusy: false, imgMsg: r.msg, ...(r.ok && r.url ? { imageUrl: r.url } : {}) });
+    });
+  }
+
+  function genVideo(p: Proposal) {
+    const prompt = (media[p.id]?.vidPrompt ?? p.angle ?? "").trim();
+    if (!prompt) {
+      patchMedia(p.id, { vidMsg: "Escribí un prompt para el video." });
+      return;
+    }
+    patchMedia(p.id, { vidBusy: true, vidMsg: "" });
+    start(async () => {
+      const r = await videoAction(prompt);
+      patchMedia(p.id, {
+        vidBusy: false,
+        vidMsg: r.msg,
+        ...(r.ok && r.requestId ? { videoReq: r.requestId, videoStatus: "pending" } : {}),
+      });
+    });
+  }
+
+  function consultarVideo(p: Proposal) {
+    const req = media[p.id]?.videoReq;
+    if (!req) return;
+    patchMedia(p.id, { vidBusy: true });
+    start(async () => {
+      const r = await videoStatusAction(req);
+      patchMedia(p.id, {
+        vidBusy: false,
+        videoStatus: r.status,
+        vidMsg: r.status === "pending" ? "Todavía en proceso…" : r.status === "failed" ? (r.reason ?? "Falló") : "Video listo.",
+        ...(r.url ? { videoUrl: r.url } : {}),
+      });
     });
   }
 
@@ -256,6 +334,65 @@ export function AdStudio({
                     {busyId === p.id ? "Afinando…" : "Afinar"}
                   </button>
                 </div>
+
+                {/* Medios: imagen + video */}
+                <div className="grid grid-cols-1 gap-3 rounded-md border border-zinc-100 p-2 dark:border-zinc-800 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">🖼️ Imagen</span>
+                    <input
+                      value={media[p.id]?.imgPrompt ?? p.angle ?? ""}
+                      onChange={(e) => patchMedia(p.id, { imgPrompt: e.target.value })}
+                      placeholder="Prompt de la imagen"
+                      className={`${inputCls} w-full`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => genImagen(p)}
+                      disabled={pending}
+                      className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900"
+                    >
+                      {media[p.id]?.imgBusy ? "Generando…" : "Generar imagen"}
+                    </button>
+                    {media[p.id]?.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={media[p.id]!.imageUrl} alt="" className="mt-1 max-h-32 rounded object-cover" />
+                    )}
+                    {media[p.id]?.imgMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.imgMsg}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">🎬 Video</span>
+                    <input
+                      value={media[p.id]?.vidPrompt ?? p.angle ?? ""}
+                      onChange={(e) => patchMedia(p.id, { vidPrompt: e.target.value })}
+                      placeholder="Prompt del video (SiliconFlow)"
+                      className={`${inputCls} w-full`}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => genVideo(p)}
+                        disabled={pending}
+                        className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900"
+                      >
+                        {media[p.id]?.vidBusy ? "Procesando…" : "Generar video"}
+                      </button>
+                      {media[p.id]?.videoReq && !media[p.id]?.videoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => consultarVideo(p)}
+                          disabled={pending}
+                          className="rounded border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
+                        >
+                          Consultar estado
+                        </button>
+                      )}
+                    </div>
+                    {media[p.id]?.videoUrl && (
+                      <video src={media[p.id]!.videoUrl} controls className="mt-1 max-h-40 w-full rounded" />
+                    )}
+                    {media[p.id]?.vidMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.vidMsg}</p>}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -278,6 +415,17 @@ export function AdStudio({
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
                 {p.label} {p.angle && <span className="font-normal text-zinc-400">· {p.angle}</span>}
               </div>
+              {(media[p.id]?.imageUrl || media[p.id]?.videoUrl) && (
+                <div className="flex flex-wrap gap-3">
+                  {media[p.id]?.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={media[p.id]!.imageUrl} alt="" className="max-h-32 rounded object-cover" />
+                  )}
+                  {media[p.id]?.videoUrl && (
+                    <video src={media[p.id]!.videoUrl} controls className="max-h-32 rounded" />
+                  )}
+                </div>
+              )}
               {Object.entries(p.platforms).map(([plat, content]) => (
                 <div key={plat} className="space-y-1 rounded-md border border-zinc-100 p-2 dark:border-zinc-800">
                   <div className="flex items-center justify-between">
@@ -287,7 +435,7 @@ export function AdStudio({
                       {plat === "facebook" && (
                         <button
                           type="button"
-                          onClick={() => publicarFb(fieldText(content.post ?? platformText(content)), p.id + plat)}
+                          onClick={() => publicarFb(fieldText(content.post ?? platformText(content)), p.id + plat, media[p.id]?.imageUrl)}
                           disabled={pending}
                           className="rounded bg-[#1877F2] px-2 py-0.5 text-[11px] font-medium text-white disabled:opacity-50"
                         >
