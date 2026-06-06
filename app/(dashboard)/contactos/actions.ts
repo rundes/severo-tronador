@@ -2,7 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { importPadron, parsePadronCsv, addPadronContact } from "@/lib/db/padron";
+import {
+  importPadron,
+  parsePadronCsv,
+  addPadronContact,
+  assignGroupToAll,
+  assignGroupToDnis,
+} from "@/lib/db/padron";
 import { createGrupo, grupoExiste } from "@/lib/grupos";
 import type { Contact } from "@/lib/connectors/types";
 import {
@@ -83,6 +89,40 @@ export async function agregarContacto(formData: FormData) {
   });
   revalidatePath("/contactos");
   redirect("/contactos?ok=manual");
+}
+
+// Asignación masiva de grupo: a TODOS los contactos o a una lista de DNIs.
+// El grupo destino puede ser vacío (quita el grupo). "recursivo" = todos.
+export async function asignarGrupoMasivo(formData: FormData) {
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const { id: projectId } = await requireMember("editor");
+
+  const grupoId = String(formData.get("grupo_id") ?? "").trim() || null;
+  if (grupoId && !(await grupoExiste(projectId, grupoId))) {
+    redirect("/contactos?error=bulk_grupo");
+  }
+  const modo = String(formData.get("modo") ?? "todos");
+
+  let n = 0;
+  if (modo === "dnis") {
+    const raw = String(formData.get("dnis") ?? "");
+    const dnis = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+    if (dnis.length === 0) redirect("/contactos?error=bulk_dnis");
+    n = await assignGroupToDnis(projectId, grupoId, dnis);
+  } else {
+    n = await assignGroupToAll(projectId, grupoId);
+  }
+
+  await logAudit({
+    action: "group.assign",
+    projectId,
+    actor: (await auth())?.user?.email ?? null,
+    entity_type: "grupo",
+    entity_id: grupoId ?? "(sin grupo)",
+    details: { modo, asignados: n },
+  });
+  revalidatePath("/contactos");
+  redirect(`/contactos?ok=bulk&n=${n}`);
 }
 
 export async function importarCsv(formData: FormData) {

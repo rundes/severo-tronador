@@ -55,6 +55,47 @@ export async function addPadronContact(
   if (error) throw error;
 }
 
+// Asigna (o quita, con grupoId null) un grupo a TODOS los contactos del
+// proyecto. Devuelve cuántos se actualizaron.
+export async function assignGroupToAll(
+  projectId: string,
+  grupoId: string | null,
+): Promise<number> {
+  if (!dbConfigured()) throw new Error("Supabase no configurado");
+  const { error, count } = await getSupabase()
+    .from("padron")
+    .update({ grupo_id: grupoId }, { count: "exact" })
+    .eq("project_id", projectId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// Asigna (o quita) un grupo a un subconjunto de contactos por DNI. Pagina los
+// DNIs en lotes para no exceder el largo de URL de PostgREST.
+export async function assignGroupToDnis(
+  projectId: string,
+  grupoId: string | null,
+  dnis: string[],
+): Promise<number> {
+  if (!dbConfigured()) throw new Error("Supabase no configurado");
+  const unique = [...new Set(dnis.map((d) => d.trim()).filter(Boolean))];
+  if (unique.length === 0) return 0;
+  const sb = getSupabase();
+  const BATCH = 200;
+  let total = 0;
+  for (let i = 0; i < unique.length; i += BATCH) {
+    const chunk = unique.slice(i, i + BATCH);
+    const { error, count } = await sb
+      .from("padron")
+      .update({ grupo_id: grupoId }, { count: "exact" })
+      .eq("project_id", projectId)
+      .in("dni", chunk);
+    if (error) throw error;
+    total += count ?? 0;
+  }
+  return total;
+}
+
 export async function readPadronFromDb(
   projectId: string,
   limit?: number,

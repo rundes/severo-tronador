@@ -26,6 +26,7 @@ export type AuditAction =
   | "survey.delete"
   | "survey.responses_reset"
   | "group.create"
+  | "group.assign"
   | "contact.create";
 
 export interface AuditEntry {
