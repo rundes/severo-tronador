@@ -87,6 +87,7 @@ export function TemplateEditor({
   defaultTestEmail,
   statusOk,
   statusError,
+  modelos = [],
 }: {
   action: (formData: FormData) => Promise<void>;
   testAction?: TestAction;
@@ -96,6 +97,9 @@ export function TemplateEditor({
   defaultTestEmail?: string;
   statusOk?: string | null;
   statusError?: string | null;
+  // Diseños HTML guardados (plantillas email formato html) reutilizables como
+  // modelo de partida para nuevas plantillas / campañas.
+  modelos?: { id: string; nombre: string; html: string }[];
 }) {
   const [channel, setChannel] = useState<string>("email");
   const [nombre, setNombre] = useState("");
@@ -391,20 +395,37 @@ export function TemplateEditor({
                     ))}
                   </div>
                   <select
-                    aria-label="Insertar plantilla prediseñada"
+                    aria-label="Insertar diseño o modelo guardado"
                     className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-700 dark:bg-zinc-900"
                     value=""
                     onChange={(e) => {
-                      const p = HTML_PRESETS.find((x) => x.id === e.target.value);
-                      if (p) setCuerpoHtml(p.html);
+                      const v = e.target.value;
+                      if (v.startsWith("saved:")) {
+                        const m = modelos.find((x) => x.id === v.slice(6));
+                        if (m) setCuerpoHtml(m.html);
+                      } else {
+                        const p = HTML_PRESETS.find((x) => x.id === v);
+                        if (p) setCuerpoHtml(p.html);
+                      }
                     }}
                   >
                     <option value="">Insertar diseño…</option>
-                    {HTML_PRESETS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
+                    <optgroup label="Prediseñados">
+                      {HTML_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {modelos.length > 0 && (
+                      <optgroup label="Tus modelos guardados">
+                        {modelos.map((m) => (
+                          <option key={m.id} value={`saved:${m.id}`}>
+                            {m.nombre}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -478,6 +499,18 @@ export function TemplateEditor({
               Guardar plantilla
             </SubmitButton>
             <FormStatus ok={statusOk} error={statusError} />
+            <p className="text-[10px] text-zinc-400">
+              Al guardar, la plantilla queda en la colección y se puede usar en
+              campañas y encuestas.
+              {isHtml && (
+                <>
+                  {" "}
+                  Las plantillas HTML quedan además como{" "}
+                  <strong className="font-medium text-zinc-500">modelo</strong>{" "}
+                  reutilizable en «Insertar diseño…».
+                </>
+              )}
+            </p>
           </div>
         </div>
 

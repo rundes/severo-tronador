@@ -100,6 +100,9 @@ export default async function TemplatesPage({
           varMap={varMap}
           sampleContactLabel={sampleLabel}
           defaultTestEmail={userEmail}
+          modelos={templates
+            .filter((t) => t.channel === "email" && t.formato === "html" && t.cuerpoHtml)
+            .map((t) => ({ id: t.id, nombre: t.nombre, html: t.cuerpoHtml as string }))}
           statusError={
             params.error === "campos"
               ? "Completá nombre y cuerpo de la plantilla."
