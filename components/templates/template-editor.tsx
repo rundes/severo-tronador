@@ -272,22 +272,39 @@ export function TemplateEditor({
                 />
               </label>
 
-              {/* Toggle de formato */}
-              <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
-                {(["texto", "html"] as const).map((f) => (
+              {/* Toggle de formato + atajo al asistente IA (siempre visible
+                  en email, para que la integración con IA se descubra sin
+                  tener que entrar primero a "Diseño HTML"). */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+                  {(["texto", "html"] as const).map((f) => (
+                    <button
+                      type="button"
+                      key={f}
+                      onClick={() => setFormato(f)}
+                      className={`rounded-full px-3 py-1 transition-colors ${
+                        formato === f
+                          ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      {f === "texto" ? "Texto plano" : "Diseño HTML"}
+                    </button>
+                  ))}
+                </div>
+                {aiAction && (
                   <button
                     type="button"
-                    key={f}
-                    onClick={() => setFormato(f)}
-                    className={`rounded-full px-3 py-1 transition-colors ${
-                      formato === f
-                        ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                    }`}
+                    onClick={() => {
+                      setFormato("html");
+                      setHtmlView("ia");
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-[oklch(52%_0.13_255)]/40 bg-[oklch(52%_0.13_255)]/8 px-3 py-1.5 text-xs font-medium text-[oklch(45%_0.13_255)] transition-colors hover:bg-[oklch(52%_0.13_255)]/15 dark:text-[oklch(72%_0.12_255)]"
+                    title="Generar el diseño con Claude a partir de tus indicaciones"
                   >
-                    {f === "texto" ? "Texto plano" : "Diseño HTML"}
+                    ✦ Diseñar con IA
                   </button>
-                ))}
+                )}
               </div>
             </>
           )}
