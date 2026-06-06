@@ -17,7 +17,7 @@ export default async function NuevaEncuestaPage({
   const errMsg = sp.error === "titulo" ? "El título es obligatorio." : null;
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <nav>
         <Link
           href="/encuestas"

@@ -46,7 +46,7 @@ export default async function ProyectosPage({
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Proyectos

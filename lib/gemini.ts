@@ -4,7 +4,10 @@ const BASE = "https://generativelanguage.googleapis.com/v1beta";
 // Modelos vigentes (los 2.0 quedaron deprecados). Override por
 // GOOGLE_AI_MODEL / GOOGLE_AI_IMAGE_MODEL o el campo "Modelo" del conector.
 const DEFAULT_MODEL = "gemini-2.5-flash";
-const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
+// gemini-2.5-flash-image-preview no existe en v1beta; el preview de imagen 2.0
+// sí resuelve (la falla previa era de billing, no de modelo). Override por
+// GOOGLE_AI_IMAGE_MODEL si tu cuenta tiene otro.
+const DEFAULT_IMAGE_MODEL = "gemini-2.0-flash-preview-image-generation";
 
 export interface GeminiInput {
   apiKey: string;
