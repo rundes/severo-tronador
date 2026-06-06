@@ -247,7 +247,7 @@ export default async function SegmentosPage({
           </div>
         </div>
 
-        {total > 0 && (
+        {total > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <Link
               href={qs ? `/campanas/nueva?${qs}` : "/campanas/nueva"}
@@ -266,6 +266,13 @@ export default async function SegmentosPage({
               ⬇️ CSV
             </a>
           </div>
+        ) : (
+          <p className="mt-4 border-t border-zinc-100 pt-3 text-sm text-amber-700 dark:border-zinc-800 dark:text-amber-400">
+            <strong>0 personas con estos filtros.</strong> Afiná los criterios
+            para poder iniciar una campaña. Ojo: <strong>&ldquo;Canal
+            preferido&rdquo;</strong> requiere historial de respuestas (3+
+            contactos); sin campañas previas deja el segmento en 0 — quitalo.
+          </p>
         )}
       </div>
 
