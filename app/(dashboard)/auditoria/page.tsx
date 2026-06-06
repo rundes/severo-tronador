@@ -28,6 +28,8 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "group.create": "Grupo creado",
   "group.assign": "Grupo asignado",
   "contact.create": "Contacto cargado",
+  "post.publish": "Publicación enviada",
+  "post.promote": "Publicación promocionada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -54,6 +56,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "group.create": "bg-amber-500",
   "group.assign": "bg-amber-500",
   "contact.create": "bg-emerald-500",
+  "post.publish": "bg-blue-500",
+  "post.promote": "bg-fuchsia-500",
 };
 
 function ago(iso: string): string {

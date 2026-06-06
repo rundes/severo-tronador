@@ -16,6 +16,7 @@ import { xApiConnector } from "./x-api";
 import { redditApiConnector } from "./reddit-api";
 import { metaContentLibraryConnector } from "./meta-content-library";
 import { rssConnector } from "./rss";
+import { metaConnector } from "./meta";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -32,6 +33,7 @@ export const connectors: Connector[] = [
   redditApiConnector,
   metaContentLibraryConnector,
   rssConnector,
+  metaConnector,
 ];
 
 export function getConnector(id: string): Connector | undefined {
@@ -43,6 +45,7 @@ export const CATEGORY_LABELS: Record<Connector["category"], string> = {
   data: "Datos",
   auth: "Autenticación",
   outreach: "Canales de contactación",
+  publishing: "Publicaciones y avisos",
   listening: "Escucha",
   analysis: "Análisis",
 };
@@ -50,6 +53,7 @@ export const CATEGORY_LABELS: Record<Connector["category"], string> = {
 export const CATEGORY_ORDER: Connector["category"][] = [
   "data",
   "outreach",
+  "publishing",
   "listening",
   "analysis",
   "auth",

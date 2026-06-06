@@ -27,7 +27,9 @@ export type AuditAction =
   | "survey.responses_reset"
   | "group.create"
   | "group.assign"
-  | "contact.create";
+  | "contact.create"
+  | "post.publish"
+  | "post.promote";
 
 export interface AuditEntry {
   id: string;
