@@ -38,7 +38,7 @@ export default async function CampanasPage() {
   const campaigns = await listCampaigns(projectId);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Campañas"
         subtitle="Cada campaña es un envío a un segmento, por un canal, respetando cuota y cooldowns."

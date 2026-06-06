@@ -18,7 +18,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   return (
-    <div className="mx-auto max-w-xl space-y-4 py-10">
+    <div className="mx-auto max-w-2xl space-y-4 py-10">
       <h1 className="text-xl font-semibold text-red-700 dark:text-red-400">
         Algo no salió bien
       </h1>

@@ -53,7 +53,7 @@ export default async function ContactoPage({
   const llamadas = await listCallsFor(dni);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <Link href="/segmentos" className="text-sm text-zinc-500 hover:underline">
         ← Volver a segmentos
       </Link>

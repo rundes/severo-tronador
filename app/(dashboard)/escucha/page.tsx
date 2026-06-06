@@ -104,7 +104,7 @@ export default async function EscuchaPage({
   const realCount = sources.filter((s) => s.real).length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-7xl space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Escucha

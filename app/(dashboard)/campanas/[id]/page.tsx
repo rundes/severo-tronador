@@ -90,7 +90,7 @@ export default async function CampanaPage({
     : null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <Link href="/campanas" className="text-sm text-zinc-500 hover:underline">
         ← Campañas
       </Link>

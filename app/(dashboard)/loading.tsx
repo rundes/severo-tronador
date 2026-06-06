@@ -9,7 +9,7 @@ export default function DashboardLoading() {
   return (
     <div>
       <TopBar />
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <div className="space-y-2">
           <div className="h-6 w-48 animate-pulse rounded bg-zinc-100 dark:bg-zinc-900" />
           <div className="h-3 w-72 animate-pulse rounded bg-zinc-100 dark:bg-zinc-900" />

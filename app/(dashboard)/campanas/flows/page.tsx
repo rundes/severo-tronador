@@ -39,7 +39,7 @@ export default async function FlowsPage({
   const flows = await listFlows(projectId);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Flows"
         subtitle="Secuencias multi-step con delays y condiciones: ej. invitación día 0; si no respondió, recordatorio día 3; llamada día 7."

@@ -67,7 +67,7 @@ export default async function NuevaCampanaPage({
   if (params.q) baseQs.set("q", params.q);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <Link href="/campanas" className="text-sm text-zinc-500 hover:underline">
         ← Campañas
       </Link>

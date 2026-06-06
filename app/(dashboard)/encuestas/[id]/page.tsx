@@ -199,7 +199,7 @@ export default async function EncuestaDetailPage({
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <nav className="flex items-center justify-between">
         <Link href="/encuestas" className="text-sm text-zinc-500 underline-offset-4 hover:underline">
           ← Encuestas

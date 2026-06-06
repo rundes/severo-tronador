@@ -83,7 +83,7 @@ export default async function AuditoriaPage({
   const entries = await listAudit({ projectId, limit: 200, action, actor });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Auditoría

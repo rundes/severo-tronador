@@ -36,7 +36,7 @@ export default async function ConectoresPage() {
   })).filter((g) => g.items.length > 0);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
         Conectores
       </h1>

@@ -30,7 +30,7 @@ export default async function NuevoFlowPage({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <Link
         href="/campanas/flows"
         className="text-sm text-zinc-500 hover:underline"

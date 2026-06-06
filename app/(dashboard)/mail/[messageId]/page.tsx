@@ -51,7 +51,7 @@ export default async function MessageDetailPage({
   )}&subject=${encodeURIComponent(`Re: ${message.subject}`)}&inReplyTo=${encodeURIComponent(message.id)}`;
 
   return (
-    <article className="mx-auto max-w-3xl space-y-5">
+    <article className="mx-auto max-w-4xl space-y-5">
       <nav className="flex items-center justify-between">
         <Link
           href={`/mail?box=${box}`}

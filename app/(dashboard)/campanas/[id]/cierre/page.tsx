@@ -28,7 +28,7 @@ export default async function CierrePage({
     cierre.sentiment.neutral || 1;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <Link
         href={`/campanas/${id}`}
         className="text-sm text-zinc-500 hover:underline"

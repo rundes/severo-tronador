@@ -29,7 +29,7 @@ export default async function ComposePage({
 
   if (!cred) {
     return (
-      <div className="mx-auto max-w-xl space-y-3">
+      <div className="mx-auto max-w-3xl space-y-3">
         <h1 className="text-xl font-semibold tracking-tight">
           Provisioná tu casilla primero
         </h1>
@@ -48,7 +48,7 @@ export default async function ComposePage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <nav>
         <Link
           href="/mail"
