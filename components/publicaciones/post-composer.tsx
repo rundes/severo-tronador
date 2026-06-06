@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { ImageUpload } from "@/components/encuestas/image-upload";
 import { SubmitButton } from "@/components/ui/submit-button";
-import type { AiTextState } from "@/app/(dashboard)/publicaciones/actions";
+import type { AiTextState, AiImageState } from "@/app/(dashboard)/publicaciones/actions";
 
 type AiAction = (prev: AiTextState, fd: FormData) => Promise<AiTextState>;
+type ImgAction = (prev: AiImageState, fd: FormData) => Promise<AiImageState>;
 
 const inputCls =
   "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -16,11 +17,13 @@ const inputCls =
 export function PostComposer({
   publishAction,
   aiAction,
+  imageAction,
   igReady,
   ready,
 }: {
   publishAction: (fd: FormData) => void;
   aiAction: AiAction;
+  imageAction: ImgAction;
   igReady: boolean;
   ready: boolean;
 }) {
@@ -35,6 +38,14 @@ export function PostComposer({
   });
   const [pending, startTransition] = useTransition();
 
+  // Generación de imagen con Gemini.
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgMsg, setImgMsg] = useState<{ ok: boolean | null; msg: string }>({
+    ok: null,
+    msg: "",
+  });
+  const [imgPending, startImg] = useTransition();
+
   function generar() {
     if (!prompt.trim() || pending) return;
     const fd = new FormData();
@@ -45,6 +56,17 @@ export function PostComposer({
       const res = await aiAction({ ok: null, text: "", msg: "" }, fd);
       if (res.ok && res.text) setMensaje(res.text);
       setAiMsg({ ok: res.ok, msg: res.msg });
+    });
+  }
+
+  function generarImagen() {
+    if (!imgPrompt.trim() || imgPending) return;
+    const fd = new FormData();
+    fd.set("prompt", imgPrompt);
+    startImg(async () => {
+      const res = await imageAction({ ok: null, url: "", msg: "" }, fd);
+      if (res.ok && res.url) setImageUrl(res.url);
+      setImgMsg({ ok: res.ok, msg: res.msg });
     });
   }
 
@@ -118,12 +140,43 @@ export function PostComposer({
             />
           </label>
 
+          {/* Valor de imagen efectivo enviado (subida manual o generada). */}
+          <input type="hidden" name="imageUrl" value={imageUrl} />
+
+          <div className="space-y-2 rounded-lg border border-[oklch(52%_0.13_255)]/30 bg-[oklch(52%_0.13_255)]/[0.04] p-3">
+            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+              ✦ Generar imagen con IA (Gemini)
+            </span>
+            <textarea
+              value={imgPrompt}
+              onChange={(e) => setImgPrompt(e.target.value)}
+              rows={2}
+              placeholder="Describí la imagen. Ej: «ilustración cálida de vecinos charlando en una plaza de barrio, estilo flat, colores tierra»."
+              className={`${inputCls} w-full`}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={generarImagen}
+                disabled={imgPending || !imgPrompt.trim()}
+                className="inline-flex items-center gap-2 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                {imgPending ? "Generando imagen…" : "✦ Generar imagen"}
+              </button>
+              {imgMsg.ok !== null && (
+                <span className={`text-[11px] ${imgMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {imgMsg.msg}
+                </span>
+              )}
+            </div>
+          </div>
+
           <ImageUpload
-            name="imageUrl"
+            name="imageUrl_upload"
             value=""
             aspect={1}
-            recommend="Cuadrada (1:1). Obligatoria para Instagram."
-            label="Imagen"
+            recommend="Cuadrada (1:1). Obligatoria para Instagram. O generala con IA arriba."
+            label="O subí una imagen"
             onChange={setImageUrl}
           />
 

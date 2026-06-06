@@ -2,7 +2,12 @@ import { requireProject } from "@/lib/workspace";
 import { getMetaConfig, getInsights } from "@/lib/meta";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { PostComposer } from "@/components/publicaciones/post-composer";
-import { publicarPost, promocionarPost, generarContenidoPostIA } from "./actions";
+import {
+  publicarPost,
+  promocionarPost,
+  generarContenidoPostIA,
+  generarImagenIA,
+} from "./actions";
 
 export const metadata = { title: "Publicaciones · Tronador" };
 
@@ -84,6 +89,7 @@ export default async function PublicacionesPage({
         <PostComposer
           publishAction={publicarPost}
           aiAction={generarContenidoPostIA}
+          imageAction={generarImagenIA}
           igReady={igReady}
           ready={ready}
         />
