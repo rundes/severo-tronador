@@ -3,7 +3,18 @@
 import { useRouter, useSearchParams } from "next/navigation";
 
 const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+const labelCls = "flex flex-col gap-1 text-xs font-medium text-zinc-500";
+const legendCls = "text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className={labelCls}>
+      {label}
+      {children}
+    </label>
+  );
+}
 
 export function FilterForm({ barrios }: { barrios: string[] }) {
   const router = useRouter();
@@ -15,7 +26,6 @@ export function FilterForm({ barrios }: { barrios: string[] }) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const params = new URLSearchParams();
-    // Recolectar checkboxes de bandas en una sola key CSV.
     const bands = fd.getAll("healthBands").map(String).filter(Boolean);
     fd.delete("healthBands");
     for (const [k, v] of fd.entries()) {
@@ -29,181 +39,123 @@ export function FilterForm({ barrios }: { barrios: string[] }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+      className="space-y-5 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800"
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Sexo
-          <select name="sexo" defaultValue={get("sexo")} className={inputCls}>
-            <option value="">cualquiera</option>
-            <option value="F">F</option>
-            <option value="M">M</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Edad mín.
-          <input
-            type="number"
-            name="edadMin"
-            min={0}
-            max={120}
-            defaultValue={get("edadMin")}
-            className={inputCls}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Edad máx.
-          <input
-            type="number"
-            name="edadMax"
-            min={0}
-            max={120}
-            defaultValue={get("edadMax")}
-            className={inputCls}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Barrio / localidad
-          <select name="barrio" defaultValue={get("barrio")} className={inputCls}>
-            <option value="">cualquiera</option>
-            {barrios.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Salud mín. (0–100)
-          <input
-            type="number"
-            name="healthMin"
-            min={0}
-            max={100}
-            defaultValue={get("healthMin")}
-            className={inputCls}
-          />
-        </label>
-        <div className="flex flex-col gap-1 text-xs text-zinc-500">
-          Bandas de salud
-          <div className="flex gap-2 pt-1">
-            {(["green", "yellow", "red"] as const).map((band) => (
-              <label
-                key={band}
-                className="flex cursor-pointer items-center gap-1 text-xs"
-              >
-                <input
-                  type="checkbox"
-                  name="healthBands"
-                  value={band}
-                  defaultChecked={bandsActive.has(band)}
-                />
-                {band === "green" ? "🟢" : band === "yellow" ? "🟡" : "🔴"}
-              </label>
-            ))}
+      {/* Demografía */}
+      <fieldset className="space-y-2">
+        <legend className={legendCls}>Demografía</legend>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="Sexo">
+            <select name="sexo" defaultValue={get("sexo")} className={inputCls}>
+              <option value="">cualquiera</option>
+              <option value="F">Femenino</option>
+              <option value="M">Masculino</option>
+            </select>
+          </Field>
+          <Field label="Edad mín.">
+            <input type="number" name="edadMin" min={0} max={120} defaultValue={get("edadMin")} className={inputCls} />
+          </Field>
+          <Field label="Edad máx.">
+            <input type="number" name="edadMax" min={0} max={120} defaultValue={get("edadMax")} className={inputCls} />
+          </Field>
+          <Field label="Barrio / localidad">
+            <select name="barrio" defaultValue={get("barrio")} className={inputCls}>
+              <option value="">cualquiera</option>
+              {barrios.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </fieldset>
+
+      {/* Salud de la relación */}
+      <fieldset className="space-y-2">
+        <legend className={legendCls}>Salud de la relación</legend>
+        <div className="flex flex-wrap items-end gap-4">
+          <Field label="Salud mín. (0–100)">
+            <input type="number" name="healthMin" min={0} max={100} defaultValue={get("healthMin")} className={`${inputCls} w-28`} />
+          </Field>
+          <div className={labelCls}>
+            Bandas
+            <div className="flex gap-2 pt-0.5">
+              {([
+                ["green", "🟢 Sanas"],
+                ["yellow", "🟡 Tibias"],
+                ["red", "🔴 Frías"],
+              ] as const).map(([band, label]) => (
+                <label
+                  key={band}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs transition has-[:checked]:border-[oklch(52%_0.13_255)] has-[:checked]:bg-[oklch(96.5%_0.025_255)] dark:border-zinc-700 dark:has-[:checked]:border-[oklch(70%_0.1_255)] dark:has-[:checked]:bg-[oklch(32%_0.05_255)]"
+                >
+                  <input type="checkbox" name="healthBands" value={band} defaultChecked={bandsActive.has(band)} className="sr-only" />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </fieldset>
 
-      <details>
-        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
-          Filtros avanzados
+      {/* Más filtros */}
+      <details className="rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+        <summary className={`cursor-pointer ${legendCls} hover:text-zinc-600`}>
+          Más filtros
         </summary>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Circuito
-            <input
-              name="circuito"
-              defaultValue={get("circuito")}
-              placeholder="ej 12"
-              className={inputCls}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Mesa
-            <input
-              name="mesa"
-              defaultValue={get("mesa")}
-              placeholder="ej 0034"
-              className={inputCls}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          <Field label="Circuito">
+            <input name="circuito" defaultValue={get("circuito")} placeholder="ej 12" className={inputCls} />
+          </Field>
+          <Field label="Mesa">
+            <input name="mesa" defaultValue={get("mesa")} placeholder="ej 0034" className={inputCls} />
+          </Field>
+          <Field label="Tiene email">
+            <select name="hasEmail" defaultValue={get("hasEmail")} className={inputCls}>
+              <option value="">no importa</option>
+              <option value="1">sí</option>
+              <option value="0">no</option>
+            </select>
+          </Field>
+          <Field label="Tiene teléfono">
+            <select name="hasTelefono" defaultValue={get("hasTelefono")} className={inputCls}>
+              <option value="">no importa</option>
+              <option value="1">sí</option>
+              <option value="0">no</option>
+            </select>
+          </Field>
+          <Field label="Respondió últimos N días">
+            <input type="number" name="respondedWithinDays" min={1} max={3650} defaultValue={get("respondedWithinDays")} placeholder="ej 30" className={inputCls} />
+          </Field>
+          <Field label="Sin contacto hace ≥ N días">
+            <input type="number" name="notContactedDays" min={1} max={3650} defaultValue={get("notContactedDays")} placeholder="ej 60" className={inputCls} />
+          </Field>
+          <label className={`${labelCls} sm:col-span-1`}>
             Canal preferido
-            <select
-              name="preferredChannel"
-              defaultValue={get("preferredChannel")}
-              className={inputCls}
-            >
+            <select name="preferredChannel" defaultValue={get("preferredChannel")} className={inputCls}>
               <option value="">cualquiera</option>
               <option value="email">📧 Email</option>
               <option value="whatsapp">💬 WhatsApp</option>
               <option value="sms">📱 SMS</option>
               <option value="voice">☎️ Voz</option>
             </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Respondió últimos N días
-            <input
-              type="number"
-              name="respondedWithinDays"
-              min={1}
-              max={3650}
-              defaultValue={get("respondedWithinDays")}
-              placeholder="ej 30"
-              className={inputCls}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Sin contacto hace ≥ N días
-            <input
-              type="number"
-              name="notContactedDays"
-              min={1}
-              max={3650}
-              defaultValue={get("notContactedDays")}
-              placeholder="ej 60"
-              className={inputCls}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Tiene email
-            <select
-              name="hasEmail"
-              defaultValue={get("hasEmail")}
-              className={inputCls}
-            >
-              <option value="">no importa</option>
-              <option value="1">sí</option>
-              <option value="0">no</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Tiene teléfono
-            <select
-              name="hasTelefono"
-              defaultValue={get("hasTelefono")}
-              className={inputCls}
-            >
-              <option value="">no importa</option>
-              <option value="1">sí</option>
-              <option value="0">no</option>
-            </select>
+            <span className="font-normal text-[11px] text-amber-600 dark:text-amber-400">
+              Necesita historial de respuestas (3+); vacío al empezar.
+            </span>
           </label>
         </div>
       </details>
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-center gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
         <button
           type="submit"
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          className="rounded-lg bg-[oklch(52%_0.13_255)] px-4 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
         >
-          Aplicar
+          Aplicar filtros
         </button>
         <button
           type="button"
           onClick={() => router.push("/segmentos")}
-          className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-900"
+          className="rounded-lg px-3 py-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
         >
           Limpiar
         </button>
