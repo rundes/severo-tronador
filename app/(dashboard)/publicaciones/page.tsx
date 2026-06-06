@@ -1,12 +1,17 @@
 import { requireProject } from "@/lib/workspace";
 import { getMetaConfig, getInsights } from "@/lib/meta";
+import { availableModels } from "@/lib/ad-proposals";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { PostComposer } from "@/components/publicaciones/post-composer";
+import { AdStudio } from "@/components/publicaciones/ad-studio";
 import {
   publicarPost,
   promocionarPost,
   generarContenidoPostIA,
   generarImagenIA,
+  generarPropuestas,
+  afinarPropuesta,
+  publicarDirecto,
 } from "./actions";
 
 export const metadata = { title: "Publicaciones · Tronador" };
@@ -23,6 +28,7 @@ export default async function PublicacionesPage({
   const params = (await searchParams) ?? {};
   const cfg = await getMetaConfig();
   const ready = Boolean(cfg.token && cfg.pageId);
+  const studioModels = (await availableModels()).map((m) => m.label);
   const igReady = Boolean(cfg.token && cfg.igUserId);
   const adsReady = Boolean(cfg.token && cfg.adAccountId);
 
@@ -80,6 +86,26 @@ export default async function PublicacionesPage({
       )}
 
       <FormStatus ok={okMsg} error={errMsg} detalle={params.error ? params.detalle ?? null : null} />
+
+      {/* ── Estudio de propuestas multi-modelo ──────────────────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            🧪 Estudio de propuestas (multi-modelo)
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Un brief → propuestas con todos los modelos disponibles → preseleccionás,
+            afinás cada una con prompts propios, y recién al final elegís canal. Cubre
+            formatos de Instagram, Facebook, WhatsApp, X, TikTok y YouTube.
+          </p>
+        </div>
+        <AdStudio
+          genAction={generarPropuestas}
+          refineAction={afinarPropuesta}
+          publishAction={publicarDirecto}
+          models={studioModels}
+        />
+      </section>
 
       {/* ── Componer publicación (con asistente Gemini + preview) ────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">

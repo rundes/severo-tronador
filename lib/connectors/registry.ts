@@ -18,6 +18,7 @@ import { metaContentLibraryConnector } from "./meta-content-library";
 import { rssConnector } from "./rss";
 import { metaConnector } from "./meta";
 import { googleAiConnector } from "./google-ai";
+import { siliconflowConnector } from "./siliconflow";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
@@ -36,6 +37,7 @@ export const connectors: Connector[] = [
   rssConnector,
   metaConnector,
   googleAiConnector,
+  siliconflowConnector,
 ];
 
 export function getConnector(id: string): Connector | undefined {

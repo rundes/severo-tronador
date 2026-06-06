@@ -16,6 +16,13 @@ import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
 import { getSupabase, dbConfigured } from "@/lib/db/supabase";
 import { randomUUID } from "crypto";
+import {
+  generateProposals,
+  refineProposal,
+  PLATFORMS,
+  type Proposal,
+  type Platform,
+} from "@/lib/ad-proposals";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
@@ -139,6 +146,72 @@ export async function generarImagenIA(
   } catch (e) {
     return { ok: false, url: "", msg: `Error al generar la imagen: ${(e as Error).message}` };
   }
+}
+
+// ── Estudio de propuestas multi-modelo ──────────────────────────────────
+export interface GenProposalsResult {
+  ok: boolean;
+  proposals: Proposal[];
+  msg: string;
+}
+
+// Genera propuestas con TODOS los modelos disponibles a partir de un brief.
+export async function generarPropuestas(
+  prompt: string,
+  platforms: string[],
+): Promise<GenProposalsResult> {
+  await requireMember("editor");
+  if (!prompt?.trim()) return { ok: false, proposals: [], msg: "Escribí un brief." };
+  const pf = (platforms.length ? platforms : PLATFORMS.map((p) => p.id)) as Platform[];
+  try {
+    const proposals = await generateProposals(prompt.trim(), pf);
+    if (!proposals.length) {
+      return { ok: false, proposals: [], msg: "Ningún modelo devolvió propuesta. Reintentá." };
+    }
+    return { ok: true, proposals, msg: `${proposals.length} propuestas generadas.` };
+  } catch (e) {
+    return { ok: false, proposals: [], msg: (e as Error).message };
+  }
+}
+
+// Afina una propuesta puntual con un prompt particular (mismo modelo).
+export async function afinarPropuesta(
+  base: Proposal,
+  refinePrompt: string,
+  platforms: string[],
+): Promise<{ ok: boolean; proposal?: Proposal; msg: string }> {
+  await requireMember("editor");
+  if (!refinePrompt?.trim()) return { ok: false, msg: "Escribí el ajuste." };
+  const pf = (platforms.length ? platforms : PLATFORMS.map((p) => p.id)) as Platform[];
+  try {
+    const proposal = await refineProposal(base, refinePrompt.trim(), pf);
+    return { ok: true, proposal, msg: "Propuesta afinada." };
+  } catch (e) {
+    return { ok: false, msg: (e as Error).message };
+  }
+}
+
+// Publica un texto en Facebook directamente desde el estudio (sin redirect).
+export async function publicarDirecto(
+  mensaje: string,
+  targets: string[],
+): Promise<{ ok: boolean; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  if (!mensaje?.trim()) return { ok: false, msg: "Sin contenido para publicar." };
+  const done: string[] = [];
+  if (targets.includes("fb")) {
+    const r = await publishToPage({ message: mensaje });
+    if (!r.ok) return { ok: false, msg: `Facebook: ${r.error}` };
+    done.push(`Facebook${r.mode === "mock" ? " (mock)" : ""}: ${r.id ?? ""}`);
+  }
+  await logAudit({
+    action: "post.publish",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "post",
+    details: { via: "studio", targets },
+  });
+  return { ok: true, msg: `Listo. ${done.join(" · ")}` };
 }
 
 // Publica en Facebook y/o Instagram según los destinos elegidos.
