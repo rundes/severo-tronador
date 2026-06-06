@@ -6,6 +6,7 @@ import { lastListeningUpdate } from "@/lib/listening-cache";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { guardarEscucha } from "./actions";
+import { PageHeader } from "@/components/ui/page-header";
 import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
 import { Feed } from "@/components/escucha/feed";
@@ -105,15 +106,16 @@ export default async function EscuchaPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Escucha
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Qué se dice de {TERRITORY} en prensa y redes. Descubrí temas{" "}
-          <em>antes</em> de diseñar una encuesta.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Investigación"
+        title="Escucha"
+        subtitle={
+          <>
+            Qué se dice de {TERRITORY} en prensa y redes. Descubrí temas{" "}
+            <em>antes</em> de diseñar una encuesta.
+          </>
+        }
+      />
 
       {/* Bloque de estado — la fineprint vieja, ahora visible y accionable. */}
       <section

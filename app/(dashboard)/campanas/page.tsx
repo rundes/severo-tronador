@@ -40,6 +40,7 @@ export default async function CampanasPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
+        eyebrow="Operación"
         title="Campañas"
         subtitle="Cada campaña es un envío a un segmento, por un canal, respetando cuota y cooldowns."
         action={

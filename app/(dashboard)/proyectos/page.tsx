@@ -12,6 +12,7 @@ import {
   renombrarProyecto,
 } from "./actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
+import { PageHeader } from "@/components/ui/page-header";
 
 const inputCls =
   "rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -47,15 +48,11 @@ export default async function ProyectosPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Proyectos
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Estudios aislados. El proyecto activo determina qué datos ves en todo
-          el panel.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Sistema"
+        title="Proyectos"
+        subtitle="Estudios aislados. El proyecto activo determina qué datos ves en todo el panel."
+      />
 
       <FormStatus ok={okMsg} error={errMsg} />
 

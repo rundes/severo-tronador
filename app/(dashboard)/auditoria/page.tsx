@@ -1,5 +1,6 @@
 import { listAudit, type AuditAction } from "@/lib/audit";
 import { requireProject } from "@/lib/workspace";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Auditoría · Tronador" };
 export const revalidate = 30;
@@ -84,15 +85,11 @@ export default async function AuditoriaPage({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Auditoría
-        </h1>
-        <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
-          Registro inmutable de acciones del panel. Quién hizo qué, sobre
-          qué entidad, con qué detalles.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Sistema"
+        title="Auditoría"
+        subtitle="Registro inmutable de acciones del panel. Quién hizo qué, sobre qué entidad, con qué detalles."
+      />
 
       {(action || actor) && (
         <div className="flex flex-wrap items-center gap-2 text-xs">

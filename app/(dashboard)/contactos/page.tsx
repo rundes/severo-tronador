@@ -17,6 +17,7 @@ import {
   SubmitButton,
   FormStatus,
 } from "@/components/ui/submit-button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Contactos · Tronador" };
 
@@ -103,15 +104,11 @@ export default async function ContactosPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Contactos
-        </h1>
-        <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
-          Base de personas con las que trabaja la herramienta. Importá desde
-          CSV o sincronizá con un Google Sheet.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Operación"
+        title="Contactos"
+        subtitle="Base de personas con las que trabaja la herramienta. Importá desde CSV o sincronizá con un Google Sheet."
+      />
 
       {!persistOk && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">

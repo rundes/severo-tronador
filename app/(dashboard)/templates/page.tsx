@@ -5,6 +5,7 @@ import { loadContacts } from "@/lib/segments";
 import { requireProject } from "@/lib/workspace";
 import { auth } from "@/lib/auth";
 import { TemplateEditor } from "@/components/templates/template-editor";
+import { PageHeader } from "@/components/ui/page-header";
 import type { Contact } from "@/lib/connectors/types";
 
 export const metadata = { title: "Plantillas · Tronador" };
@@ -62,15 +63,11 @@ export default async function TemplatesPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Plantillas
-        </h1>
-        <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
-          Mensajes por canal con variables. Editor con preview lado a lado,
-          autocomplete y validación.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Contenido"
+        title="Plantillas"
+        subtitle="Mensajes por canal con variables. Editor con preview lado a lado, autocomplete y validación."
+      />
 
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 hover:text-zinc-700">

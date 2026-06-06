@@ -2,6 +2,8 @@ import { requireProject } from "@/lib/workspace";
 import { getMetaConfig, getInsights } from "@/lib/meta";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { PostComposer } from "@/components/publicaciones/post-composer";
+import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import {
   publicarPost,
   promocionarPost,
@@ -56,12 +58,11 @@ export default async function DifusionPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Difusión
-          </h1>
-          <p className="mt-1 max-w-[70ch] text-sm text-zinc-500">
+      <PageHeader
+        eyebrow="Contenido"
+        title="Difusión"
+        subtitle={
+          <>
             Publicá en Facebook e Instagram, promocioná con anuncios y medí el
             rendimiento. ¿Buscás crear contenido? Andá al{" "}
             <a href="/publicaciones" className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300">
@@ -72,15 +73,14 @@ export default async function DifusionPage({
               Conectores → Meta
             </a>
             .
-          </p>
-        </div>
-        <a
-          href="/publicaciones"
-          className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
-        >
-          ← Estudio de contenido
-        </a>
-      </header>
+          </>
+        }
+        action={
+          <a href="/publicaciones" className={buttonClass("secondary")}>
+            ← Estudio de contenido
+          </a>
+        }
+      />
 
       {!ready && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">

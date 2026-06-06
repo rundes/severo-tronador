@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadDashboard, type WindowDays } from "@/lib/analytics";
 import { requireProject } from "@/lib/workspace";
+import { PageHeader } from "@/components/ui/page-header";
 import type { Channel } from "@/lib/relationship";
 
 export const metadata = { title: "Dashboard · Tronador" };
@@ -47,16 +48,11 @@ export default async function DashboardPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Dashboard
-          </h1>
-          <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">
-            Overview agregado: envíos, respuestas, opt-outs, costo y salud
-            del padrón. Selecciona ventana para comparar períodos.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Operación"
+        title="Dashboard"
+        subtitle="Overview agregado: envíos, respuestas, opt-outs, costo y salud del padrón. Seleccioná ventana para comparar períodos."
+        action={
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
             {WINDOWS.map((w) => (
@@ -81,7 +77,8 @@ export default async function DashboardPage({
             ⬇️ ZIP
           </a>
         </div>
-      </header>
+        }
+      />
 
       {/* Inventario del proyecto ─────────── */}
       <section className="space-y-3">

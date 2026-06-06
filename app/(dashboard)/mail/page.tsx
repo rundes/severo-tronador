@@ -14,6 +14,8 @@ import {
 } from "@/lib/mailbox/jmap-client";
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
+import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import { MailSetupChecklist } from "@/components/mail/setup-checklist";
 import { Dismissible } from "@/components/mail/dismissible";
 import { provisionMyMailbox, updateMyMailboxAddress } from "./actions";
@@ -91,34 +93,30 @@ export default async function MailPage({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Tronador Mail
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            {cred ? (
-              <>
-                Casilla{" "}
-                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">
-                  {cred.address}
-                </code>{" "}
-                · modo <span className="font-mono text-xs">{status.mode}</span>
-              </>
-            ) : (
-              "Aún no tenés casilla @tronador.net.ar."
-            )}
-          </p>
-        </div>
-        {cred && (
-          <Link
-            href="/mail/compose"
-            className="rounded bg-[oklch(35%_0.04_240)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-          >
-            Redactar
-          </Link>
-        )}
-      </header>
+      <PageHeader
+        eyebrow="Contenido"
+        title="Tronador Mail"
+        subtitle={
+          cred ? (
+            <>
+              Casilla{" "}
+              <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">
+                {cred.address}
+              </code>{" "}
+              · modo <span className="font-mono text-xs">{status.mode}</span>
+            </>
+          ) : (
+            "Aún no tenés casilla @tronador.net.ar."
+          )
+        }
+        action={
+          cred ? (
+            <Link href="/mail/compose" className={buttonClass("accent")}>
+              Redactar
+            </Link>
+          ) : undefined
+        }
+      />
 
       <FormStatus ok={okMsg} error={errMsg} />
 
