@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listEncuestas } from "@/lib/encuestas";
 import { requireProject } from "@/lib/workspace";
 import type { EncuestaEstado } from "@/lib/encuestas/types";
+import { duplicarEncuesta } from "./actions";
 
 export const metadata = { title: "Encuestas · Tronador" };
 
@@ -41,10 +42,10 @@ export default async function EncuestasPage() {
       ) : (
         <ol className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {encuestas.map((e) => (
-            <li key={e.id}>
+            <li key={e.id} className="flex items-center transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900">
               <Link
                 href={`/encuestas/${e.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3"
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -61,6 +62,16 @@ export default async function EncuestasPage() {
                   {e.estado}
                 </span>
               </Link>
+              <form action={duplicarEncuesta} className="shrink-0 pr-3">
+                <input type="hidden" name="id" value={e.id} />
+                <button
+                  type="submit"
+                  title="Duplicar encuesta"
+                  className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                >
+                  Duplicar
+                </button>
+              </form>
             </li>
           ))}
         </ol>
