@@ -8,7 +8,7 @@ interface Props {
   enabled: boolean;
   setupUrl: string;
   onClose: () => void;
-  guardar: (fd: FormData) => Promise<void>;
+  guardar: (fd: FormData) => Promise<{ ok: boolean; message?: string }>;
   probar: (fd: FormData) => Promise<{ ok: boolean; message: string }>;
   toggle: (enabled: boolean) => Promise<void>;
   borrar: () => Promise<void>;
@@ -48,7 +48,11 @@ export function ConfigModal(p: Props) {
           className="mt-4 space-y-3"
           action={(fd) =>
             start(async () => {
-              await p.guardar(fd);
+              const r = await p.guardar(fd);
+              if (r && !r.ok) {
+                setTest(r.message ?? "No se pudo guardar.");
+                return;
+              }
               p.onClose();
             })
           }

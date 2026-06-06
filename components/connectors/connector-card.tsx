@@ -50,7 +50,7 @@ export function ConnectorCard({
   fields: FieldStatus[];
   enabled: boolean;
   setupUrl: string;
-  guardar: (fd: FormData) => Promise<void>;
+  guardar: (fd: FormData) => Promise<{ ok: boolean; message?: string }>;
   probar: (fd: FormData) => Promise<{ ok: boolean; message: string }>;
   toggle: (enabled: boolean) => Promise<void>;
   borrar: () => Promise<void>;
