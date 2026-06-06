@@ -3,6 +3,7 @@ import {
   escapeHtml,
   textToHtml,
   wrapEmailShell,
+  wrapEmailMinimal,
   ctaButton,
 } from "@/lib/email-html";
 
@@ -68,6 +69,27 @@ describe("wrapEmailShell", () => {
       optOutNote: null,
     });
     expect(html.toLowerCase()).not.toContain("baja");
+  });
+});
+
+describe("wrapEmailMinimal", () => {
+  it("envuelve el contenido en un doc válido SIN marca ni nota de baja", () => {
+    const html = wrapEmailMinimal({ contentHtml: "<p>todo mío</p>" });
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("<p>todo mío</p>");
+    // sin encabezado de marca ni opt-out automático
+    expect(html.toLowerCase()).not.toContain("baja");
+    expect(html).not.toContain("border-bottom:3px solid");
+  });
+
+  it("inyecta preheader y trailing HTML", () => {
+    const html = wrapEmailMinimal({
+      contentHtml: "<p>x</p>",
+      preheader: "preview",
+      trailingHtml: '<img src="http://x/p.gif">',
+    });
+    expect(html).toContain("preview");
+    expect(html).toContain('<img src="http://x/p.gif">');
   });
 });
 

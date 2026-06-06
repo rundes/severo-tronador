@@ -7,7 +7,7 @@ import {
   extractUsedVars,
   interpolateWithMap,
 } from "@/lib/interpolate-vars";
-import { textToHtml, wrapEmailShell } from "@/lib/email-html";
+import { textToHtml, wrapEmailShell, wrapEmailMinimal } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { VisualEditor } from "@/components/templates/visual-editor";
 import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
@@ -75,6 +75,27 @@ const HTML_PRESETS: { id: string; label: string; html: string }[] = [
   },
 ];
 
+// Andamiaje del "email completo": replica visualmente el shell de marca pero
+// como HTML editable (encabezado con {{org}}, cuerpo, pie con nota de baja).
+// El marcador data-full-shell evita re-envolver al re-activar el modo.
+function fullEmailScaffold(inner: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" data-full-shell="1" style="background:#efe9da;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e4ddcd;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<tr><td style="padding:20px 32px;border-bottom:3px solid #c8961e;">
+<span style="font-size:13px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#2b3350;">{{org}}</span>
+</td></tr>
+<tr><td style="padding:28px 32px 8px;color:#2b2f3a;">
+${inner}
+</td></tr>
+<tr><td style="padding:18px 32px 28px;border-top:1px solid #e4ddcd;">
+<p style="margin:0;color:#6b6f7b;font-size:12px;line-height:1.5;">Recibís este mensaje por una investigación de opinión pública. Para no recibir más, respondé BAJA.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>`;
+}
+
 const DEFAULT_TEXT_BODY =
   "{{saludo}}, {{nombre}}.\n\nDesde {{org}} estamos haciendo un relevamiento. ¿Podés responder unas preguntas?\n\n{{encuesta_url}}\n\n{{firma}}";
 
@@ -109,9 +130,30 @@ export function TemplateEditor({
   const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
   // Sub-vista del modo HTML: editor visual (WYSIWYG), código crudo o asistente IA.
   const [htmlView, setHtmlView] = useState<"visual" | "code" | "ia">("visual");
+  // "Email completo": el editor controla TODO el documento (encabezado + cuerpo
+  // + pie) y se envía sin el envoltorio de marca ni la nota de baja automática.
+  const [fullEmail, setFullEmail] = useState(false);
 
   const isEmail = channel === "email";
   const isHtml = isEmail && formato === "html";
+  // Formato efectivo que se persiste/renderiza.
+  const effFormato: "texto" | "html" | "html_full" = isHtml
+    ? fullEmail
+      ? "html_full"
+      : "html"
+    : "texto";
+
+  // Activa el modo completo: envuelve el contenido actual en un andamiaje
+  // editable (encabezado + cuerpo + pie con la nota de baja) para que el
+  // usuario pueda editar todo. Al desactivar, vuelve al shell automático.
+  function toggleFullEmail(on: boolean) {
+    setFullEmail(on);
+    if (on) {
+      setCuerpoHtml((inner) =>
+        inner.includes("data-full-shell") ? inner : fullEmailScaffold(inner),
+      );
+    }
+  }
 
   // Autocomplete: cuando el cursor está justo después de `{{`, mostramos el
   // dropdown filtrando por lo escrito hasta el cursor.
@@ -207,12 +249,19 @@ export function TemplateEditor({
     const contentHtml = isHtml
       ? interpolateWithMap(cuerpoHtml, varMap)
       : textToHtml(previewCuerpo);
+    // Modo completo: sin shell de marca (el contenido ES el email entero).
+    if (isHtml && fullEmail) {
+      return wrapEmailMinimal({
+        contentHtml,
+        preheader: previewAsunto || undefined,
+      });
+    }
     return wrapEmailShell({
       contentHtml,
       orgName: varMap.org,
       preheader: previewAsunto || undefined,
     });
-  }, [isEmail, isHtml, cuerpoHtml, varMap, previewCuerpo, previewAsunto]);
+  }, [isEmail, isHtml, fullEmail, cuerpoHtml, varMap, previewCuerpo, previewAsunto]);
 
   // Cerrar dropdown al click fuera.
   useEffect(() => {
@@ -314,7 +363,7 @@ export function TemplateEditor({
           )}
 
           {/* Hidden inputs que siempre se envían */}
-          <input type="hidden" name="formato" value={isEmail ? formato : "texto"} />
+          <input type="hidden" name="formato" value={effFormato} />
           {isHtml && (
             <input type="hidden" name="cuerpoHtml" value={cuerpoHtml} />
           )}
@@ -429,6 +478,27 @@ export function TemplateEditor({
                   </select>
                 </div>
               </div>
+
+              <label className="flex items-start gap-2 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900/40">
+                <input
+                  type="checkbox"
+                  checked={fullEmail}
+                  onChange={(e) => toggleFullEmail(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-zinc-600 dark:text-zinc-300">
+                  <strong className="font-medium text-zinc-700 dark:text-zinc-200">
+                    Editar email completo
+                  </strong>{" "}
+                  (encabezado + cuerpo + pie). Se envía tal cual, sin el
+                  envoltorio de marca automático.{" "}
+                  {fullEmail && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Incluí vos la nota de baja/BAJA (obligatoria).
+                    </span>
+                  )}
+                </span>
+              </label>
 
               {htmlView === "visual" && (
                 <VisualEditor value={cuerpoHtml} onChange={setCuerpoHtml} />
@@ -574,7 +644,7 @@ export function TemplateEditor({
           channel={channel}
           asunto={asunto}
           cuerpo={cuerpo}
-          formato={formato}
+          formato={effFormato}
           cuerpoHtml={cuerpoHtml}
           defaultTestEmail={defaultTestEmail}
         />
@@ -598,7 +668,7 @@ function TestSendBox({
   channel: string;
   asunto: string;
   cuerpo: string;
-  formato: "texto" | "html";
+  formato: "texto" | "html" | "html_full";
   cuerpoHtml: string;
   defaultTestEmail?: string;
 }) {

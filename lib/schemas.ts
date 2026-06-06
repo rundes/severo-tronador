@@ -78,18 +78,19 @@ export const NuevaPlantillaSchema = z
     channel: ChannelEnum.catch("email"),
     // Diseño del email. "html" habilita un cuerpo HTML aparte (max más alto
     // porque el markup pesa). Solo aplica a email.
-    formato: z.enum(["texto", "html"]).catch("texto"),
-    cuerpoHtml: emptyToUndef.pipe(z.string().max(50000).optional()),
+    formato: z.enum(["texto", "html", "html_full"]).catch("texto"),
+    cuerpoHtml: emptyToUndef.pipe(z.string().max(100000).optional()),
   })
   // asunto y formato/HTML solo aplican a email; en otros canales se descartan.
   .transform((v) => {
     const isEmail = v.channel === "email";
     const formato = isEmail ? v.formato : "texto";
+    const isHtml = formato === "html" || formato === "html_full";
     return {
       ...v,
       asunto: isEmail ? v.asunto : undefined,
       formato,
-      cuerpoHtml: isEmail && formato === "html" ? v.cuerpoHtml : undefined,
+      cuerpoHtml: isEmail && isHtml ? v.cuerpoHtml : undefined,
     };
   });
 export type NuevaPlantillaInput = z.infer<typeof NuevaPlantillaSchema>;

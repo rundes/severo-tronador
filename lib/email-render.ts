@@ -4,14 +4,16 @@
 // mail de prueba se vea EXACTAMENTE igual que el real.
 import type { Contact } from "@/lib/connectors/types";
 import { interpolateExtended } from "@/lib/interpolate-vars";
-import { textToHtml, wrapEmailShell } from "@/lib/email-html";
+import { textToHtml, wrapEmailShell, wrapEmailMinimal } from "@/lib/email-html";
 import { sanitizeEmailHtml } from "@/lib/email-sanitize";
 import { ORG_NAME } from "@/lib/config";
 
 export interface EmailTemplateInput {
   cuerpo: string;
   cuerpoHtml?: string | null;
-  formato?: "texto" | "html" | null;
+  // "texto" → cuerpo plano; "html" → cuerpoHtml dentro del shell de marca;
+  // "html_full" → cuerpoHtml ES el email completo (sin shell ni opt-out auto).
+  formato?: "texto" | "html" | "html_full" | null;
 }
 
 export interface RenderEmailOpts {
@@ -29,10 +31,25 @@ export function renderCampaignEmailHtml(
   opts: RenderEmailOpts = {},
 ): string {
   const ctx = { surveyUrl: opts.surveyUrl };
-  let contentHtml: string;
+  const isHtml =
+    (tpl.formato === "html" || tpl.formato === "html_full") &&
+    !!tpl.cuerpoHtml &&
+    tpl.cuerpoHtml.trim() !== "";
 
-  if (tpl.formato === "html" && tpl.cuerpoHtml && tpl.cuerpoHtml.trim()) {
-    const interpolated = interpolateExtended(tpl.cuerpoHtml, contact, ctx);
+  // Modo "email completo": el cuerpoHtml es el documento entero. Se sanitiza
+  // igual (seguridad) pero se envuelve en un shell mínimo sin marca ni opt-out.
+  if (isHtml && tpl.formato === "html_full") {
+    const interpolated = interpolateExtended(tpl.cuerpoHtml as string, contact, ctx);
+    return wrapEmailMinimal({
+      contentHtml: sanitizeEmailHtml(interpolated),
+      preheader: opts.preheader,
+      trailingHtml: opts.trailingHtml,
+    });
+  }
+
+  let contentHtml: string;
+  if (isHtml) {
+    const interpolated = interpolateExtended(tpl.cuerpoHtml as string, contact, ctx);
     contentHtml = sanitizeEmailHtml(interpolated);
   } else {
     const text = interpolateExtended(tpl.cuerpo, contact, ctx);
