@@ -19,10 +19,18 @@ function valuesFromForm(connectorId: string, fd: FormData): ConnectorConfigValue
   return out;
 }
 
-export async function guardarConfig(connectorId: string, fd: FormData) {
-  if (!getConnector(connectorId)) return;
-  await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+export async function guardarConfig(
+  connectorId: string,
+  fd: FormData,
+): Promise<{ ok: boolean; message?: string }> {
+  if (!getConnector(connectorId)) return { ok: false, message: "Conector desconocido" };
+  try {
+    await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
   revalidatePath("/conectores");
+  return { ok: true };
 }
 
 export async function probarConexion(
@@ -31,7 +39,11 @@ export async function probarConexion(
 ): Promise<{ ok: boolean; message: string }> {
   const connector = getConnector(connectorId);
   if (!connector) return { ok: false, message: "Conector desconocido" };
-  await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+  try {
+    await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
   const res = await connector.test(await getConnectorConfig(connectorId));
   revalidatePath("/conectores");
   return { ok: res.ok, message: res.message };

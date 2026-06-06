@@ -57,8 +57,25 @@ export async function getConnectorConfig(connectorId: string): Promise<Connector
   return { ...(await envDefaults(connectorId)), ...(await storedConfig(connectorId)) };
 }
 
+// Validaciones por conector ANTES de guardar (mensaje claro al usuario).
+// Resend solo envía desde el dominio verificado: el From debe ser @tronador.net.ar
+// (acepta "Nombre <x@tronador.net.ar>"). Sin esto, un From de otro dominio da 403.
+const MAIL_DOMAIN = "tronador.net.ar";
+function validateConnectorValues(connectorId: string, values: ConnectorConfigValues): void {
+  if (connectorId === "resend" && values.RESEND_FROM) {
+    const m = values.RESEND_FROM.match(/<([^>]+)>\s*$/);
+    const email = (m ? m[1] : values.RESEND_FROM).trim().toLowerCase();
+    if (!email.endsWith(`@${MAIL_DOMAIN}`)) {
+      throw new Error(
+        `El remitente (From) debe ser una dirección @${MAIL_DOMAIN} (el dominio verificado en Resend). Ej: relevamiento@${MAIL_DOMAIN}`,
+      );
+    }
+  }
+}
+
 export async function saveConnectorConfig(connectorId: string, values: ConnectorConfigValues): Promise<void> {
   if (!dbConfigured()) throw new Error("Supabase/CONFIG_MASTER_KEY no configurado: no se puede guardar la config");
+  validateConnectorValues(connectorId, values);
   const row = await getRow(connectorId);
   const config: Record<string, string> = { ...(row?.config ?? {}) };
   for (const f of await schemaFields(connectorId)) {
