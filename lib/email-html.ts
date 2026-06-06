@@ -139,6 +139,36 @@ ${trailingHtml}
 </html>`;
 }
 
+// Envoltorio MÍNIMO para el modo "email completo": un documento HTML válido
+// (charset/viewport) SIN encabezado de marca, sin pie ni nota de baja. El
+// contenido controla todo el diseño y es responsabilidad del autor incluir la
+// nota de baja/BAJA. Se usa cuando formato = "html_full".
+export function wrapEmailMinimal(opts: {
+  contentHtml: string;
+  preheader?: string;
+  trailingHtml?: string;
+}): string {
+  const { contentHtml, preheader, trailingHtml = "" } = opts;
+  const preheaderHtml = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(
+        preheader,
+      )}</div>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+</head>
+<body style="margin:0;padding:0;">
+${preheaderHtml}
+${contentHtml}
+${trailingHtml}
+</body>
+</html>`;
+}
+
 // Botón CTA reutilizable (para insertar en plantillas HTML).
 export function ctaButton(label: string, href: string): string {
   return (

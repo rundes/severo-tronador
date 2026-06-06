@@ -154,12 +154,13 @@ export async function enviarPruebaTemplate(
 
   const asunto = String(formData.get("asunto") ?? "").trim();
   const cuerpo = String(formData.get("cuerpo") ?? "");
-  const formato = String(formData.get("formato") ?? "texto") === "html"
-    ? "html"
-    : "texto";
+  const rawFormato = String(formData.get("formato") ?? "texto");
+  const formato: "texto" | "html" | "html_full" =
+    rawFormato === "html" ? "html" : rawFormato === "html_full" ? "html_full" : "texto";
   const cuerpoHtml = String(formData.get("cuerpoHtml") ?? "");
+  const isHtml = formato === "html" || formato === "html_full";
 
-  if (!cuerpo.trim() && !(formato === "html" && cuerpoHtml.trim())) {
+  if (!cuerpo.trim() && !(isHtml && cuerpoHtml.trim())) {
     return { ok: false, msg: "Escribí un cuerpo antes de mandar la prueba." };
   }
 

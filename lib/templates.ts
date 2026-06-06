@@ -6,7 +6,7 @@ import type { Channel } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 
-export type TemplateFormato = "texto" | "html";
+export type TemplateFormato = "texto" | "html" | "html_full";
 
 export interface Template {
   id: string;
@@ -111,7 +111,12 @@ function rowToTemplate(r: TemplateRow): Template {
     nombre: r.nombre,
     asunto: r.asunto ?? undefined,
     cuerpo: r.cuerpo,
-    formato: r.formato === "html" ? "html" : "texto",
+    formato:
+      r.formato === "html"
+        ? "html"
+        : r.formato === "html_full"
+          ? "html_full"
+          : "texto",
     cuerpoHtml: r.cuerpo_html ?? undefined,
     estado: r.estado,
     createdAt: r.created_at,
