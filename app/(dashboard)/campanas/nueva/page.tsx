@@ -11,7 +11,7 @@ import { ChannelPreview } from "@/components/segmentos/channel-preview";
 export const metadata = { title: "Nueva campaña · Severo Tronador" };
 
 const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 const CHANNEL_LABEL: Record<Channel, string> = {
   email: "📧 Email",
@@ -75,8 +75,8 @@ export default async function NuevaCampanaPage({
         Nueva campaña
       </h1>
 
-      {/* Selector de canal */}
-      <div className="flex gap-2">
+      {/* Canal — control segmentado */}
+      <div className="flex flex-wrap gap-1 rounded-xl border border-zinc-200 p-1 dark:border-zinc-800">
         {OUTREACH_CHANNELS.map((ch) => {
           const qs = new URLSearchParams(baseQs);
           qs.set("channel", ch);
@@ -85,10 +85,10 @@ export default async function NuevaCampanaPage({
             <Link
               key={ch}
               href={`/campanas/nueva?${qs}`}
-              className={`rounded px-3 py-1.5 text-sm ${
+              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
                 active
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "border border-zinc-300 text-zinc-600 dark:border-zinc-700"
+                  ? "bg-[oklch(52%_0.13_255)] text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               }`}
             >
               {CHANNEL_LABEL[ch]}
@@ -97,30 +97,26 @@ export default async function NuevaCampanaPage({
         })}
       </div>
 
-      <div className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Segmento</span>
-          <span>
-            {matched.length} personas · <strong>{sendable.length}</strong>{" "}
-            contactables por {CHANNEL_LABEL[channel]} hoy
-          </span>
+      {/* Resumen del envío */}
+      <div>
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="En el segmento" value={matched.length} />
+          <Stat label="Contactables hoy" value={sendable.length} accent />
+          <Stat
+            label="Cuota disponible"
+            value={quota.limit - quota.used}
+            sub={`${quota.used}/${quota.limit} ${quota.unit}`}
+          />
         </div>
-        <div className="mt-1 flex justify-between">
-          <span className="text-zinc-500">Cuota {CHANNEL_LABEL[channel]}</span>
-          <span className="font-mono">
-            {quota.used}/{quota.limit} {quota.unit} · {quota.limit - quota.used}{" "}
-            disponibles
-          </span>
-        </div>
-        <div className="mt-2 text-xs text-zinc-400">
+        <p className="mt-2 text-xs text-zinc-400">
           {advancedQuery
-            ? "Filtros: query avanzada activa (AND/OR/NOT) — editá en /segmentos."
+            ? "Filtros: query avanzada (AND/OR/NOT) — editá en /segmentos."
             : `Filtros: ${
                 filterEntries.length
                   ? filterEntries.map(([k, v]) => `${k}=${v}`).join(" · ")
                   : "ninguno (todo el padrón)"
               }`}
-        </div>
+        </p>
       </div>
 
       {params.error === "quota_blocked" && (
@@ -283,6 +279,42 @@ export default async function NuevaCampanaPage({
           </p>
         </form>
       )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 ${
+        accent
+          ? "border-[oklch(90%_0.03_255)] bg-[oklch(97.5%_0.02_255)] dark:border-[oklch(40%_0.05_255)] dark:bg-[oklch(28%_0.04_255)]"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
+    >
+      <div
+        className={`text-2xl font-semibold tabular-nums ${
+          accent
+            ? "text-[oklch(45%_0.13_255)] dark:text-[oklch(82%_0.1_255)]"
+            : "text-zinc-900 dark:text-zinc-100"
+        }`}
+      >
+        {value.toLocaleString("es-AR")}
+      </div>
+      <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
+      {sub && <div className="mt-0.5 font-mono text-[11px] text-zinc-400">{sub}</div>}
     </div>
   );
 }
