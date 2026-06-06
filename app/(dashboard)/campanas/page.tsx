@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listCampaigns } from "@/lib/campaigns";
 import { requireProject } from "@/lib/workspace";
+import { Hint } from "@/components/ui/hint";
 
 export const metadata = { title: "Campañas · Severo Tronador" };
 
@@ -28,8 +29,14 @@ export default async function CampanasPage() {
         </Link>
       </div>
 
+      <Hint id="campanas-flujo" title="Cómo armar una campaña" cta={{ href: "/segmentos", label: "Ir a Segmentos" }}>
+        Una campaña sale de un <strong>segmento</strong>: definí el público en
+        Segmentos y tocá <strong>“Iniciar campaña”</strong>. Para secuencias
+        (ej. invitación + recordatorio a las 48&nbsp;h) usá <strong>Flows</strong>.
+      </Hint>
+
       {campaigns.length === 0 ? (
-        <p className="text-sm text-zinc-400">
+        <p className="rounded-xl border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
           Todavía no hay campañas. Armá un segmento y tocá “Iniciar campaña”.
         </p>
       ) : (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listFlows } from "@/lib/flows";
 import { requireProject } from "@/lib/workspace";
+import { Hint } from "@/components/ui/hint";
 import { borrarFlow, iniciarFlow } from "./actions";
 
 export const metadata = { title: "Flows · Tronador" };
@@ -56,6 +57,13 @@ export default async function FlowsPage({
           + Nuevo flow
         </Link>
       </header>
+
+      <Hint id="flows-intro" title="Cuándo usar un Flow" cta={{ href: "/campanas/flows/nueva", label: "Crear un flow" }}>
+        Un flow encadena pasos sobre un segmento con <strong>delays</strong> y{" "}
+        <strong>condiciones</strong> (ej. recordatorio solo a quien no respondió).
+        Sirve para subir la tasa de respuesta sin reenviar a mano. Para un único
+        envío puntual, una <strong>campaña</strong> alcanza.
+      </Hint>
 
       {params.creado === "1" && (
         <Banner tone="emerald">Flow creado. Iniciá cuando esté listo.</Banner>
