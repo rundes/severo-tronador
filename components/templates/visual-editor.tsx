@@ -82,9 +82,19 @@ export function VisualEditor({
   }, [onChange, readHtml]);
 
   // Carga inicial + cambios externos (presets, vista código → visual).
+  // didInit fuerza escribir el HTML en el lienzo al montar (lastHtml arranca
+  // igual a value, así que sin esto la comparación de abajo nunca dispararía
+  // la carga inicial y el editor se vería vacío).
+  const didInit = useRef(false);
   useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
+    if (!didInit.current) {
+      el.innerHTML = value;
+      lastHtml.current = value;
+      didInit.current = true;
+      return;
+    }
     if (value !== lastHtml.current) {
       el.innerHTML = value;
       lastHtml.current = value;
