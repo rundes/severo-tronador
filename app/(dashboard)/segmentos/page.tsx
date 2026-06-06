@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Hint } from "@/components/ui/hint";
 import { FilterForm } from "@/components/segmentos/filter-form";
 import { SavedList } from "@/components/segmentos/saved-list";
 import { HealthBadge } from "@/components/health-badge";
@@ -97,6 +98,14 @@ export default async function SegmentosPage({
           cantidad: 80 correctos valen más que 8.000 random.
         </p>
       </div>
+
+      <Hint id="segmentos-flujo" title="Cómo seguir">
+        Definí filtros, mirá el contador, <strong>Guardá</strong> el segmento y
+        después <strong>“Iniciar campaña”</strong> (o usalo en un Flow). Para la
+        primera campaña filtrá por <strong>tiene email</strong> y dejá{" "}
+        <strong>“Canal preferido” vacío</strong>: ese filtro necesita historial
+        de respuestas y deja el segmento en 0.
+      </Hint>
 
       {advanced ? (
         <>
