@@ -194,7 +194,7 @@ export default async function EscuchaPage({
 
       <form
         action={guardarEscucha}
-        className="space-y-4 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
+        className="space-y-4 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800"
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">

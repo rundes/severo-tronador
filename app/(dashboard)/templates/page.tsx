@@ -6,6 +6,7 @@ import { requireProject } from "@/lib/workspace";
 import { auth } from "@/lib/auth";
 import { TemplateEditor } from "@/components/templates/template-editor";
 import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 import type { Contact } from "@/lib/connectors/types";
 
 export const metadata = { title: "Plantillas · Tronador" };
@@ -124,13 +125,18 @@ export default async function TemplatesPage({
                 key={t.id}
                 className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
                     {t.nombre}
                   </span>
-                  <span className="font-mono text-xs text-zinc-400">
-                    {CHANNEL_ICON[t.channel]} {t.channel}
-                    {t.formato === "html" ? " · HTML" : ""} · {t.estado}
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-zinc-400">
+                      {CHANNEL_ICON[t.channel]} {t.channel}
+                      {t.formato === "html" ? " · HTML" : t.formato === "html_full" ? " · HTML full" : ""}
+                    </span>
+                    <Badge tone={t.estado === "activo" ? "ok" : "neutral"} dot>
+                      {t.estado}
+                    </Badge>
                   </span>
                 </div>
                 {t.asunto && (
