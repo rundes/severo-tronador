@@ -12,6 +12,7 @@ import { logAudit } from "@/lib/audit";
 import type { Contact } from "@/lib/connectors/types";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
+import { generateGeminiText } from "@/lib/gemini";
 import { sanitizeEmailHtml } from "@/lib/email-sanitize";
 import { incrementUsage } from "@/lib/quota";
 import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
@@ -52,13 +53,13 @@ export async function generarHtmlConIA(
   const current = String(formData.get("current") ?? "").trim();
   if (!prompt) return { ok: false, html: "", msg: "Escribí qué querés que genere." };
 
-  const cfg = await getConnectorConfig("claude-api");
-  const apiKey = cfg.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  const claude = await getConnectorConfig("claude-api");
+  const google = await getConnectorConfig("google-ai");
+  if (!claude.ANTHROPIC_API_KEY && !google.GOOGLE_AI_API_KEY) {
     return {
       ok: false,
       html: "",
-      msg: "Falta la API key de Claude. Cargala en Conectores → Claude API.",
+      msg: "Configurá Claude API o Google AI en Conectores para generar con IA.",
     };
   }
 
@@ -86,28 +87,48 @@ export async function generarHtmlConIA(
     ? `HTML actual del email:\n\n${current}\n\nModificalo según esta indicación:\n${prompt}`
     : `Generá el cuerpo HTML del email según esta indicación:\n${prompt}`;
 
-  try {
-    const { text, inputTokens, outputTokens } = await generateText({
-      apiKey,
-      system,
-      prompt: userPrompt,
-    });
-    await incrementUsage("claude-api", inputTokens + outputTokens, projectId);
-
-    // Quita cercos de código si el modelo igual los puso, y sanitiza al mismo
-    // allowlist que el envío real.
-    const stripped = text
-      .replace(/^```(?:html)?\s*/i, "")
-      .replace(/\s*```\s*$/i, "")
-      .trim();
-    const html = sanitizeEmailHtml(stripped);
-    if (!html.trim()) {
-      return { ok: false, html: "", msg: "El asistente no devolvió HTML utilizable. Probá reformular." };
+  // Genera con Claude; si falla (modelo no disponible, etc.) cae a Gemini.
+  let text = "";
+  let usedClaude = false;
+  let claudeErr: string | null = null;
+  if (claude.ANTHROPIC_API_KEY) {
+    try {
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt });
+      text = r.text;
+      usedClaude = true;
+      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
+    } catch (e) {
+      claudeErr = (e as Error).message;
     }
-    return { ok: true, html, msg: "Listo. Revisá el preview y ajustá si hace falta." };
-  } catch (e) {
-    return { ok: false, html: "", msg: `Error al generar: ${(e as Error).message}` };
   }
+  if (!text && google.GOOGLE_AI_API_KEY) {
+    try {
+      const r = await generateGeminiText({ apiKey: google.GOOGLE_AI_API_KEY, system, prompt: userPrompt });
+      text = r.text;
+      await incrementUsage("google-ai", Math.ceil((userPrompt.length + r.text.length) / 4), projectId);
+    } catch (e) {
+      return { ok: false, html: "", msg: `Error al generar: ${(e as Error).message}` };
+    }
+  }
+  if (!text) {
+    return { ok: false, html: "", msg: `Error al generar: ${claudeErr ?? "sin respuesta"}` };
+  }
+
+  // Quita cercos de código si el modelo igual los puso, y sanitiza al mismo
+  // allowlist que el envío real.
+  const stripped = text
+    .replace(/^```(?:html)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  const html = sanitizeEmailHtml(stripped);
+  if (!html.trim()) {
+    return { ok: false, html: "", msg: "El asistente no devolvió HTML utilizable. Probá reformular." };
+  }
+  return {
+    ok: true,
+    html,
+    msg: `Listo (${usedClaude ? "Claude" : "Gemini"}). Revisá el preview y ajustá si hace falta.`,
+  };
 }
 
 // Contacto sintético para previsualizar/probar: valores realistas que
