@@ -223,7 +223,7 @@ export async function estadoVideoPropuesta(
   return checkProposalVideo(requestId);
 }
 
-// Publica un texto (con imagen opcional) en Facebook desde el estudio.
+// Publica un texto (con imagen opcional) en Facebook y/o Instagram (Meta API).
 export async function publicarDirecto(
   mensaje: string,
   targets: string[],
@@ -236,6 +236,12 @@ export async function publicarDirecto(
     const r = await publishToPage({ message: mensaje, imageUrl: imageUrl || undefined });
     if (!r.ok) return { ok: false, msg: `Facebook: ${r.error}` };
     done.push(`Facebook${r.mode === "mock" ? " (mock)" : ""}: ${r.id ?? ""}`);
+  }
+  if (targets.includes("ig")) {
+    if (!imageUrl) return { ok: false, msg: "Instagram requiere una imagen." };
+    const r = await publishToInstagram({ imageUrl, caption: mensaje || undefined });
+    if (!r.ok) return { ok: false, msg: `Instagram: ${r.error}` };
+    done.push(`Instagram${r.mode === "mock" ? " (mock)" : ""}: ${r.id ?? ""}`);
   }
   await logAudit({
     action: "post.publish",
