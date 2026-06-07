@@ -31,14 +31,14 @@ const NAV = [
     section: "Contenido",
     items: [
       { href: "/publicaciones", label: "Estudio" },
-      { href: "/difusion", label: "Difusión" },
       { href: "/templates", label: "Plantillas" },
-      { href: "/mail", label: "Mail" },
+      { href: "/difusion", label: "Difusión" },
     ],
   },
   {
     section: "Sistema",
     items: [
+      { href: "/mail", label: "Mail" },
       { href: "/conectores", label: "Conectores" },
       { href: "/proyectos", label: "Proyecto" },
       { href: "/auditoria", label: "Auditoría" },

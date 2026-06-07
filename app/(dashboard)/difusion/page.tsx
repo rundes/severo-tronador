@@ -1,14 +1,14 @@
 import { requireProject } from "@/lib/workspace";
 import { getMetaConfig, getInsights } from "@/lib/meta";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { PostComposer } from "@/components/publicaciones/post-composer";
+import { DifusionBoard } from "@/components/publicaciones/difusion-board";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import {
-  publicarPost,
   promocionarPost,
   generarContenidoPostIA,
   generarImagenIA,
+  publicarDirecto,
 } from "../publicaciones/actions";
 
 export const metadata = { title: "Difusión · Tronador" };
@@ -97,10 +97,10 @@ export default async function DifusionPage({
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           ✍️ Nueva publicación
         </h2>
-        <PostComposer
-          publishAction={publicarPost}
+        <DifusionBoard
           aiAction={generarContenidoPostIA}
           imageAction={generarImagenIA}
+          publishAction={publicarDirecto}
           igReady={igReady}
           ready={ready}
         />
