@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useState, useTransition } from "react";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
 import { buttonClass } from "@/components/ui/button";
 
@@ -16,6 +16,10 @@ const EXAMPLES = [
 // natural qué quiere y Claude (su cuenta) genera el HTML. Al aplicarse,
 // actualiza cuerpoHtml → el preview se refresca en vivo. Puede iterar sobre
 // el HTML actual (refinar) pasándolo como contexto.
+//
+// IMPORTANTE: NO usa <form> porque este componente vive DENTRO del <form> de
+// la plantilla; un form anidado es HTML inválido y haría submit del externo.
+// Llama a la server action directamente con useTransition.
 export function AiHtmlAssistant({
   action,
   current,
@@ -25,35 +29,34 @@ export function AiHtmlAssistant({
   current: string;
   onApply: (html: string) => void;
 }) {
-  const [state, formAction, pending] = useActionState(action, {
-    ok: null,
-    html: "",
-    msg: "",
-  } as AiHtmlState);
+  const [prompt, setPrompt] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean | null; text: string }>({ ok: null, text: "" });
+  const [pending, start] = useTransition();
 
-  // Cuando la generación vuelve OK, aplicamos el HTML al editor/preview.
-  useEffect(() => {
-    if (state.ok && state.html) onApply(state.html);
-    // onApply es estable (setCuerpoHtml); dependemos solo del resultado.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  function generar() {
+    if (!prompt.trim() || pending) return;
+    const fd = new FormData();
+    fd.set("prompt", prompt);
+    fd.set("current", current);
+    start(async () => {
+      const res = await action({ ok: null, html: "", msg: "" }, fd);
+      if (res.ok && res.html) onApply(res.html);
+      setMsg({ ok: res.ok, text: res.msg });
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-2">
-      <input type="hidden" name="current" value={current} />
+    <div className="space-y-2">
       <textarea
-        name="prompt"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
         rows={5}
         placeholder="Describí el email que querés. Ej: «Invitación a la encuesta con un botón grande a {{encuesta_url}} y un tono cercano». Podés pedir cambios sobre lo ya generado."
         className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100"
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className={buttonClass("accent")}
-        >
+        <button type="button" onClick={generar} disabled={pending || !prompt.trim()} className={buttonClass("accent")}>
           {pending ? "Generando…" : current.trim() ? "✦ Generar / refinar" : "✦ Generar HTML"}
         </button>
         <span className="text-[11px] text-zinc-400">
@@ -61,15 +64,15 @@ export function AiHtmlAssistant({
         </span>
       </div>
 
-      {state.ok !== null && (
+      {msg.ok !== null && (
         <p
           className={`text-xs ${
-            state.ok
+            msg.ok
               ? "text-emerald-600 dark:text-emerald-400"
               : "text-red-600 dark:text-red-400"
           }`}
         >
-          {state.msg}
+          {msg.text}
         </p>
       )}
 
@@ -85,6 +88,6 @@ export function AiHtmlAssistant({
           ))}
         </ul>
       </div>
-    </form>
+    </div>
   );
 }
