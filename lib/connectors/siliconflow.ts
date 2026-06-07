@@ -46,7 +46,7 @@ export const siliconflowConnector: Connector = {
       label: "Modelo de video",
       type: "text",
       required: false,
-      placeholder: "Wan-AI/Wan2.2-T2V-A14B",
+      placeholder: "Wan-AI/Wan2.2-T2V-A14B (text-to-video)",
       help: "Opcional. Modelo text-to-video HABILITADO en tu cuenta de SiliconFlow (si da 'Model disabled', activalo en cloud.siliconflow.com o usá otro).",
     },
   ],
