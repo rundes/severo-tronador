@@ -218,8 +218,15 @@ export default async function SegmentosPage({
 
       <form
         action={guardarSegmento}
-        className="space-y-2 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700"
+        className="space-y-2 rounded-lg border border-[oklch(52%_0.13_255)]/40 bg-[oklch(52%_0.13_255)]/[0.04] p-3"
       >
+        <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+          💾 Guardar este segmento
+          <span className="ml-2 font-normal text-zinc-500">
+            ({total.toLocaleString()} personas) — aplicar o generar con IA no
+            guarda; hacé click en Guardar para reutilizarlo en campañas y encuestas.
+          </span>
+        </div>
         <div className="flex items-end gap-2">
         <input type="hidden" name="sexo" value={filter.sexo ?? ""} />
         <input type="hidden" name="edadMin" value={filter.edadMin ?? ""} />
