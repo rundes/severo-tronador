@@ -23,7 +23,7 @@ import {
 } from "@/lib/relationship";
 import { listSavedSegments } from "@/lib/segments-store";
 import { requireProject } from "@/lib/workspace";
-import { borrarSegmento, guardarSegmento, crearSegmentoIA } from "./actions";
+import { borrarSegmento, guardarSegmento, crearSegmentoIA, guardarSegmentoLista } from "./actions";
 import { buttonClass } from "@/components/ui/button";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 
@@ -164,6 +164,43 @@ export default async function SegmentosPage({
           </details>
         </>
       )}
+
+      {/* Segmento desde lista manual de DNIs o emails */}
+      <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
+          📋 Segmento desde lista (DNIs o emails)
+        </summary>
+        <form action={guardarSegmentoLista} className="mt-3 space-y-2">
+          <p className="text-xs text-zinc-500">
+            Pegá DNIs y/o emails (separados por coma, espacio o salto). El
+            segmento será ese conjunto exacto, limitado a los que existan en el
+            padrón.
+          </p>
+          <input
+            name="nombre"
+            required
+            placeholder="Nombre del segmento (ej. Referentes barriales)"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <textarea
+            name="lista"
+            rows={4}
+            required
+            placeholder="30123456, 28987654&#10;vecino@mail.com  41222333"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <SubmitButton pendingLabel="Creando…">Crear segmento</SubmitButton>
+          <FormStatus
+            ok={
+              params.lista_ok !== undefined
+                ? `Segmento creado: ${params.lista_ok} de ${params.pedidos ?? "?"} en el padrón.`
+                : null
+            }
+            error={params.error === "lista" ? "No se pudo crear." : null}
+            detalle={params.error === "lista" ? params.detalle ?? null : null}
+          />
+        </form>
+      </details>
 
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400">
