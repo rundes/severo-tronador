@@ -22,9 +22,9 @@ const NAV = [
   {
     section: "Investigación",
     items: [
+      { href: "/escucha", label: "Escucha" },
       { href: "/encuestas", label: "Encuestas" },
       { href: "/respuestas", label: "Respuestas" },
-      { href: "/escucha", label: "Escucha" },
     ],
   },
   {
