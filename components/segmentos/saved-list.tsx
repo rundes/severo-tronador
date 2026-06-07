@@ -71,6 +71,7 @@ function filtrosResumen(f: SavedSegment["filtros"]): string {
   if (f.edadMin != null || f.edadMax != null)
     parts.push(`${f.edadMin ?? ""}–${f.edadMax ?? ""}`);
   if (f.barrio) parts.push(f.barrio);
+  if (f.grupoId) parts.push("grupo");
   if (f.circuito) parts.push(`circ ${f.circuito}`);
   if (f.mesa) parts.push(`mesa ${f.mesa}`);
   if (f.healthMin != null) parts.push(`salud≥${f.healthMin}`);

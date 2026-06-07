@@ -16,7 +16,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function FilterForm({ barrios }: { barrios: string[] }) {
+export function FilterForm({
+  barrios,
+  grupos = [],
+}: {
+  barrios: string[];
+  grupos?: { id: string; nombre: string }[];
+}) {
   const router = useRouter();
   const sp = useSearchParams();
   const get = (k: string) => sp.get(k) ?? "";
@@ -66,6 +72,16 @@ export function FilterForm({ barrios }: { barrios: string[] }) {
               ))}
             </select>
           </Field>
+          {grupos.length > 0 && (
+            <Field label="Grupo de contactos">
+              <select name="grupoId" defaultValue={get("grupoId")} className={inputCls}>
+                <option value="">cualquiera</option>
+                {grupos.map((g) => (
+                  <option key={g.id} value={g.id}>{g.nombre}</option>
+                ))}
+              </select>
+            </Field>
+          )}
         </div>
       </fieldset>
 

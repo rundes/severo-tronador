@@ -14,6 +14,7 @@ export interface SavedFilters {
   barrio?: string;
   circuito?: string;
   mesa?: string;
+  grupoId?: string;
   healthMin?: number;
   healthBands?: ("green" | "yellow" | "red")[];
   respondedWithinDays?: number;

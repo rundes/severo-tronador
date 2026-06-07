@@ -27,6 +27,7 @@ function row(
     fecha_nac: partial.fecha_nac,
     email: partial.email,
     telefono: partial.telefono,
+    grupo_id: partial.grupo_id,
   };
   return {
     contact,
@@ -67,6 +68,19 @@ describe("applySegment · lista manual", () => {
   it("filtra por emails (case-insensitive) o DNI", () => {
     const m = applySegment(all, { dnis: ["30123456"], emails: ["b@x.com"] }, NOW);
     expect(m.map((x) => x.contact.dni).sort()).toEqual(["30123456", "41222333"]);
+  });
+});
+
+describe("applySegment · grupo", () => {
+  const all = [
+    row({ dni: "1", grupo_id: "g-ref" }),
+    row({ dni: "2", grupo_id: "g-ref" }),
+    row({ dni: "3", grupo_id: "g-otro" }),
+    row({ dni: "4" }),
+  ];
+  it("filtra por grupoId", () => {
+    const m = applySegment(all, { grupoId: "g-ref" }, NOW);
+    expect(m.map((x) => x.contact.dni).sort()).toEqual(["1", "2"]);
   });
 });
 

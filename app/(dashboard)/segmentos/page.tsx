@@ -22,6 +22,8 @@ import {
   type Channel,
 } from "@/lib/relationship";
 import { listSavedSegments } from "@/lib/segments-store";
+import { listGrupos } from "@/lib/grupos";
+import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { borrarSegmento, guardarSegmento, crearSegmentoIA, guardarSegmentoLista } from "./actions";
 import { buttonClass } from "@/components/ui/button";
@@ -62,6 +64,9 @@ export default async function SegmentosPage({
     ? applyQuery(all, advancedQuery)
     : applySegment(all, filter);
   const saved = await listSavedSegments(projectId);
+  const grupos = dbConfigured()
+    ? (await listGrupos(projectId)).map((g) => ({ id: g.id, nombre: g.nombre }))
+    : [];
   const funnel = advanced ? [] : buildFunnel(all, filter);
   const costs = matched.length > 0 ? await estimateAllChannels(matched.length) : [];
 
@@ -153,7 +158,7 @@ export default async function SegmentosPage({
             />
           </form>
 
-          <FilterForm barrios={barriosDisponibles(all)} />
+          <FilterForm barrios={barriosDisponibles(all)} grupos={grupos} />
           <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
             <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
               Modo avanzado (AND/OR)
@@ -220,6 +225,7 @@ export default async function SegmentosPage({
         <input type="hidden" name="edadMin" value={filter.edadMin ?? ""} />
         <input type="hidden" name="edadMax" value={filter.edadMax ?? ""} />
         <input type="hidden" name="barrio" value={filter.barrio ?? ""} />
+        <input type="hidden" name="grupoId" value={filter.grupoId ?? ""} />
         <input type="hidden" name="circuito" value={filter.circuito ?? ""} />
         <input type="hidden" name="mesa" value={filter.mesa ?? ""} />
         <input type="hidden" name="healthMin" value={filter.healthMin ?? ""} />
