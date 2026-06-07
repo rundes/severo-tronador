@@ -8,7 +8,7 @@ const URL = `${BASE}/chat/completions`;
 
 // Modelos de imagen y video por defecto (override con env).
 const DEFAULT_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell";
-const DEFAULT_VIDEO_MODEL = "Wan-AI/Wan2.1-T2V-14B";
+const DEFAULT_VIDEO_MODEL = "Wan-AI/Wan2.2-T2V-A14B";
 
 // Modelos por defecto (curados). Override con SILICONFLOW_MODELS (coma).
 const DEFAULT_MODELS = [
