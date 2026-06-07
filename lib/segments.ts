@@ -26,6 +26,8 @@ export interface SegmentFilter {
   barrio?: string;
   circuito?: string;
   mesa?: string;
+  // Grupo de contactos (padron.grupo_id)
+  grupoId?: string;
   // Salud agregada
   healthMin?: number;
   healthBands?: HealthBandFilter[]; // ej ["green","yellow"]
@@ -97,6 +99,7 @@ export function applySegment(
     if (filter.barrio && contact.barrio !== filter.barrio) return false;
     if (filter.circuito && contact.circuito !== filter.circuito) return false;
     if (filter.mesa && contact.mesa !== filter.mesa) return false;
+    if (filter.grupoId && contact.grupo_id !== filter.grupoId) return false;
     // Salud agregada
     if (filter.healthMin != null && rel.healthScore < filter.healthMin) return false;
     if (
@@ -180,6 +183,7 @@ const FUNNEL_ORDER: { key: keyof SegmentFilter; label: (v: unknown) => string }[
   { key: "edadMin", label: (v) => `edad ≥ ${v}` },
   { key: "edadMax", label: (v) => `edad ≤ ${v}` },
   { key: "barrio", label: (v) => `barrio = ${v}` },
+  { key: "grupoId", label: () => `grupo` },
   { key: "circuito", label: (v) => `circuito = ${v}` },
   { key: "mesa", label: (v) => `mesa = ${v}` },
   { key: "healthMin", label: (v) => `salud ≥ ${v}` },
@@ -265,6 +269,7 @@ export function filterFromParams(
     barrio: params.barrio || undefined,
     circuito: params.circuito || undefined,
     mesa: params.mesa || undefined,
+    grupoId: params.grupoId || undefined,
     healthMin: num(params.healthMin),
     healthBands: bands && bands.length > 0 ? bands : undefined,
     respondedWithinDays: num(params.respondedWithinDays),

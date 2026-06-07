@@ -102,6 +102,9 @@ export interface Contact {
   // Handle X (Twitter) sin "@". Permite mapear contenido específico del
   // ciudadano en /escucha vía X API. Opcional.
   x_handle?: string;
+  // Grupo de contactos al que pertenece (padron.grupo_id). Permite segmentar
+  // por grupo. Opcional.
+  grupo_id?: string | null;
 }
 
 export interface DataConnector extends Connector {
