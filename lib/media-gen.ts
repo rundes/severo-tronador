@@ -66,7 +66,11 @@ export async function generateProposalImage(
   const sf = await getConnectorConfig("siliconflow");
   if (sf.SILICONFLOW_API_KEY) {
     try {
-      const tmp = await siliconflowImage({ apiKey: sf.SILICONFLOW_API_KEY, prompt });
+      const tmp = await siliconflowImage({
+        apiKey: sf.SILICONFLOW_API_KEY,
+        prompt,
+        model: sf.SILICONFLOW_IMAGE_MODEL || undefined,
+      });
       const url = await persistRemote(projectId, tmp);
       return { ok: true, url, msg: "Imagen generada con SiliconFlow." };
     } catch (e) {
@@ -89,7 +93,11 @@ export async function submitProposalVideo(prompt: string): Promise<VideoSubmitRe
     return { ok: false, msg: "El video requiere SiliconFlow. Cargá su API key en Conectores." };
   }
   try {
-    const requestId = await siliconflowVideoSubmit({ apiKey: sf.SILICONFLOW_API_KEY, prompt });
+    const requestId = await siliconflowVideoSubmit({
+      apiKey: sf.SILICONFLOW_API_KEY,
+      prompt,
+      model: sf.SILICONFLOW_VIDEO_MODEL || undefined,
+    });
     return { ok: true, requestId, msg: "Video en proceso. Puede tardar unos minutos." };
   } catch (e) {
     return { ok: false, msg: `SiliconFlow: ${(e as Error).message}` };
