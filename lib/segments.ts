@@ -36,6 +36,11 @@ export interface SegmentFilter {
   hasEmail?: boolean;
   hasTelefono?: boolean;
   preferredChannel?: "email" | "whatsapp" | "sms" | "voice" | "telegram";
+  // Lista manual: el segmento es el conjunto explícito de estos DNIs y/o
+  // emails (definidos a mano). Si está presente, el contacto debe pertenecer
+  // a la lista (por dni o por email) además de cumplir los demás filtros.
+  dnis?: string[];
+  emails?: string[];
 }
 
 export interface ContactWithRelationship {
@@ -126,8 +131,35 @@ export function applySegment(
     if (filter.hasTelefono === false && contact.telefono) return false;
     if (filter.preferredChannel && rel.preferredChannel !== filter.preferredChannel)
       return false;
+    // Lista manual: pertenece si su dni o su email están en las listas.
+    const hasList =
+      (filter.dnis && filter.dnis.length > 0) ||
+      (filter.emails && filter.emails.length > 0);
+    if (hasList) {
+      const byDni = filter.dnis?.includes(String(contact.dni).trim()) ?? false;
+      const byEmail =
+        !!contact.email &&
+        (filter.emails?.includes(contact.email.trim().toLowerCase()) ?? false);
+      if (!byDni && !byEmail) return false;
+    }
     return true;
   });
+}
+
+// Parsea una lista pegada a mano (DNIs y/o emails, separados por coma, espacio,
+// punto y coma o salto) en dos arrays normalizados.
+export function parseManualList(raw: string): { dnis: string[]; emails: string[] } {
+  const tokens = raw
+    .split(/[\s,;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const dnis = new Set<string>();
+  const emails = new Set<string>();
+  for (const t of tokens) {
+    if (t.includes("@")) emails.add(t.toLowerCase());
+    else dnis.add(t);
+  }
+  return { dnis: [...dnis], emails: [...emails] };
 }
 
 // ── Embudo progresivo (Plan 02 — F1.4) ───────────────────────────────────

@@ -6,6 +6,7 @@ import {
   edadDe,
   filterFromParams,
   loadContacts,
+  parseManualList,
   type ContactWithRelationship,
 } from "@/lib/segments";
 
@@ -44,6 +45,30 @@ function row(
     },
   };
 }
+
+describe("parseManualList", () => {
+  it("clasifica DNIs y emails, normaliza y deduplica", () => {
+    const r = parseManualList("30123456, vecino@Mail.com 30123456\n41222333; VECINO@mail.com");
+    expect(r.dnis.sort()).toEqual(["30123456", "41222333"]);
+    expect(r.emails).toEqual(["vecino@mail.com"]);
+  });
+});
+
+describe("applySegment · lista manual", () => {
+  const all = [
+    row({ dni: "30123456", email: "a@x.com" }),
+    row({ dni: "41222333", email: "b@x.com" }),
+    row({ dni: "99999999", email: "c@x.com" }),
+  ];
+  it("filtra por DNIs explícitos", () => {
+    const m = applySegment(all, { dnis: ["30123456", "41222333"] }, NOW);
+    expect(m.map((x) => x.contact.dni).sort()).toEqual(["30123456", "41222333"]);
+  });
+  it("filtra por emails (case-insensitive) o DNI", () => {
+    const m = applySegment(all, { dnis: ["30123456"], emails: ["b@x.com"] }, NOW);
+    expect(m.map((x) => x.contact.dni).sort()).toEqual(["30123456", "41222333"]);
+  });
+});
 
 describe("edadDe", () => {
   it("calcula años correctamente", () => {

@@ -19,7 +19,7 @@ import { requireMember } from "@/lib/workspace";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
-import { barriosDisponibles, loadContacts } from "@/lib/segments";
+import { barriosDisponibles, loadContacts, applySegment, parseManualList } from "@/lib/segments";
 
 const GuardarSegmentoSchema = z.object({
   nombre: z.string().trim().min(1, "Nombre requerido").max(120),
@@ -166,6 +166,45 @@ export async function crearSegmentoIA(formData: FormData) {
   qs.set("ia", "ok");
 
   redirect(`/segmentos?${qs.toString()}`);
+}
+
+// Crea un segmento a partir de una lista pegada a mano de DNIs y/o emails.
+// El segmento queda como el conjunto explícito de esos contactos (los que
+// existan en el padrón). Guarda directo (la lista no entra en la URL).
+export async function guardarSegmentoLista(formData: FormData) {
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const raw = String(formData.get("lista") ?? "");
+  if (!nombre) {
+    redirect(`/segmentos?error=lista&detalle=${encodeURIComponent("Poné un nombre al segmento.")}`);
+  }
+  const { dnis, emails } = parseManualList(raw);
+  if (dnis.length === 0 && emails.length === 0) {
+    redirect(`/segmentos?error=lista&detalle=${encodeURIComponent("Pegá al menos un DNI o email.")}`);
+  }
+
+  const { id: projectId } = await requireMember("editor");
+  const filtros = { dnis, emails };
+  // Contamos cuántos de la lista existen realmente en el padrón.
+  let matched = 0;
+  try {
+    const all = await loadContacts(projectId);
+    matched = applySegment(all, filtros).length;
+  } catch {
+    // si falla el conteo, igual guardamos
+  }
+
+  const session = await auth();
+  const saved = await saveSegment(projectId, nombre, filtros, session?.user?.email ?? undefined);
+  await logAudit({
+    action: "segment.save",
+    projectId,
+    actor: session?.user?.email ?? null,
+    entity_type: "segment",
+    entity_id: saved.id,
+    details: { nombre: saved.nombre, lista: true, dnis: dnis.length, emails: emails.length, matched },
+  });
+  revalidatePath("/segmentos");
+  redirect(`/segmentos?lista_ok=${matched}&pedidos=${dnis.length + emails.length}`);
 }
 
 export async function borrarSegmento(formData: FormData) {

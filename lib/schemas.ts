@@ -50,6 +50,8 @@ export const SegmentFilterSchema = z.object({
   hasEmail: z.boolean().optional(),
   hasTelefono: z.boolean().optional(),
   preferredChannel: emptyToUndef.pipe(ChannelEnum.optional()),
+  dnis: z.array(z.string().trim().min(1)).max(50000).optional(),
+  emails: z.array(z.string().trim().min(1)).max(50000).optional(),
 });
 export type SegmentFilterInput = z.infer<typeof SegmentFilterSchema>;
 

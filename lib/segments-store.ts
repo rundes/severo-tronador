@@ -21,6 +21,8 @@ export interface SavedFilters {
   hasEmail?: boolean;
   hasTelefono?: boolean;
   preferredChannel?: "email" | "whatsapp" | "sms" | "voice" | "telegram";
+  dnis?: string[];
+  emails?: string[];
 }
 
 export interface SavedSegment {

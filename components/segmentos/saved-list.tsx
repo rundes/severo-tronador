@@ -15,6 +15,9 @@ export function SavedList({
   function loadInto(seg: SavedSegment) {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(seg.filtros)) {
+      // Las listas manuales (dnis/emails) no entran en la URL (serían enormes
+      // y el modo simple no las edita); el segmento se usa por id en campañas.
+      if (k === "dnis" || k === "emails") continue;
       if (v != null && v !== "") params.set(k, String(v));
     }
     router.push(`/segmentos?${params}`);
@@ -77,5 +80,7 @@ function filtrosResumen(f: SavedSegment["filtros"]): string {
   if (f.notContactedDays) parts.push(`sin>${f.notContactedDays}d`);
   if (f.hasEmail === true) parts.push("+email");
   if (f.hasTelefono === true) parts.push("+tel");
+  const listN = (f.dnis?.length ?? 0) + (f.emails?.length ?? 0);
+  if (listN > 0) parts.push(`lista ${listN}`);
   return parts.length ? `(${parts.join(", ")})` : "";
 }
