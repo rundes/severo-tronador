@@ -166,10 +166,29 @@ export default async function EncuestaDetailPage({
               Enviar por mail a un segmento
             </h2>
             {segments.length === 0 || templates.length === 0 ? (
-              <p className="text-xs text-zinc-500">
-                Necesitás al menos un segmento guardado y una plantilla de email
-                (con <code>{"{{encuesta_url}}"}</code> en el cuerpo).
-              </p>
+              <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                <p>Para enviar te falta:</p>
+                <ul className="ml-4 list-disc">
+                  {segments.length === 0 && (
+                    <li>
+                      Guardar un <strong>segmento</strong> en{" "}
+                      <a href="/segmentos" className="underline underline-offset-2">
+                        Segmentos
+                      </a>{" "}
+                      (armá filtros / lista / grupo y dale «Guardar»).
+                    </li>
+                  )}
+                  {templates.length === 0 && (
+                    <li>
+                      Crear una <strong>plantilla de email</strong> en{" "}
+                      <a href="/templates" className="underline underline-offset-2">
+                        Plantillas
+                      </a>{" "}
+                      con <code>{"{{encuesta_url}}"}</code> en el cuerpo.
+                    </li>
+                  )}
+                </ul>
+              </div>
             ) : (
               <form action={enviarEncuestaPorMail} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="id" value={enc.id} />
