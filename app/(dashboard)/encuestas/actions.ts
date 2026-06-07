@@ -17,6 +17,7 @@ import {
 import { deleteResponses } from "@/lib/encuestas/responses";
 import { executeCampaign } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
+import { listGrupos, grupoExiste } from "@/lib/grupos";
 import type { SegmentFilter } from "@/lib/segments";
 import type { Question } from "@/lib/encuestas/types";
 
@@ -124,14 +125,32 @@ export async function enviarEncuestaPorMail(formData: FormData) {
     redirect(`/encuestas/${id}?error=no_publicada`);
   }
   if (!templateId || !segmentId) redirect(`/encuestas/${id}?error=envio_datos`);
-  const seg = await getSavedSegment(projectId, segmentId);
-  if (!seg) redirect(`/encuestas/${id}?error=envio_datos`);
+
+  // El destino puede ser un segmento guardado (seg:<id>) o un grupo de
+  // contactos (grupo:<id>). Sin prefijo se asume segmento (retrocompat).
+  let segmentFilter: SegmentFilter;
+  let destinoNombre: string;
+  if (segmentId.startsWith("grupo:")) {
+    const grupoId = segmentId.slice(6);
+    if (!(await grupoExiste(projectId, grupoId))) {
+      redirect(`/encuestas/${id}?error=envio_datos`);
+    }
+    segmentFilter = { grupoId } as SegmentFilter;
+    const grupos = await listGrupos(projectId);
+    destinoNombre = grupos.find((g) => g.id === grupoId)?.nombre ?? "grupo";
+  } else {
+    const segId = segmentId.startsWith("seg:") ? segmentId.slice(4) : segmentId;
+    const seg = await getSavedSegment(projectId, segId);
+    if (!seg) redirect(`/encuestas/${id}?error=envio_datos`);
+    segmentFilter = seg.filtros as SegmentFilter;
+    destinoNombre = seg.nombre;
+  }
 
   const result = await executeCampaign(projectId, {
     nombre: `Encuesta: ${enc.titulo}`,
     channel: "email",
     templateId,
-    segmentFilter: seg.filtros as SegmentFilter,
+    segmentFilter,
     encuestaId: enc.id,
   });
   await logAudit({
@@ -140,7 +159,7 @@ export async function enviarEncuestaPorMail(formData: FormData) {
     actor: await actorEmail(),
     entity_type: "survey",
     entity_id: id,
-    details: { segmento: seg.nombre, ok: result.ok, reason: result.ok ? null : result.reason },
+    details: { destino: destinoNombre, ok: result.ok, reason: result.ok ? null : result.reason },
   });
   if (!result.ok) {
     redirect(`/encuestas/${id}?error=envio&detalle=${encodeURIComponent(result.reason)}`);

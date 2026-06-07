@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getEncuesta } from "@/lib/encuestas";
 import { listEncuestaResponses } from "@/lib/encuestas/responses";
 import { listSavedSegments } from "@/lib/segments-store";
+import { listGrupos } from "@/lib/grupos";
 import { listTemplates } from "@/lib/templates";
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
@@ -44,9 +45,13 @@ export default async function EncuestaDetailPage({
   const isClosed = enc.estado === "cerrada";
 
   const responses = await listEncuestaResponses(projectId, id);
-  const [segments, templates] = isPublished
-    ? await Promise.all([listSavedSegments(projectId), listTemplates("email")])
-    : [[], []];
+  const [segments, templates, grupos] = isPublished
+    ? await Promise.all([
+        listSavedSegments(projectId),
+        listTemplates("email"),
+        listGrupos(projectId),
+      ])
+    : [[], [], []];
 
   const okMap: Record<string, string> = {
     guardada: "Cambios guardados.",
@@ -163,19 +168,23 @@ export default async function EncuestaDetailPage({
 
           <div className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-              Enviar por mail a un segmento
+              Enviar por mail a un segmento o grupo
             </h2>
-            {segments.length === 0 || templates.length === 0 ? (
+            {(segments.length === 0 && grupos.length === 0) || templates.length === 0 ? (
               <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
                 <p>Para enviar te falta:</p>
                 <ul className="ml-4 list-disc">
-                  {segments.length === 0 && (
+                  {segments.length === 0 && grupos.length === 0 && (
                     <li>
-                      Guardar un <strong>segmento</strong> en{" "}
+                      Un <strong>segmento guardado</strong> (en{" "}
                       <a href="/segmentos" className="underline underline-offset-2">
                         Segmentos
-                      </a>{" "}
-                      (armá filtros / lista / grupo y dale «Guardar»).
+                      </a>
+                      ) o un <strong>grupo de contactos</strong> (en{" "}
+                      <Link href="/contactos" className="underline underline-offset-2">
+                        Contactos
+                      </Link>
+                      ).
                     </li>
                   )}
                   {templates.length === 0 && (
@@ -201,11 +210,24 @@ export default async function EncuestaDetailPage({
                   </select>
                 </label>
                 <label className="text-xs text-zinc-500">
-                  <span className="mb-1 block">Segmento</span>
+                  <span className="mb-1 block">Destino</span>
                   <select name="segmentId" className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    {segments.map((s) => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
+                    {segments.length > 0 && (
+                      <optgroup label="Segmentos guardados">
+                        {segments.map((s) => (
+                          <option key={s.id} value={`seg:${s.id}`}>{s.nombre}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {grupos.length > 0 && (
+                      <optgroup label="Grupos de contactos">
+                        {grupos.map((g) => (
+                          <option key={g.id} value={`grupo:${g.id}`}>
+                            {g.nombre} ({g.count})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </label>
                 <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
