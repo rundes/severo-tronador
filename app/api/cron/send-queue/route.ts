@@ -23,7 +23,10 @@ import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
 import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
 
-const BATCH = 20;
+// Envíos por corrida del cron. Default 20 (~240/h con cron de 5 min). Subilo
+// con SEND_QUEUE_BATCH para despachar más rápido (ej. 80 → ~960/h → 5000 en
+// ~5 h). Cada envío es secuencial; 80 entra holgado en la ventana de 5 min.
+const BATCH = Number(process.env.SEND_QUEUE_BATCH) || 20;
 const MAX_ATTEMPTS = 3;
 
 interface PendingRow {

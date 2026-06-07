@@ -17,7 +17,10 @@ import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { isValidEmail } from "@/lib/schemas";
 
-const FREE_LIMIT = 3000;
+// Tope mensual de envíos (guardarraíl). Default 3000 (free de Resend). Si tu
+// plan de Resend es mayor (Pro = 50k/mes), subilo con RESEND_MONTHLY_LIMIT
+// para que el send-queue no bloquee antes de tiempo.
+const FREE_LIMIT = Number(process.env.RESEND_MONTHLY_LIMIT) || 3000;
 const ID = "resend";
 
 export const resendConnector: OutreachConnector = {
