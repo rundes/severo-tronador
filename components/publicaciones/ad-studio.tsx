@@ -356,7 +356,7 @@ export function AdStudio({
                     </button>
                     {media[p.id]?.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={media[p.id]!.imageUrl} alt="" className="mt-1 max-h-32 rounded object-cover" />
+                      <img src={media[p.id]!.imageUrl} alt="" className="mt-2 max-h-[32rem] w-full rounded-lg border border-zinc-200 object-contain dark:border-zinc-800" />
                     )}
                     {media[p.id]?.imgMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.imgMsg}</p>}
                   </div>
@@ -389,7 +389,7 @@ export function AdStudio({
                       )}
                     </div>
                     {media[p.id]?.videoUrl && (
-                      <video src={media[p.id]!.videoUrl} controls className="mt-1 max-h-40 w-full rounded" />
+                      <video src={media[p.id]!.videoUrl} controls className="mt-2 max-h-[32rem] w-full rounded-lg border border-zinc-200 dark:border-zinc-800" />
                     )}
                     {media[p.id]?.vidMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.vidMsg}</p>}
                   </div>
