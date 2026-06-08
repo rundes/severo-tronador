@@ -7,6 +7,7 @@ import { HealthBadge } from "@/components/health-badge";
 import {
   applySegment,
   barriosDisponibles,
+  afiliacionesDisponibles,
   buildFunnel,
   filterFromParams,
   loadContacts,
@@ -158,7 +159,7 @@ export default async function SegmentosPage({
             />
           </form>
 
-          <FilterForm barrios={barriosDisponibles(all)} grupos={grupos} />
+          <FilterForm barrios={barriosDisponibles(all)} grupos={grupos} afiliaciones={afiliacionesDisponibles(all)} />
           <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
             <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
               Modo avanzado (AND/OR)
@@ -233,6 +234,7 @@ export default async function SegmentosPage({
         <input type="hidden" name="edadMax" value={filter.edadMax ?? ""} />
         <input type="hidden" name="barrio" value={filter.barrio ?? ""} />
         <input type="hidden" name="grupoId" value={filter.grupoId ?? ""} />
+        <input type="hidden" name="afiliacion" value={filter.afiliacion ?? ""} />
         <input type="hidden" name="circuito" value={filter.circuito ?? ""} />
         <input type="hidden" name="mesa" value={filter.mesa ?? ""} />
         <input type="hidden" name="healthMin" value={filter.healthMin ?? ""} />

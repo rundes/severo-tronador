@@ -44,6 +44,7 @@ export const SegmentFilterSchema = z.object({
   circuito: emptyToUndef,
   mesa: emptyToUndef,
   grupoId: emptyToUndef,
+  afiliacion: emptyToUndef,
   healthMin: optInt(0, 100),
   healthBands: z.array(HealthBandEnum).max(3).optional(),
   respondedWithinDays: optInt(0, 3650),

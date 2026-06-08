@@ -274,6 +274,10 @@ export default async function ContactosPage({
               <input name="x_handle" placeholder="@usuario" disabled={!persistOk} className={inputCls} />
             </label>
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Afiliación política
+              <input name="afiliacion" placeholder="ej. independiente / partido" disabled={!persistOk} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
               Grupo
               <select name="grupo_id" defaultValue="" disabled={!persistOk} className={inputCls}>
                 <option value="">— sin grupo —</option>
@@ -486,6 +490,7 @@ const CONTACT_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: "circuito", label: "Circuito electoral" },
   { key: "mesa", label: "Mesa electoral" },
   { key: "x_handle", label: "Cuenta de X (Twitter)" },
+  { key: "afiliacion", label: "Afiliación política" },
 ];
 
 function bestGuess(field: string, headers: string[]): string {
@@ -518,6 +523,16 @@ function bestGuess(field: string, headers: string[]): string {
       "usuariotwitter",
       "handlex",
       "arroba",
+    ],
+    afiliacion: [
+      "afiliacion",
+      "afiliacionpolitica",
+      "partido",
+      "partidopolitico",
+      "political",
+      "politicalaffiliation",
+      "espacio",
+      "fuerza",
     ],
   };
   const aliasList = (aliases[field] ?? [target]).map(normalize);
