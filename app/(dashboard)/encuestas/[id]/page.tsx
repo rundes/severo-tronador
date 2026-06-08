@@ -57,7 +57,7 @@ export default async function EncuestaDetailPage({
     guardada: "Cambios guardados.",
     publicada: "Encuesta publicada. Ya podés distribuir el link público.",
     cerrada: "Encuesta cerrada. No recibe más respuestas.",
-    enviada: "Encuesta encolada para envío por mail al segmento.",
+    enviada: "Envío encolado. Seguí el estado (enviados / pendientes) en Campañas.",
     duplicada: "Encuesta duplicada. Estás editando la copia.",
     respuestas_borradas: `Respuestas borradas (${sp.n ?? 0}). La encuesta arranca de cero.`,
   };
@@ -233,6 +233,14 @@ export default async function EncuestaDetailPage({
                 <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
               </form>
             )}
+            <p className="text-[11px] text-zinc-400">
+              El envío crea una campaña de email. Mirá cuántos se enviaron / quedan
+              pendientes en{" "}
+              <Link href="/campanas" className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-300">
+                Campañas
+              </Link>
+              . Sale escalonado (cola): puede tardar.
+            </p>
           </div>
         </>
       )}
