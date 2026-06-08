@@ -10,7 +10,6 @@ import {
 import { textToHtml, wrapEmailShell, wrapEmailMinimal } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { buttonClass } from "@/components/ui/button";
-import { VisualEditor } from "@/components/templates/visual-editor";
 import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
 
@@ -129,8 +128,9 @@ export function TemplateEditor({
   const [formato, setFormato] = useState<"texto" | "html">("texto");
   const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
   const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
-  // Sub-vista del modo HTML: editor visual (WYSIWYG), código crudo o asistente IA.
-  const [htmlView, setHtmlView] = useState<"visual" | "code" | "ia">("visual");
+  // Sub-vista del modo HTML: código crudo o asistente IA (el diseño se ve en
+  // el preview de la derecha; no hay editor "visual" para no confundir).
+  const [htmlView, setHtmlView] = useState<"code" | "ia">("code");
   // "Email completo": el editor controla TODO el documento (encabezado + cuerpo
   // + pie) y se envía sin el envoltorio de marca ni la nota de baja automática.
   const [fullEmail, setFullEmail] = useState(false);
@@ -326,39 +326,36 @@ export function TemplateEditor({
                 />
               </label>
 
-              {/* Toggle de formato + atajo al asistente IA (siempre visible
-                  en email, para que la integración con IA se descubra sin
-                  tener que entrar primero a "Diseño HTML"). */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
-                  {(["texto", "html"] as const).map((f) => (
+              {/* Un solo selector de modo: Texto plano · Código · Asistente IA.
+                  El diseño se ve en vivo en el preview de la derecha. */}
+              <div className="flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+                {([
+                  { id: "texto", label: "Texto plano" },
+                  { id: "code", label: "Código HTML" },
+                  ...(aiAction ? [{ id: "ia", label: "✦ Asistente IA" }] : []),
+                ] as const).map((m) => {
+                  const active = formato === "texto" ? m.id === "texto" : m.id === htmlView;
+                  return (
                     <button
                       type="button"
-                      key={f}
-                      onClick={() => setFormato(f)}
+                      key={m.id}
+                      onClick={() => {
+                        if (m.id === "texto") setFormato("texto");
+                        else {
+                          setFormato("html");
+                          setHtmlView(m.id as "code" | "ia");
+                        }
+                      }}
                       className={`rounded-full px-3 py-1 transition-colors ${
-                        formato === f
+                        active
                           ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                       }`}
                     >
-                      {f === "texto" ? "Texto plano" : "Diseño HTML"}
+                      {m.label}
                     </button>
-                  ))}
-                </div>
-                {aiAction && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormato("html");
-                      setHtmlView("ia");
-                    }}
-                    className="inline-flex items-center gap-1 rounded-full border border-[oklch(52%_0.13_255)]/40 bg-[oklch(52%_0.13_255)]/8 px-3 py-1.5 text-xs font-medium text-[oklch(45%_0.13_255)] transition-colors hover:bg-[oklch(52%_0.13_255)]/15 dark:text-[oklch(72%_0.12_255)]"
-                    title="Generar el diseño con Claude a partir de tus indicaciones"
-                  >
-                    ✦ Diseñar con IA
-                  </button>
-                )}
+                  );
+                })}
               </div>
             </>
           )}
@@ -427,23 +424,6 @@ export function TemplateEditor({
                   Cuerpo del email
                 </span>
                 <div className="flex items-center gap-2">
-                  {/* Toggle Visual / Código / IA */}
-                  <div className="flex items-center gap-1 rounded-full border border-zinc-200 p-0.5 text-[11px] dark:border-zinc-800">
-                    {(["visual", "code", ...(aiAction ? (["ia"] as const) : [])] as const).map((v) => (
-                      <button
-                        type="button"
-                        key={v}
-                        onClick={() => setHtmlView(v)}
-                        className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                          htmlView === v
-                            ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                        }`}
-                      >
-                        {v === "visual" ? "Visual" : v === "code" ? "Código" : "✦ Asistente IA"}
-                      </button>
-                    ))}
-                  </div>
                   <select
                     aria-label="Insertar diseño o modelo guardado"
                     className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-700 dark:bg-zinc-900"
@@ -501,14 +481,11 @@ export function TemplateEditor({
                 </span>
               </label>
 
-              {htmlView === "visual" && (
-                <VisualEditor value={cuerpoHtml} onChange={setCuerpoHtml} />
-              )}
               {htmlView === "code" && (
                 <textarea
                   value={cuerpoHtml}
                   onChange={(e) => setCuerpoHtml(e.target.value)}
-                  rows={14}
+                  rows={16}
                   spellCheck={false}
                   className={`${inputCls} w-full font-mono text-xs`}
                 />
@@ -519,7 +496,7 @@ export function TemplateEditor({
                   current={cuerpoHtml}
                   onApply={(html) => {
                     setCuerpoHtml(html);
-                    setHtmlView("visual");
+                    setHtmlView("code");
                   }}
                 />
               )}
