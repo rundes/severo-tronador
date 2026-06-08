@@ -15,6 +15,7 @@ export interface SavedFilters {
   circuito?: string;
   mesa?: string;
   grupoId?: string;
+  afiliacion?: string;
   healthMin?: number;
   healthBands?: ("green" | "yellow" | "red")[];
   respondedWithinDays?: number;

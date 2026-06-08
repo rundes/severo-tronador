@@ -39,6 +39,7 @@ export async function guardarSegmento(formData: FormData) {
       circuito: raw.circuito,
       mesa: raw.mesa,
       grupoId: raw.grupoId,
+      afiliacion: raw.afiliacion,
       healthMin: raw.healthMin,
       healthBands: bands.length > 0 ? bands : undefined,
       respondedWithinDays: raw.respondedWithinDays,

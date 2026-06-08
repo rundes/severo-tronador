@@ -19,9 +19,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function FilterForm({
   barrios,
   grupos = [],
+  afiliaciones = [],
 }: {
   barrios: string[];
   grupos?: { id: string; nombre: string }[];
+  afiliaciones?: string[];
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -119,6 +121,16 @@ export function FilterForm({
           Más filtros
         </summary>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {afiliaciones.length > 0 && (
+            <Field label="Afiliación política">
+              <select name="afiliacion" defaultValue={get("afiliacion")} className={inputCls}>
+                <option value="">cualquiera</option>
+                {afiliaciones.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Circuito">
             <input name="circuito" defaultValue={get("circuito")} placeholder="ej 12" className={inputCls} />
           </Field>

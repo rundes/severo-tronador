@@ -1,7 +1,7 @@
 import { dbConfigured, getSupabase } from "./supabase";
 import type { Contact } from "@/lib/connectors/types";
 
-const COLS = ["dni","nombre","apellido","fecha_nac","sexo","domicilio","barrio","circuito","mesa","telefono","email","x_handle"];
+const COLS = ["dni","nombre","apellido","fecha_nac","sexo","domicilio","barrio","circuito","mesa","telefono","email","x_handle","afiliacion"];
 
 export function parsePadronCsv(csv: string): Contact[] {
   const lines = csv.trim().split(/\r?\n/);

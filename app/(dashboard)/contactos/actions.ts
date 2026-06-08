@@ -76,6 +76,7 @@ export async function agregarContacto(formData: FormData) {
     sexo: field("sexo"),
     barrio: field("barrio"),
     x_handle: field("x_handle"),
+    afiliacion: field("afiliacion"),
   } as Contact;
 
   await addPadronContact(projectId, contact, grupoId);

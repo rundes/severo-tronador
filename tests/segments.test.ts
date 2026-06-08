@@ -28,6 +28,7 @@ function row(
     email: partial.email,
     telefono: partial.telefono,
     grupo_id: partial.grupo_id,
+    afiliacion: partial.afiliacion,
   };
   return {
     contact,
@@ -68,6 +69,19 @@ describe("applySegment · lista manual", () => {
   it("filtra por emails (case-insensitive) o DNI", () => {
     const m = applySegment(all, { dnis: ["30123456"], emails: ["b@x.com"] }, NOW);
     expect(m.map((x) => x.contact.dni).sort()).toEqual(["30123456", "41222333"]);
+  });
+});
+
+describe("applySegment · afiliación", () => {
+  const all = [
+    row({ dni: "1", afiliacion: "Partido A" }),
+    row({ dni: "2", afiliacion: "Partido A" }),
+    row({ dni: "3", afiliacion: "Independiente" }),
+    row({ dni: "4" }),
+  ];
+  it("filtra por afiliación exacta", () => {
+    const m = applySegment(all, { afiliacion: "Partido A" }, NOW);
+    expect(m.map((x) => x.contact.dni).sort()).toEqual(["1", "2"]);
   });
 });
 

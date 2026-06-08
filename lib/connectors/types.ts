@@ -105,6 +105,9 @@ export interface Contact {
   // Grupo de contactos al que pertenece (padron.grupo_id). Permite segmentar
   // por grupo. Opcional.
   grupo_id?: string | null;
+  // Afiliación política declarada/estimada (texto libre, ej. nombre de partido
+  // o "independiente"). Dato sensible: solo para segmentación interna. Opcional.
+  afiliacion?: string;
 }
 
 export interface DataConnector extends Connector {
