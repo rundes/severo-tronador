@@ -9,6 +9,7 @@ import {
   generarContenidoPostIA,
   generarImagenIA,
   publicarDirecto,
+  sugerirMejorasAviso,
 } from "../publicaciones/actions";
 
 export const metadata = { title: "Difusión · Tronador" };
@@ -101,6 +102,7 @@ export default async function DifusionPage({
           aiAction={generarContenidoPostIA}
           imageAction={generarImagenIA}
           publishAction={publicarDirecto}
+          suggestAction={sugerirMejorasAviso}
           igReady={igReady}
           ready={ready}
         />

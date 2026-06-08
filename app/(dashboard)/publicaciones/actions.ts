@@ -104,6 +104,68 @@ export interface AiImageState {
   msg: string;
 }
 
+export interface AiSuggestState {
+  ok: boolean | null;
+  suggestions: string[];
+  improved: string;
+  msg: string;
+}
+
+// Sugiere mejoras concretas para un aviso + una versión mejorada (Gemini con
+// fallback a Claude). Pensado para "mejorar mi aviso".
+export async function sugerirMejorasAviso(
+  _prev: AiSuggestState,
+  formData: FormData,
+): Promise<AiSuggestState> {
+  const { id: projectId } = await requireMember("editor");
+  const texto = String(formData.get("texto") ?? "").trim();
+  const red = String(formData.get("red") ?? "redes");
+  if (!texto) return { ok: false, suggestions: [], improved: "", msg: "No hay texto para mejorar." };
+
+  const system = [
+    "Sos estratega de publicidad para una organización de relevamiento de",
+    "opinión pública (neutral, NO campaña partidaria). Te dan el texto de un",
+    `aviso para ${red}. Devolvé SOLO JSON válido, sin markdown:`,
+    '{ "suggestions": ["mejora concreta", "..."], "improved": "versión mejorada del texto" }',
+    "3 a 6 sugerencias accionables: gancho/primera línea, claridad, llamado a",
+    "la acción, longitud adecuada a la red, prueba social, sacar jerga. La",
+    "versión 'improved' mantiene el tono neutral y respeta las variables {{...}}.",
+  ].join("\n");
+  const userPrompt = `Aviso actual:\n${texto}`;
+
+  const google = await getConnectorConfig("google-ai");
+  const claude = await getConnectorConfig("claude-api");
+  let raw = "";
+  try {
+    if (google.GOOGLE_AI_API_KEY) {
+      const r = await generateGeminiText({ apiKey: google.GOOGLE_AI_API_KEY, system, prompt: userPrompt });
+      raw = r.text;
+      await incrementUsage("google-ai", Math.ceil((userPrompt.length + raw.length) / 4), projectId);
+    } else if (claude.ANTHROPIC_API_KEY) {
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1200 });
+      raw = r.text;
+      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
+    } else {
+      return { ok: false, suggestions: [], improved: "", msg: "Configurá Google AI o Claude API en Conectores." };
+    }
+  } catch (e) {
+    return { ok: false, suggestions: [], improved: "", msg: `Error: ${(e as Error).message}` };
+  }
+
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  try {
+    const o = JSON.parse(stripped) as { suggestions?: unknown; improved?: unknown };
+    const suggestions = Array.isArray(o.suggestions) ? o.suggestions.map(String).slice(0, 8) : [];
+    const improved = typeof o.improved === "string" ? o.improved : "";
+    if (!suggestions.length && !improved) {
+      return { ok: false, suggestions: [], improved: "", msg: "No se obtuvieron sugerencias. Reintentá." };
+    }
+    return { ok: true, suggestions, improved, msg: "Sugerencias listas." };
+  } catch {
+    return { ok: true, suggestions: [stripped], improved: "", msg: "Sugerencias listas." };
+  }
+}
+
 const IMG_BUCKET = "encuesta-img";
 
 // Genera una imagen para la publicación con Gemini (Google AI Studio) y la
