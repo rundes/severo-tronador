@@ -35,6 +35,31 @@ export interface Proposal {
   platforms: Record<string, Record<string, string | string[]>>;
 }
 
+// Materiales de referencia que el usuario adjunta al brief (links de notas,
+// imágenes y videos de inspiración). Se inyectan como contexto en el prompt
+// para que los modelos los tengan presentes al generar/afinar.
+export interface BriefRefs {
+  links: string[];
+  images: string[];
+  videos: string[];
+}
+
+// Bloque de texto con las referencias, anexado al prompt del usuario. Los
+// modelos de texto no "ven" las imágenes/videos: reciben las URLs como
+// contexto para alinear tono/estilo y, si pueden, citarlas.
+export function refsBlock(refs?: BriefRefs): string {
+  if (!refs) return "";
+  const parts: string[] = [];
+  if (refs.links?.length)
+    parts.push("Links de referencia (notas/fuentes a considerar):\n" + refs.links.map((l) => `- ${l}`).join("\n"));
+  if (refs.images?.length)
+    parts.push("Imágenes de referencia (inspiración visual / estilo):\n" + refs.images.map((l) => `- ${l}`).join("\n"));
+  if (refs.videos?.length)
+    parts.push("Videos de referencia (tono / formato):\n" + refs.videos.map((l) => `- ${l}`).join("\n"));
+  if (!parts.length) return "";
+  return "\n\n--- Materiales de referencia aportados ---\n" + parts.join("\n\n") + "\n--- fin de referencias ---";
+}
+
 interface ModelRef {
   provider: string;
   modelName: string;
@@ -121,6 +146,7 @@ function parseProposal(text: string): { angle: string; platforms: Proposal["plat
 export async function generateProposals(
   prompt: string,
   platforms: Platform[],
+  brief?: BriefRefs,
 ): Promise<Proposal[]> {
   const refs = await modelRefs();
   if (refs.length === 0) {
@@ -129,10 +155,11 @@ export async function generateProposals(
     );
   }
   const system = buildSystem(platforms);
+  const fullPrompt = prompt + refsBlock(brief);
   const results = await Promise.all(
     refs.map(async (ref, i) => {
       try {
-        const txt = await callModel(ref, system, prompt);
+        const txt = await callModel(ref, system, fullPrompt);
         const { angle, platforms: pf } = parseProposal(txt);
         return {
           id: `${ref.provider}-${i}`,
@@ -154,6 +181,7 @@ export async function refineProposal(
   base: Proposal,
   refinePrompt: string,
   platforms: Platform[],
+  brief?: BriefRefs,
 ): Promise<Proposal> {
   const refs = await modelRefs();
   const ref =
@@ -168,6 +196,7 @@ export async function refineProposal(
     "",
     "Ajustala según esta indicación, manteniendo lo bueno:",
     refinePrompt,
+    refsBlock(brief),
   ].join("\n");
   const txt = await callModel(ref, system, userPrompt);
   const { angle, platforms: pf } = parseProposal(txt);

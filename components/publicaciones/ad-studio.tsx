@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import type {
   Proposal,
   Platform,
+  BriefRefs,
 } from "@/lib/ad-proposals";
 import type { GenProposalsResult } from "@/app/(dashboard)/publicaciones/actions";
 import { buttonClass } from "@/components/ui/button";
+import { ImageUpload } from "@/components/encuestas/image-upload";
 
-type GenAction = (prompt: string, platforms: string[]) => Promise<GenProposalsResult>;
+type GenAction = (prompt: string, platforms: string[], brief?: BriefRefs) => Promise<GenProposalsResult>;
 type RefineAction = (
   base: Proposal,
   refinePrompt: string,
   platforms: string[],
+  brief?: BriefRefs,
 ) => Promise<{ ok: boolean; proposal?: Proposal; msg: string }>;
 type PublishAction = (
   mensaje: string,
@@ -50,6 +53,8 @@ const PLATFORMS: { id: Platform; label: string; icon: string }[] = [
 const inputCls =
   "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
+const BRIEF_STORAGE_KEY = "adstudio:brief:v1";
+
 function fieldText(v: string | string[]): string {
   return Array.isArray(v) ? v.join("\n") : String(v);
 }
@@ -78,9 +83,47 @@ export function AdStudio({
 }) {
   const [step, setStep] = useState(1);
   const [prompt, setPrompt] = useState("");
+  // Referencias del brief: links/imágenes/videos que alimentan a los modelos.
+  // Persisten en localStorage para no perderse entre pasos ni al recargar.
+  const [links, setLinks] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [platforms, setPlatforms] = useState<Set<Platform>>(
     new Set(PLATFORMS.map((p) => p.id)),
   );
+
+  // Hidratar desde localStorage post-montaje (no en el initializer) para evitar
+  // un mismatch de hidratación entre el HTML del server y el cliente.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(BRIEF_STORAGE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Partial<BriefRefs & { prompt: string }>;
+        if (typeof d.prompt === "string") setPrompt(d.prompt);
+        if (Array.isArray(d.links)) setLinks(d.links);
+        if (Array.isArray(d.images)) setImages(d.images);
+        if (Array.isArray(d.videos)) setVideos(d.videos);
+      }
+    } catch {
+      // ignore (storage no disponible / JSON inválido)
+    }
+    setLoaded(true);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(BRIEF_STORAGE_KEY, JSON.stringify({ prompt, links, images, videos }));
+    } catch {
+      // ignore
+    }
+  }, [loaded, prompt, links, images, videos]);
+
+  const brief: BriefRefs = { links, images, videos };
+  const refCount = links.length + images.length + videos.length;
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refinePrompts, setRefinePrompts] = useState<Record<string, string>>({});
@@ -115,7 +158,7 @@ export function AdStudio({
   function generar() {
     if (!prompt.trim() || pending) return;
     start(async () => {
-      const r = await genAction(prompt, platformList);
+      const r = await genAction(prompt, platformList, brief);
       setMsg({ ok: r.ok, text: r.msg });
       if (r.ok) {
         setProposals(r.proposals);
@@ -130,7 +173,7 @@ export function AdStudio({
     if (!rp || pending) return;
     setBusyId(p.id);
     start(async () => {
-      const r = await refineAction(p, rp, platformList);
+      const r = await refineAction(p, rp, platformList, brief);
       setBusyId(null);
       if (r.ok && r.proposal) {
         setProposals((list) => list.map((x) => (x.id === p.id ? r.proposal! : x)));
@@ -226,19 +269,54 @@ export function AdStudio({
         </p>
       )}
 
+      {/* Brief siempre a mano (pasos 2-4): editable + regenerar con cambios */}
+      {step > 1 && (
+        <details className="rounded-lg border border-zinc-200 bg-zinc-50/60 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            📌 Brief y referencias
+            {refCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                {refCount} ref
+              </span>
+            )}
+            <span className="ml-1.5 font-normal text-zinc-400">— ajustá y volvé a generar</span>
+          </summary>
+          <div className="space-y-3 border-t border-zinc-200 p-3 dark:border-zinc-800">
+            <BriefEditor
+              prompt={prompt}
+              setPrompt={setPrompt}
+              links={links}
+              setLinks={setLinks}
+              images={images}
+              setImages={setImages}
+              videos={videos}
+              setVideos={setVideos}
+            />
+            <button
+              type="button"
+              onClick={generar}
+              disabled={pending || !prompt.trim() || models.length === 0}
+              className={buttonClass("secondary", "sm")}
+            >
+              {pending ? "Generando…" : "↻ Volver a generar con estos cambios"}
+            </button>
+          </div>
+        </details>
+      )}
+
       {/* Paso 1 — Brief */}
       {step === 1 && (
         <div className="space-y-3">
-          <label className="flex flex-col gap-1 text-xs text-zinc-500">
-            Brief del aviso (un solo prompt para todos los modelos)
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-              placeholder="Ej: «Invitar a vecinos de Maipú a una encuesta de opinión sobre seguridad y servicios. Tono cercano, no partidario, con llamado a participar»."
-              className={`${inputCls} w-full`}
-            />
-          </label>
+          <BriefEditor
+            prompt={prompt}
+            setPrompt={setPrompt}
+            links={links}
+            setLinks={setLinks}
+            images={images}
+            setImages={setImages}
+            videos={videos}
+            setVideos={setVideos}
+          />
           <div className="flex flex-col gap-1 text-xs text-zinc-500">
             <span>Plataformas (formatos a generar)</span>
             <div className="flex flex-wrap gap-2 pt-1">
@@ -506,6 +584,185 @@ function PlatformFields({ content }: { content: Record<string, string | string[]
           <span className="whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{fieldText(v)}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Editor del brief: el prompt + tres listas de referencias (links, imágenes,
+// videos). Se reusa en el paso 1 y en el panel plegable de los pasos 2-4.
+function BriefEditor({
+  prompt,
+  setPrompt,
+  links,
+  setLinks,
+  images,
+  setImages,
+  videos,
+  setVideos,
+}: {
+  prompt: string;
+  setPrompt: Dispatch<SetStateAction<string>>;
+  links: string[];
+  setLinks: Dispatch<SetStateAction<string[]>>;
+  images: string[];
+  setImages: Dispatch<SetStateAction<string[]>>;
+  videos: string[];
+  setVideos: Dispatch<SetStateAction<string[]>>;
+}) {
+  const add = (setter: Dispatch<SetStateAction<string[]>>) => (url: string) => {
+    const u = url.trim();
+    if (!u) return;
+    setter((arr) => (arr.includes(u) ? arr : [...arr, u]));
+  };
+  const removeAt = (setter: Dispatch<SetStateAction<string[]>>) => (i: number) =>
+    setter((arr) => arr.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="space-y-3">
+      <label className="flex flex-col gap-1 text-xs text-zinc-500">
+        Brief del aviso (un solo prompt para todos los modelos)
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={4}
+          placeholder="Ej: «Invitar a vecinos de Maipú a una encuesta de opinión sobre seguridad y servicios. Tono cercano, no partidario, con llamado a participar»."
+          className={`${inputCls} w-full`}
+        />
+      </label>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <RefList
+          label="🔗 Links de referencia"
+          hint="Notas, fuentes o ejemplos a tener en cuenta."
+          placeholder="https://nota-o-fuente…"
+          items={links}
+          onAdd={add(setLinks)}
+          onRemove={removeAt(setLinks)}
+        />
+        <RefList
+          label="🖼️ Imágenes de referencia"
+          hint="Inspiración visual / estilo. Pegá una URL o subí una."
+          placeholder="https://…/imagen.jpg"
+          items={images}
+          onAdd={add(setImages)}
+          onRemove={removeAt(setImages)}
+          isImage
+          withUpload
+        />
+        <RefList
+          label="🎬 Videos de referencia"
+          hint="Tono o formato a imitar (YouTube, TikTok…)."
+          placeholder="https://youtube.com/…"
+          items={videos}
+          onAdd={add(setVideos)}
+          onRemove={removeAt(setVideos)}
+        />
+      </div>
+      <p className="text-[11px] text-zinc-400">
+        Las referencias se mantienen en este navegador y se le pasan a la IA como
+        contexto en cada generación y ajuste. Los modelos de texto no &laquo;ven&raquo; las
+        imágenes/videos: usan las URLs y tu descripción para alinear el estilo.
+      </p>
+    </div>
+  );
+}
+
+// Lista editable de URLs de referencia. Agregar con Enter o el botón; quitar
+// con la ×. Con `withUpload` ofrece subir una imagen y agrega su URL.
+function RefList({
+  label,
+  hint,
+  placeholder,
+  items,
+  onAdd,
+  onRemove,
+  isImage,
+  withUpload,
+}: {
+  label: string;
+  hint?: string;
+  placeholder: string;
+  items: string[];
+  onAdd: (url: string) => void;
+  onRemove: (i: number) => void;
+  isImage?: boolean;
+  withUpload?: boolean;
+}) {
+  const [val, setVal] = useState("");
+  const commit = () => {
+    if (!val.trim()) return;
+    onAdd(val);
+    setVal("");
+  };
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-col">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{label}</span>
+        {hint && <span className="text-[11px] text-zinc-400">{hint}</span>}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          placeholder={placeholder}
+          className={`${inputCls} min-w-0 flex-1`}
+        />
+        <button
+          type="button"
+          onClick={commit}
+          disabled={!val.trim()}
+          className="shrink-0 rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Agregar
+        </button>
+      </div>
+      {withUpload && (
+        <ImageUpload
+          name="ref-image-upload"
+          value=""
+          aspect={1}
+          label="…o subir imagen"
+          recommend="Se agrega como referencia (no se publica)."
+          onChange={(url) => url && onAdd(url)}
+        />
+      )}
+      {items.length > 0 && (
+        <ul className="space-y-1">
+          {items.map((it, i) => (
+            <li
+              key={`${it}-${i}`}
+              className="flex items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              {isImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={it} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+              )}
+              <a
+                href={it}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-w-0 flex-1 truncate text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-300"
+                title={it}
+              >
+                {it}
+              </a>
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="shrink-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+                aria-label="Quitar referencia"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
