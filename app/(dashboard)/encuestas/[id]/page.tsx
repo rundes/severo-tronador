@@ -15,6 +15,7 @@ import { EditTabs } from "@/components/encuestas/edit-tabs";
 import { DeleteEncuestaButton } from "@/components/encuestas/delete-button";
 import { ResetResponsesButton } from "@/components/encuestas/reset-responses-button";
 import { EncuestaSendForm, type SendChannel } from "@/components/encuestas/send-form";
+import { VercelMetricsCard } from "@/components/analytics/vercel-card";
 import {
   guardarPreguntas,
   publicarEncuesta,
@@ -173,6 +174,9 @@ export default async function EncuestaDetailPage({
         )}
       </div>
       <EncuestaDashboard encuesta={enc} responses={responses} />
+      {enc.slug && (
+        <VercelMetricsCard path={`/e/${enc.slug}`} scope="este enlace público" />
+      )}
     </div>
   );
 
