@@ -15,9 +15,13 @@ import {
   duplicateEncuesta,
 } from "@/lib/encuestas";
 import { deleteResponses } from "@/lib/encuestas/responses";
-import { executeCampaign, SURVEY_SEND_CHANNELS } from "@/lib/campaigns";
+import { executeCampaign, SURVEY_SEND_CHANNELS, outreachConnectorFor } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
 import { listGrupos, grupoExiste } from "@/lib/grupos";
+import { getTemplate, interpolate } from "@/lib/templates";
+import { renderCampaignEmailHtml } from "@/lib/email-render";
+import { interpolateExtended } from "@/lib/interpolate-vars";
+import type { Contact } from "@/lib/connectors/types";
 import type { SegmentFilter } from "@/lib/segments";
 import type { Channel } from "@/lib/relationship";
 import type { Question } from "@/lib/encuestas/types";
@@ -171,6 +175,75 @@ export async function enviarEncuestaPorMail(formData: FormData) {
   }
   revalidatePath(`/encuestas/${id}`);
   redirect(`/encuestas/${id}?ok=enviada`);
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const PHONE_RE = /^[+\d][\d\s()-]{6,}$/;
+
+// Envía UN mensaje de prueba de la encuesta al mail/teléfono indicado, por el
+// canal elegido, usando la plantilla seleccionada. No crea campaña ni toca la
+// cuota masiva: es un solo envío (en mock si el canal no tiene credenciales).
+// El link es el público /e/<slug> (sin token, no atribuye respuesta).
+export async function probarEnvioEncuesta(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const templateId = String(formData.get("templateId") ?? "").trim();
+  const destino = String(formData.get("destino") ?? "").trim();
+  const channelRaw = String(formData.get("channel") ?? "email").trim();
+  const channel: Channel = SURVEY_SEND_CHANNELS.includes(channelRaw as Channel)
+    ? (channelRaw as Channel)
+    : "email";
+  const { id: projectId } = await requireMember("editor");
+
+  const enc = await getEncuesta(projectId, id);
+  if (!enc || enc.estado !== "publicada" || !enc.slug) {
+    redirect(`/encuestas/${id}?error=no_publicada`);
+  }
+  if (!templateId || !destino) redirect(`/encuestas/${id}?error=prueba_datos`);
+
+  // Validación del destino según canal.
+  const okFormato = channel === "email" ? EMAIL_RE.test(destino) : PHONE_RE.test(destino);
+  if (!okFormato) redirect(`/encuestas/${id}?error=prueba_destino`);
+
+  const tpl = await getTemplate(templateId);
+  if (!tpl) redirect(`/encuestas/${id}?error=prueba_datos`);
+
+  const connector = outreachConnectorFor(channel);
+  if (!connector) redirect(`/encuestas/${id}?error=prueba&detalle=canal sin conector`);
+
+  const contact: Contact = {
+    dni: "PRUEBA",
+    nombre: "Prueba",
+    apellido: "",
+    ...(channel === "email" ? { email: destino } : { telefono: destino }),
+  };
+  const base = process.env.NEXTAUTH_URL ?? "";
+  const surveyUrl = `${base}/e/${enc.slug}`;
+  const body =
+    channel === "email"
+      ? renderCampaignEmailHtml(tpl, contact, { surveyUrl })
+      : interpolateExtended(tpl.cuerpo, contact, { surveyUrl });
+  const subject = tpl.asunto ? `[PRUEBA] ${interpolate(tpl.asunto, contact)}` : undefined;
+
+  let result: { ok: boolean; error?: string };
+  try {
+    result = await connector.send({ subject, body }, contact, projectId);
+  } catch (e) {
+    result = { ok: false, error: (e as Error).message };
+  }
+
+  await logAudit({
+    action: "survey.send",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "survey",
+    entity_id: id,
+    details: { prueba: true, channel, destino, ok: result.ok, reason: result.ok ? null : result.error },
+  });
+
+  if (!result.ok) {
+    redirect(`/encuestas/${id}?error=prueba&detalle=${encodeURIComponent(result.error ?? "")}`);
+  }
+  redirect(`/encuestas/${id}?ok=prueba_enviada&dest=${encodeURIComponent(destino)}`);
 }
 
 export async function eliminarEncuesta(formData: FormData) {
