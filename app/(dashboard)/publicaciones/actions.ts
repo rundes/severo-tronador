@@ -22,6 +22,7 @@ import {
   PLATFORMS,
   type Proposal,
   type Platform,
+  type BriefRefs,
 } from "@/lib/ad-proposals";
 import {
   generateProposalImage,
@@ -222,16 +223,29 @@ export interface GenProposalsResult {
   msg: string;
 }
 
+// Limpia las referencias que llegan del cliente: solo strings, sin vacíos,
+// con tope de cantidad y longitud (evita inflar el prompt / abuso).
+function sanitizeBrief(brief?: BriefRefs): BriefRefs | undefined {
+  if (!brief) return undefined;
+  const clean = (arr: unknown): string[] =>
+    Array.isArray(arr)
+      ? arr.map((x) => String(x).trim()).filter(Boolean).slice(0, 20).map((s) => s.slice(0, 500))
+      : [];
+  const out = { links: clean(brief.links), images: clean(brief.images), videos: clean(brief.videos) };
+  return out.links.length || out.images.length || out.videos.length ? out : undefined;
+}
+
 // Genera propuestas con TODOS los modelos disponibles a partir de un brief.
 export async function generarPropuestas(
   prompt: string,
   platforms: string[],
+  brief?: BriefRefs,
 ): Promise<GenProposalsResult> {
   await requireMember("editor");
   if (!prompt?.trim()) return { ok: false, proposals: [], msg: "Escribí un brief." };
   const pf = (platforms.length ? platforms : PLATFORMS.map((p) => p.id)) as Platform[];
   try {
-    const proposals = await generateProposals(prompt.trim(), pf);
+    const proposals = await generateProposals(prompt.trim(), pf, sanitizeBrief(brief));
     if (!proposals.length) {
       return { ok: false, proposals: [], msg: "Ningún modelo devolvió propuesta. Reintentá." };
     }
@@ -246,12 +260,13 @@ export async function afinarPropuesta(
   base: Proposal,
   refinePrompt: string,
   platforms: string[],
+  brief?: BriefRefs,
 ): Promise<{ ok: boolean; proposal?: Proposal; msg: string }> {
   await requireMember("editor");
   if (!refinePrompt?.trim()) return { ok: false, msg: "Escribí el ajuste." };
   const pf = (platforms.length ? platforms : PLATFORMS.map((p) => p.id)) as Platform[];
   try {
-    const proposal = await refineProposal(base, refinePrompt.trim(), pf);
+    const proposal = await refineProposal(base, refinePrompt.trim(), pf, sanitizeBrief(brief));
     return { ok: true, proposal, msg: "Propuesta afinada." };
   } catch (e) {
     return { ok: false, msg: (e as Error).message };
