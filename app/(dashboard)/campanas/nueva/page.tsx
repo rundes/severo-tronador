@@ -6,6 +6,7 @@ import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { listTemplates, getTemplate } from "@/lib/templates";
+import { listEncuestas } from "@/lib/encuestas";
 import { requireProject } from "@/lib/workspace";
 import { ChannelPreview } from "@/components/segmentos/channel-preview";
 
@@ -49,6 +50,8 @@ export default async function NuevaCampanaPage({
   const connector = outreachConnectorFor(channel)!;
   const quota = await connector.getQuota();
   const templates = await listTemplates(channel);
+  // Encuestas ya publicadas: se pueden enlazar a la campaña (cualquier canal).
+  const encuestas = (await listEncuestas(projectId)).filter((e) => e.estado === "publicada");
   // Preview por canal: leemos la plantilla preseleccionada vía
   // params.templateId (mismo nombre que el select) — si no hay seleccionada
   // usamos la primera disponible para mostrar algo accionable.
@@ -247,6 +250,28 @@ export default async function NuevaCampanaPage({
             </div>
           </details>
 
+          {encuestas.length > 0 && (
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Encuesta publicada (opcional)
+              <select
+                name="encuestaId"
+                defaultValue={params.encuestaId ?? ""}
+                className={inputCls}
+              >
+                <option value="">— sin encuesta (uso las preguntas de abajo) —</option>
+                {encuestas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.titulo}
+                  </option>
+                ))}
+              </select>
+              <span className="text-zinc-400">
+                Si elegís una, el link <code>{"{{encuesta_url}}"}</code> de la
+                plantilla apunta a esa encuesta (ignora las preguntas de abajo).
+              </span>
+            </label>
+          )}
+
           <label className="flex flex-col gap-1 text-xs text-zinc-500">
             Preguntas de la encuesta (una por línea)
             <textarea
@@ -261,9 +286,9 @@ export default async function NuevaCampanaPage({
               className={inputCls}
             />
             <span className="text-zinc-400">
-              Si dejás esto vacío, se usa una pregunta por defecto. Incluí{" "}
-              <code>{"{{encuesta_url}}"}</code> en la plantilla para enlazar la
-              encuesta.
+              Solo si no elegiste una encuesta arriba. Si lo dejás vacío, se usa
+              una pregunta por defecto. Incluí <code>{"{{encuesta_url}}"}</code> en
+              la plantilla para enlazar la encuesta.
             </span>
           </label>
 

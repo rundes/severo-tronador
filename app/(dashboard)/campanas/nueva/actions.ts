@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { executeCampaign } from "@/lib/campaigns";
+import { getEncuesta } from "@/lib/encuestas";
 import {
   CrearCampanaSchema,
   formToObject,
@@ -69,8 +70,19 @@ export async function crearCampana(formData: FormData) {
     : undefined;
 
   const { id: projectId } = await requireMember("editor");
+
+  // Encuesta enlazada (opcional): debe existir y estar publicada. Si está
+  // seteada, el token de cada envío resuelve a esa encuesta vía {{encuesta_url}}.
+  const encuestaIdRaw = String(formData.get("encuestaId") ?? "").trim();
+  let encuestaId: string | undefined;
+  if (encuestaIdRaw) {
+    const enc = await getEncuesta(projectId, encuestaIdRaw);
+    if (enc && enc.estado === "publicada") encuestaId = enc.id;
+  }
+
   const res = await executeCampaign(projectId, {
     ...parsed.data,
+    encuestaId,
     segmentQuery: segmentQuery ?? undefined,
     variants,
   });

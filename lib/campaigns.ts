@@ -336,6 +336,10 @@ export function outreachConnectorFor(
 
 export const OUTREACH_CHANNELS = Object.keys(CONNECTOR_BY_CHANNEL) as Channel[];
 
+// Canales por los que tiene sentido mandar el link de una encuesta (texto +
+// URL). Voz queda afuera: no se puede enviar un link hablado.
+export const SURVEY_SEND_CHANNELS: Channel[] = ["email", "sms", "whatsapp", "telegram"];
+
 export type ExecuteInput = {
   nombre: string;
   channel: Channel;
