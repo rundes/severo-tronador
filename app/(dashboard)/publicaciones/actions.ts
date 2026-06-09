@@ -29,6 +29,13 @@ import {
   submitProposalVideo,
   checkProposalVideo,
 } from "@/lib/media-gen";
+import {
+  listBriefs,
+  saveBrief,
+  deleteBrief,
+  type SavedBrief,
+  type BriefInput,
+} from "@/lib/estudio-briefs";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
@@ -382,6 +389,52 @@ export async function publicarPost(formData: FormData) {
   if (out.ig) qs.set("ig", out.ig);
   revalidatePath("/publicaciones");
   redirect(`/publicaciones?${qs.toString()}`);
+}
+
+// ── Contextos (briefs) guardados del Estudio ────────────────────────────
+const cleanList = (arr: unknown): string[] =>
+  Array.isArray(arr)
+    ? arr.map((x) => String(x).trim()).filter(Boolean).slice(0, 20).map((s) => s.slice(0, 500))
+    : [];
+
+export async function listarBriefs(): Promise<SavedBrief[]> {
+  const { id: projectId } = await requireMember("editor");
+  return listBriefs(projectId);
+}
+
+// Crea o actualiza un contexto guardado. `id` presente → actualiza.
+export async function guardarBrief(
+  input: BriefInput,
+  id?: string,
+): Promise<{ ok: boolean; brief?: SavedBrief; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  const nombre = String(input?.nombre ?? "").trim().slice(0, 120);
+  if (!nombre) return { ok: false, msg: "Poné un nombre al contexto." };
+  const clean: BriefInput = {
+    nombre,
+    prompt: String(input?.prompt ?? "").slice(0, 8000),
+    links: cleanList(input?.links),
+    images: cleanList(input?.images),
+    videos: cleanList(input?.videos),
+    platforms: cleanList(input?.platforms),
+  };
+  try {
+    const brief = await saveBrief(projectId, clean, (await actorEmail()) ?? undefined, id);
+    return { ok: true, brief, msg: id ? "Contexto actualizado." : "Contexto guardado." };
+  } catch (e) {
+    return { ok: false, msg: `No se pudo guardar: ${(e as Error).message}` };
+  }
+}
+
+export async function eliminarBrief(id: string): Promise<{ ok: boolean; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  if (!id) return { ok: false, msg: "Falta el id." };
+  try {
+    await deleteBrief(projectId, id);
+    return { ok: true, msg: "Contexto eliminado." };
+  } catch (e) {
+    return { ok: false, msg: `No se pudo eliminar: ${(e as Error).message}` };
+  }
 }
 
 // Promociona (boost) un post de la Página. El ad se crea PAUSADO.

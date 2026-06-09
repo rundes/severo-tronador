@@ -7,6 +7,7 @@ import type {
   BriefRefs,
 } from "@/lib/ad-proposals";
 import type { GenProposalsResult } from "@/app/(dashboard)/publicaciones/actions";
+import type { SavedBrief, BriefInput } from "@/lib/estudio-briefs";
 import { buttonClass } from "@/components/ui/button";
 import { ImageUpload } from "@/components/encuestas/image-upload";
 
@@ -64,6 +65,12 @@ function platformText(content: Record<string, string | string[]>): string {
     .join("\n\n");
 }
 
+type SaveBriefAction = (
+  input: BriefInput,
+  id?: string,
+) => Promise<{ ok: boolean; brief?: SavedBrief; msg: string }>;
+type DeleteBriefAction = (id: string) => Promise<{ ok: boolean; msg: string }>;
+
 export function AdStudio({
   genAction,
   refineAction,
@@ -72,6 +79,10 @@ export function AdStudio({
   videoAction,
   videoStatusAction,
   models,
+  savedBriefs,
+  saveBriefAction,
+  deleteBriefAction,
+  listBriefsAction,
 }: {
   genAction: GenAction;
   refineAction: RefineAction;
@@ -80,6 +91,10 @@ export function AdStudio({
   videoAction: VideoAction;
   videoStatusAction: VideoStatusAction;
   models: string[];
+  savedBriefs: SavedBrief[];
+  saveBriefAction: SaveBriefAction;
+  deleteBriefAction: DeleteBriefAction;
+  listBriefsAction: () => Promise<SavedBrief[]>;
 }) {
   const [step, setStep] = useState(1);
   const [prompt, setPrompt] = useState("");
@@ -124,6 +139,63 @@ export function AdStudio({
 
   const brief: BriefRefs = { links, images, videos };
   const refCount = links.length + images.length + videos.length;
+
+  // Contextos guardados (servidor): cargar / guardar / actualizar / eliminar.
+  const [briefs, setBriefs] = useState<SavedBrief[]>(savedBriefs);
+  const [currentBriefId, setCurrentBriefId] = useState<string | null>(null);
+  const [briefName, setBriefName] = useState("");
+  const [briefMsg, setBriefMsg] = useState("");
+  const [briefBusy, startBrief] = useTransition();
+
+  function loadBrief(b: SavedBrief) {
+    setPrompt(b.prompt ?? "");
+    setLinks(b.links ?? []);
+    setImages(b.images ?? []);
+    setVideos(b.videos ?? []);
+    if (b.platforms?.length) setPlatforms(new Set(b.platforms as Platform[]));
+    setCurrentBriefId(b.id);
+    setBriefName(b.nombre);
+    setBriefMsg(`Contexto «${b.nombre}» cargado.`);
+  }
+
+  function saveBrief(asNew: boolean) {
+    const nombre = briefName.trim();
+    if (!nombre) {
+      setBriefMsg("Poné un nombre para guardar el contexto.");
+      return;
+    }
+    const input: BriefInput = { nombre, prompt, links, images, videos, platforms: [...platforms] };
+    const targetId = asNew ? undefined : currentBriefId ?? undefined;
+    startBrief(async () => {
+      const r = await saveBriefAction(input, targetId);
+      setBriefMsg(r.msg);
+      if (r.ok && r.brief) {
+        setCurrentBriefId(r.brief.id);
+        setBriefName(r.brief.nombre);
+        try {
+          setBriefs(await listBriefsAction());
+        } catch {
+          // mantenemos la lista actual si falla el refresh
+        }
+      }
+    });
+  }
+
+  function removeBrief() {
+    if (!currentBriefId) return;
+    startBrief(async () => {
+      const r = await deleteBriefAction(currentBriefId);
+      setBriefMsg(r.msg);
+      if (r.ok) {
+        setCurrentBriefId(null);
+        try {
+          setBriefs(await listBriefsAction());
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refinePrompts, setRefinePrompts] = useState<Record<string, string>>({});
@@ -242,6 +314,70 @@ export function AdStudio({
 
   return (
     <div className="space-y-4">
+      {/* Contexto guardado: cargar / guardar / actualizar / eliminar */}
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          Contexto guardado
+          <select
+            value={currentBriefId ?? ""}
+            onChange={(e) => {
+              const b = briefs.find((x) => x.id === e.target.value);
+              if (b) loadBrief(b);
+              else {
+                setCurrentBriefId(null);
+                setBriefMsg("");
+              }
+            }}
+            className={`${inputCls} min-w-52`}
+          >
+            <option value="">— Nuevo / sin guardar —</option>
+            {briefs.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          Nombre
+          <input
+            value={briefName}
+            onChange={(e) => setBriefName(e.target.value)}
+            placeholder="Ej: «Encuesta seguridad Maipú»"
+            className={`${inputCls} min-w-48`}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => saveBrief(false)}
+          disabled={briefBusy || !briefName.trim()}
+          className={buttonClass("secondary", "sm")}
+        >
+          {briefBusy ? "Guardando…" : currentBriefId ? "Guardar cambios" : "Guardar contexto"}
+        </button>
+        {currentBriefId && (
+          <button
+            type="button"
+            onClick={() => saveBrief(true)}
+            disabled={briefBusy}
+            className={buttonClass("ghost", "sm")}
+          >
+            Guardar como nuevo
+          </button>
+        )}
+        {currentBriefId && (
+          <button
+            type="button"
+            onClick={removeBrief}
+            disabled={briefBusy}
+            className={buttonClass("ghost", "sm")}
+          >
+            Eliminar
+          </button>
+        )}
+        {briefMsg && <span className="text-[11px] text-zinc-500">{briefMsg}</span>}
+      </div>
+
       {/* Stepper */}
       <ol className="flex flex-wrap gap-2 text-xs">
         {["Brief", "Propuestas", "Afinar", "Difundir"].map((label, i) => {
