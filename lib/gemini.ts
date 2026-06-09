@@ -63,6 +63,48 @@ export async function generateGeminiText({
   return { text };
 }
 
+import { lookup } from "node:dns/promises";
+import net from "node:net";
+
+// ¿La IP es privada/loopback/link-local/ULA/no-ruteable? (anti-SSRF)
+function isPrivateIp(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    if (a === 0 || a === 10 || a === 127) return true; // unspecified / 10/8 / loopback
+    if (a === 169 && b === 254) return true; // link-local
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16/12
+    if (a === 192 && b === 168) return true; // 192.168/16
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
+    return false;
+  }
+  const l = ip.toLowerCase();
+  if (l === "::1" || l === "::") return true; // loopback / unspecified
+  if (l.startsWith("fe80")) return true; // link-local fe80::/10
+  if (l.startsWith("fc") || l.startsWith("fd")) return true; // ULA fc00::/7
+  const m = l.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/); // IPv4-mapped
+  if (m) return isPrivateIp(m[1]);
+  return false;
+}
+
+// Solo permite http(s) hacia hosts que resuelven a direcciones públicas.
+// Mitiga SSRF: la URL la aporta un editor autenticado, pero igual evitamos
+// que el server golpee metadata cloud / servicios internos.
+async function isSafePublicUrl(src: string): Promise<boolean> {
+  let u: URL;
+  try {
+    u = new URL(src);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  try {
+    const addrs = await lookup(u.hostname, { all: true });
+    return addrs.length > 0 && addrs.every((a) => !isPrivateIp(a.address));
+  } catch {
+    return false;
+  }
+}
+
 // Descarga una imagen (URL pública o data: URL) y la devuelve como inlineData
 // para Gemini. Devuelve null si falla o excede el tope de tamaño.
 const MAX_IMG_BYTES = 5_000_000;
@@ -75,7 +117,10 @@ async function fetchInlineImage(
       if (!m) return null;
       return { mimeType: m[1], data: m[2] };
     }
-    const res = await fetch(src);
+    if (!(await isSafePublicUrl(src))) return null;
+    // redirect: "manual" → no seguimos 3xx (un redirect podría apuntar a una IP
+    // interna y saltarse la validación de arriba).
+    const res = await fetch(src, { redirect: "manual" });
     if (!res.ok) return null;
     const mimeType = res.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
     if (!mimeType.startsWith("image/")) return null;
