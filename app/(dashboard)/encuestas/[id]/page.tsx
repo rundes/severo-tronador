@@ -5,6 +5,8 @@ import { listEncuestaResponses } from "@/lib/encuestas/responses";
 import { listSavedSegments } from "@/lib/segments-store";
 import { listGrupos } from "@/lib/grupos";
 import { listTemplates } from "@/lib/templates";
+import { outreachConnectorFor, SURVEY_SEND_CHANNELS } from "@/lib/campaigns";
+import type { Channel } from "@/lib/relationship";
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { QuestionEditor } from "@/components/encuestas/question-editor";
@@ -12,6 +14,7 @@ import { EncuestaDashboard } from "@/components/encuestas/dashboard";
 import { EditTabs } from "@/components/encuestas/edit-tabs";
 import { DeleteEncuestaButton } from "@/components/encuestas/delete-button";
 import { ResetResponsesButton } from "@/components/encuestas/reset-responses-button";
+import { EncuestaSendForm, type SendChannel } from "@/components/encuestas/send-form";
 import {
   guardarPreguntas,
   publicarEncuesta,
@@ -20,6 +23,13 @@ import {
   eliminarEncuesta,
   borrarRespuestas,
 } from "../actions";
+
+const CHANNEL_LABEL: Partial<Record<Channel, string>> = {
+  email: "📧 Email",
+  sms: "📱 SMS",
+  whatsapp: "💬 WhatsApp",
+  telegram: "✈️ Telegram",
+};
 
 export const metadata = { title: "Editar encuesta · Tronador" };
 
@@ -45,13 +55,29 @@ export default async function EncuestaDetailPage({
   const isClosed = enc.estado === "cerrada";
 
   const responses = await listEncuestaResponses(projectId, id);
-  const [segments, templates, grupos] = isPublished
-    ? await Promise.all([
-        listSavedSegments(projectId),
-        listTemplates("email"),
-        listGrupos(projectId),
-      ])
-    : [[], [], []];
+  const [segments, grupos] = isPublished
+    ? await Promise.all([listSavedSegments(projectId), listGrupos(projectId)])
+    : [[], []];
+
+  // Canales por los que se puede enviar la encuesta: los que tienen conector y
+  // al menos una plantilla. Cada plantilla debería incluir {{encuesta_url}}.
+  const sendChannels: SendChannel[] = isPublished
+    ? (
+        await Promise.all(
+          SURVEY_SEND_CHANNELS.map(async (ch) => {
+            if (!outreachConnectorFor(ch)) return null;
+            const tpls = await listTemplates(ch);
+            if (!tpls.length) return null;
+            return {
+              id: ch,
+              label: CHANNEL_LABEL[ch] ?? ch,
+              templates: tpls.map((t) => ({ id: t.id, nombre: t.nombre })),
+            } as SendChannel;
+          }),
+        )
+      ).filter((c): c is SendChannel => c !== null)
+    : [];
+  const hasTemplates = sendChannels.length > 0;
 
   const okMap: Record<string, string> = {
     guardada: "Cambios guardados.",
@@ -168,9 +194,9 @@ export default async function EncuestaDetailPage({
 
           <div className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-              Enviar por mail a un segmento o grupo
+              Enviar a un segmento o grupo
             </h2>
-            {(segments.length === 0 && grupos.length === 0) || templates.length === 0 ? (
+            {(segments.length === 0 && grupos.length === 0) || !hasTemplates ? (
               <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
                 <p>Para enviar te falta:</p>
                 <ul className="ml-4 list-disc">
@@ -187,9 +213,10 @@ export default async function EncuestaDetailPage({
                       ).
                     </li>
                   )}
-                  {templates.length === 0 && (
+                  {!hasTemplates && (
                     <li>
-                      Crear una <strong>plantilla de email</strong> en{" "}
+                      Crear una <strong>plantilla</strong> (email, SMS, WhatsApp o
+                      Telegram) en{" "}
                       <a href="/templates" className="underline underline-offset-2">
                         Plantillas
                       </a>{" "}
@@ -199,43 +226,17 @@ export default async function EncuestaDetailPage({
                 </ul>
               </div>
             ) : (
-              <form action={enviarEncuestaPorMail} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="id" value={enc.id} />
-                <label className="text-xs text-zinc-500">
-                  <span className="mb-1 block">Plantilla</span>
-                  <select name="templateId" className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    {templates.map((t) => (
-                      <option key={t.id} value={t.id}>{t.nombre}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-zinc-500">
-                  <span className="mb-1 block">Destino</span>
-                  <select name="segmentId" className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    {segments.length > 0 && (
-                      <optgroup label="Segmentos guardados">
-                        {segments.map((s) => (
-                          <option key={s.id} value={`seg:${s.id}`}>{s.nombre}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {grupos.length > 0 && (
-                      <optgroup label="Grupos de contactos">
-                        {grupos.map((g) => (
-                          <option key={g.id} value={`grupo:${g.id}`}>
-                            {g.nombre} ({g.count})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </label>
-                <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
-              </form>
+              <EncuestaSendForm
+                encuestaId={enc.id}
+                channels={sendChannels}
+                segments={segments}
+                grupos={grupos}
+                action={enviarEncuestaPorMail}
+              />
             )}
             <p className="text-[11px] text-zinc-400">
-              El envío crea una campaña de email. Mirá cuántos se enviaron / quedan
-              pendientes en{" "}
+              El envío crea una campaña por el canal elegido. Mirá cuántos se
+              enviaron / quedan pendientes en{" "}
               <Link href="/campanas" className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-300">
                 Campañas
               </Link>

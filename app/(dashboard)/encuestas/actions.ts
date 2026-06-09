@@ -15,10 +15,11 @@ import {
   duplicateEncuesta,
 } from "@/lib/encuestas";
 import { deleteResponses } from "@/lib/encuestas/responses";
-import { executeCampaign } from "@/lib/campaigns";
+import { executeCampaign, SURVEY_SEND_CHANNELS } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
 import { listGrupos, grupoExiste } from "@/lib/grupos";
 import type { SegmentFilter } from "@/lib/segments";
+import type { Channel } from "@/lib/relationship";
 import type { Question } from "@/lib/encuestas/types";
 
 async function actorEmail(): Promise<string | null> {
@@ -118,6 +119,10 @@ export async function enviarEncuestaPorMail(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const templateId = String(formData.get("templateId") ?? "").trim();
   const segmentId = String(formData.get("segmentId") ?? "").trim();
+  const channelRaw = String(formData.get("channel") ?? "email").trim();
+  const channel: Channel = SURVEY_SEND_CHANNELS.includes(channelRaw as Channel)
+    ? (channelRaw as Channel)
+    : "email";
   const { id: projectId } = await requireMember("editor");
 
   const enc = await getEncuesta(projectId, id);
@@ -148,7 +153,7 @@ export async function enviarEncuestaPorMail(formData: FormData) {
 
   const result = await executeCampaign(projectId, {
     nombre: `Encuesta: ${enc.titulo}`,
-    channel: "email",
+    channel,
     templateId,
     segmentFilter,
     encuestaId: enc.id,
@@ -159,7 +164,7 @@ export async function enviarEncuestaPorMail(formData: FormData) {
     actor: await actorEmail(),
     entity_type: "survey",
     entity_id: id,
-    details: { destino: destinoNombre, ok: result.ok, reason: result.ok ? null : result.reason },
+    details: { destino: destinoNombre, channel, ok: result.ok, reason: result.ok ? null : result.reason },
   });
   if (!result.ok) {
     redirect(`/encuestas/${id}?error=envio&detalle=${encodeURIComponent(result.reason)}`);
