@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadDashboard, type WindowDays } from "@/lib/analytics";
 import { requireProject } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/page-header";
+import { VercelMetricsCard } from "@/components/analytics/vercel-card";
 import type { Channel } from "@/lib/relationship";
 
 export const metadata = { title: "Dashboard · Tronador" };
@@ -302,6 +303,9 @@ export default async function DashboardPage({
         </div>
         <HealthBars dist={health} />
       </section>
+
+      {/* Tráfico web + rendimiento (Vercel) ─── */}
+      <VercelMetricsCard scope="todo el sitio (incluidas las encuestas)" />
     </div>
   );
 }
