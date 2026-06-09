@@ -6,6 +6,7 @@
 // Endpoint: GET https://graph.facebook.com/v21.0/ads_archive
 //   search_terms, ad_reached_countries=["AR"], ad_type, ad_active_status=ALL
 import type {
+  Config,
   ConnectorStatus,
   ListenItem,
   ListenQuery,
@@ -14,6 +15,14 @@ import type {
 } from "./types";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
+
+// Token propio del conector; si falta, cae al del conector Meta (publicación).
+async function resolveToken(config?: Config): Promise<string | undefined> {
+  const own = config ?? (await getConnectorConfig("meta-ad-library"));
+  if (own.META_AD_LIBRARY_TOKEN) return own.META_AD_LIBRARY_TOKEN;
+  const meta = await getConnectorConfig("meta");
+  return meta.META_ACCESS_TOKEN || undefined;
+}
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const LIMIT = 100;
@@ -50,22 +59,29 @@ export const metaAdLibraryConnector: ListeningConnector = {
   capabilities: [
     { id: "ads.fetch_political", label: "Anuncios políticos por país/término" },
   ],
-  configSchema: [],
+  configSchema: [
+    {
+      key: "META_AD_LIBRARY_TOKEN",
+      label: "Access Token (Ad Library)",
+      type: "secret",
+      required: false,
+      placeholder: "EAAB…",
+      help: "Token con acceso a la Ad Library API (graph). Si lo dejás vacío, usa el token del conector Meta. Solo lectura: no publica nada.",
+    },
+  ],
 
-  async test(): Promise<TestResult> {
-    const cfg = await getConnectorConfig("meta");
-    return cfg.META_ACCESS_TOKEN
-      ? { ok: true, message: "Usa el token del conector Meta." }
-      : { ok: true, message: "Falta META_ACCESS_TOKEN (conector Meta) — devuelve vacío." };
+  async test(config?: Config): Promise<TestResult> {
+    const token = await resolveToken(config);
+    return token
+      ? { ok: true, message: "Token presente — lectura de Ad Library activa." }
+      : { ok: true, message: "Falta token (este conector o el de Meta) — devuelve vacío." };
   },
-  async getStatus(): Promise<ConnectorStatus> {
-    const cfg = await getConnectorConfig("meta");
-    return cfg.META_ACCESS_TOKEN ? "enabled" : "configuring";
+  async getStatus(config?: Config): Promise<ConnectorStatus> {
+    return (await resolveToken(config)) ? "enabled" : "configuring";
   },
 
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
-    const meta = await getConnectorConfig("meta");
-    const token = meta.META_ACCESS_TOKEN;
+    const token = await resolveToken();
     if (!token) return [];
 
     const terms = (query.keywords ?? []).join(" ").trim();
