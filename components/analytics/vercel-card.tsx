@@ -55,7 +55,7 @@ export function VercelMetricsCard({
         </div>
       ) : (
         <p className="rounded-md border border-dashed border-zinc-300 bg-zinc-50/60 px-3 py-2 text-[11px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/30">
-          Configurá la variable <code>VERCEL_ANALYTICS_BASE</code> (ej:{" "}
+          Configurá la variable <code>ANALYTICS_VERCEL_BASE</code> (ej:{" "}
           <code>https://vercel.com/&lt;equipo&gt;/&lt;proyecto&gt;</code>) para
           enlazar tu panel. Mientras tanto, los datos igual se acumulan en Vercel.
         </p>

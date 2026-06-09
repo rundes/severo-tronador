@@ -112,7 +112,20 @@ export const telnyxSmsConnector: OutreachConnector = {
           text: message.body,
         }),
       });
-      if (!res.ok) return { ok: false, error: `Telnyx HTTP ${res.status}` };
+      if (!res.ok) {
+        // Telnyx devuelve { errors: [{ code, title, detail }] }. Surfacear el
+        // detalle ayuda a diagnosticar (ej. 409 = número/perfil sin asignar).
+        const detail = await res
+          .json()
+          .then((b: { errors?: { code?: string; detail?: string }[] }) =>
+            b.errors?.map((e) => `${e.code ?? "?"}: ${e.detail ?? e.code}`).join("; "),
+          )
+          .catch(() => undefined);
+        return {
+          ok: false,
+          error: `Telnyx HTTP ${res.status}${detail ? ` — ${detail}` : ""}`,
+        };
+      }
       const data = (await res.json()) as { data?: { id?: string } };
       await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.data?.id };

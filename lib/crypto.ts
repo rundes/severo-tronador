@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 
 // AES-GCM con CONFIG_MASTER_KEY (32 bytes base64). Para credenciales de conectores.
 function keyBytes(): Uint8Array {
@@ -50,6 +50,45 @@ export function verifyHmacSha256(
   const b = Buffer.from(expected, "hex");
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+// Verifica la firma Ed25519 de un webhook de Telnyx. Telnyx firma el payload
+// `${timestamp}|${rawBody}` con su clave privada; el portal expone la clave
+// pública (base64, 32 bytes raw). Headers: `telnyx-signature-ed25519` (firma
+// base64) y `telnyx-timestamp` (epoch en segundos).
+// `toleranceSec` rechaza timestamps fuera de ventana (anti-replay); 0 lo omite.
+// Devuelve false ante cualquier dato faltante, malformado o fuera de tolerancia.
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+
+export function verifyTelnyxSignature(
+  rawBody: Buffer | string,
+  signatureB64: string | null | undefined,
+  timestamp: string | null | undefined,
+  publicKeyB64: string | undefined,
+  toleranceSec = 300,
+): boolean {
+  if (!signatureB64 || !timestamp || !publicKeyB64) return false;
+  if (toleranceSec > 0) {
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts)) return false;
+    if (Math.abs(Date.now() / 1000 - ts) > toleranceSec) return false;
+  }
+  try {
+    const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody);
+    const signed = Buffer.concat([Buffer.from(`${timestamp}|`), body]);
+    const sig = Buffer.from(signatureB64, "base64");
+    if (sig.length !== 64) return false;
+    const rawKey = Buffer.from(publicKeyB64, "base64");
+    if (rawKey.length !== 32) return false;
+    const key = createPublicKey({
+      key: Buffer.concat([ED25519_SPKI_PREFIX, rawKey]),
+      format: "der",
+      type: "spki",
+    });
+    return verify(null, signed, key, sig);
+  } catch {
+    return false;
+  }
 }
 
 // Compara dos strings en tiempo constante. Devuelve false si lengths difieren.
