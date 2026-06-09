@@ -25,7 +25,9 @@ async function resolveToken(config?: Config): Promise<string | undefined> {
 }
 
 const GRAPH = "https://graph.facebook.com/v21.0";
-const LIMIT = 100;
+const LIMIT = 40;
+// Cantidad de keywords a buscar por corrida (una request cada uno).
+const MAX_TERMS = 8;
 // POLITICAL_AND_ISSUE_ADS trae gasto/impresiones/demografía (lo más rico para
 // investigación electoral). Override con META_AD_TYPE=ALL para todos los rubros.
 const DEFAULT_AD_TYPE = "POLITICAL_AND_ISSUE_ADS";
@@ -84,46 +86,55 @@ export const metaAdLibraryConnector: ListeningConnector = {
     const token = await resolveToken();
     if (!token) return [];
 
-    const terms = (query.keywords ?? []).join(" ").trim();
-    if (!terms) return []; // ads_archive requiere search_terms (o page ids)
+    // ads_archive busca por search_terms (frase). Juntar 25 keywords no matchea:
+    // hacemos una búsqueda por término (cap MAX_TERMS) y mergeamos sin duplicar.
+    const terms = (query.keywords ?? []).map((k) => k.trim()).filter(Boolean).slice(0, MAX_TERMS);
+    if (!terms.length) return [];
     const country = (query.pais || "AR").toUpperCase().slice(0, 2);
     const adType = process.env.META_AD_TYPE || DEFAULT_AD_TYPE;
 
-    const params = new URLSearchParams({
-      search_terms: terms,
-      ad_reached_countries: JSON.stringify([country]),
-      ad_type: adType,
-      ad_active_status: "ALL",
-      limit: String(LIMIT),
-      fields:
-        "id,page_name,ad_creative_bodies,ad_creative_link_titles,ad_delivery_start_time,ad_snapshot_url,spend,impressions",
-      access_token: token,
-    });
-    try {
-      const res = await fetch(`${GRAPH}/ads_archive?${params}`);
-      const json = (await res.json()) as { data?: ArchiveAd[]; error?: { message?: string } };
-      if (!res.ok || json.error) {
-        throw new Error(json.error?.message ?? `HTTP ${res.status}`);
-      }
-      return (json.data ?? []).map((a) => {
-        const body =
-          a.ad_creative_bodies?.[0] ?? a.ad_creative_link_titles?.[0] ?? "(anuncio sin texto)";
-        const metricsLine = [
-          a.spend ? `gasto ${rangeStr(a.spend)}` : "",
-          a.impressions ? `impres. ${rangeStr(a.impressions)}` : "",
-        ].filter(Boolean).join(" · ");
-        return {
-          source: "Meta Ads",
-          text: metricsLine ? `${body}\n[${metricsLine}]` : body,
-          url: a.ad_snapshot_url,
-          publishedAt: a.ad_delivery_start_time,
-          author: a.page_name,
-          kind: "post" as const,
-        };
+    const seen = new Set<string>();
+    const out: ListenItem[] = [];
+    for (const term of terms) {
+      const params = new URLSearchParams({
+        search_terms: term,
+        ad_reached_countries: JSON.stringify([country]),
+        ad_type: adType,
+        ad_active_status: "ALL",
+        limit: String(LIMIT),
+        fields:
+          "id,page_name,ad_creative_bodies,ad_creative_link_titles,ad_delivery_start_time,ad_snapshot_url,spend,impressions",
+        access_token: token,
       });
-    } catch (e) {
-      log.warn("listening.meta_ad_library.fetch_failed", { error: (e as Error).message });
-      return [];
+      try {
+        const res = await fetch(`${GRAPH}/ads_archive?${params}`);
+        const json = (await res.json()) as { data?: ArchiveAd[]; error?: { message?: string } };
+        if (!res.ok || json.error) {
+          throw new Error(json.error?.message ?? `HTTP ${res.status}`);
+        }
+        for (const a of json.data ?? []) {
+          const id = a.id ?? a.ad_snapshot_url ?? "";
+          if (id && seen.has(id)) continue;
+          if (id) seen.add(id);
+          const body =
+            a.ad_creative_bodies?.[0] ?? a.ad_creative_link_titles?.[0] ?? "(anuncio sin texto)";
+          const metricsLine = [
+            a.spend ? `gasto ${rangeStr(a.spend)}` : "",
+            a.impressions ? `impres. ${rangeStr(a.impressions)}` : "",
+          ].filter(Boolean).join(" · ");
+          out.push({
+            source: "Meta Ads",
+            text: metricsLine ? `${body}\n[${metricsLine}]` : body,
+            url: a.ad_snapshot_url,
+            publishedAt: a.ad_delivery_start_time,
+            author: a.page_name,
+            kind: "post" as const,
+          });
+        }
+      } catch (e) {
+        log.warn("listening.meta_ad_library.fetch_failed", { term, error: (e as Error).message });
+      }
     }
+    return out;
   },
 };
