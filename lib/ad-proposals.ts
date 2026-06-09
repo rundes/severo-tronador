@@ -4,7 +4,7 @@
 // contenido para cada plataforma elegida. Server-only.
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
-import { generateGeminiText } from "@/lib/gemini";
+import { generateGeminiText, analyzeImagesGemini } from "@/lib/gemini";
 import { siliconflowChat, siliconflowModels } from "@/lib/siliconflow";
 
 export type Platform =
@@ -58,6 +58,43 @@ export function refsBlock(refs?: BriefRefs): string {
     parts.push("Videos de referencia (tono / formato):\n" + refs.videos.map((l) => `- ${l}`).join("\n"));
   if (!parts.length) return "";
   return "\n\n--- Materiales de referencia aportados ---\n" + parts.join("\n\n") + "\n--- fin de referencias ---";
+}
+
+// Cache en memoria (por instancia del server) de descripción por URL de imagen,
+// para no re-analizar la misma imagen en cada generación/afinado.
+const imageDescCache = new Map<string, string>();
+
+// Analiza las imágenes de referencia con Gemini (visión) y devuelve un bloque
+// con lo que muestran, para que TODOS los modelos del fan-out (incluidos los
+// que no son multimodales) tengan ese contexto. Sin Gemini configurado → "".
+async function describeBriefImages(images: string[]): Promise<string> {
+  if (!images.length) return "";
+  const cfg = await getConnectorConfig("google-ai");
+  const apiKey = cfg.GOOGLE_AI_API_KEY;
+  if (!apiKey) return "";
+  const uncached = images.filter((u) => !imageDescCache.has(u));
+  if (uncached.length) {
+    await Promise.all(
+      uncached.map(async (url) => {
+        try {
+          const desc = await analyzeImagesGemini({ apiKey, images: [url] });
+          if (desc) imageDescCache.set(url, desc);
+        } catch {
+          // si falla la visión para una imagen, seguimos sin su descripción
+        }
+      }),
+    );
+  }
+  const lines = images
+    .map((u, i) => {
+      const d = imageDescCache.get(u);
+      return d ? `Imagen ${i + 1}: ${d}` : "";
+    })
+    .filter(Boolean);
+  return lines.length
+    ? "\n\nAnálisis de las imágenes de referencia (lo que muestran, para alinear el contenido):\n" +
+        lines.join("\n")
+    : "";
 }
 
 interface ModelRef {
@@ -155,7 +192,8 @@ export async function generateProposals(
     );
   }
   const system = buildSystem(platforms);
-  const fullPrompt = prompt + refsBlock(brief);
+  const imgAnalysis = await describeBriefImages(brief?.images ?? []);
+  const fullPrompt = prompt + refsBlock(brief) + imgAnalysis;
   const results = await Promise.all(
     refs.map(async (ref, i) => {
       try {
@@ -190,6 +228,7 @@ export async function refineProposal(
     refs[0];
   if (!ref) throw new Error("No hay proveedores de IA configurados.");
   const system = buildSystem(platforms);
+  const imgAnalysis = await describeBriefImages(brief?.images ?? []);
   const userPrompt = [
     "Propuesta actual (JSON):",
     JSON.stringify({ angle: base.angle, platforms: base.platforms }),
@@ -197,6 +236,7 @@ export async function refineProposal(
     "Ajustala según esta indicación, manteniendo lo bueno:",
     refinePrompt,
     refsBlock(brief),
+    imgAnalysis,
   ].join("\n");
   const txt = await callModel(ref, system, userPrompt);
   const { angle, platforms: pf } = parseProposal(txt);

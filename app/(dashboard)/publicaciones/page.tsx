@@ -3,6 +3,7 @@ import { availableModels } from "@/lib/ad-proposals";
 import { AdStudio } from "@/components/publicaciones/ad-studio";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
+import { listBriefs } from "@/lib/estudio-briefs";
 import {
   generarPropuestas,
   afinarPropuesta,
@@ -10,13 +11,17 @@ import {
   generarImagenPropuesta,
   generarVideoPropuesta,
   estadoVideoPropuesta,
+  listarBriefs,
+  guardarBrief,
+  eliminarBrief,
 } from "./actions";
 
 export const metadata = { title: "Estudio de contenido · Tronador" };
 
 export default async function PublicacionesPage() {
-  await requireProject();
+  const { id: projectId } = await requireProject();
   const studioModels = (await availableModels()).map((m) => m.label);
+  const savedBriefs = await listBriefs(projectId);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -50,6 +55,10 @@ export default async function PublicacionesPage() {
         videoAction={generarVideoPropuesta}
         videoStatusAction={estadoVideoPropuesta}
         models={studioModels}
+        savedBriefs={savedBriefs}
+        listBriefsAction={listarBriefs}
+        saveBriefAction={guardarBrief}
+        deleteBriefAction={eliminarBrief}
       />
     </div>
   );
