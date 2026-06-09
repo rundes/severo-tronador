@@ -22,6 +22,7 @@ import {
   enviarEncuestaPorMail,
   eliminarEncuesta,
   borrarRespuestas,
+  probarEnvioEncuesta,
 } from "../actions";
 
 const CHANNEL_LABEL: Partial<Record<Channel, string>> = {
@@ -84,6 +85,7 @@ export default async function EncuestaDetailPage({
     publicada: "Encuesta publicada. Ya podés distribuir el link público.",
     cerrada: "Encuesta cerrada. No recibe más respuestas.",
     enviada: "Envío encolado. Seguí el estado (enviados / pendientes) en Campañas.",
+    prueba_enviada: `Prueba enviada a ${sp.dest ?? ""}. Revisá que haya llegado antes del envío masivo.`,
     duplicada: "Encuesta duplicada. Estás editando la copia.",
     respuestas_borradas: `Respuestas borradas (${sp.n ?? 0}). La encuesta arranca de cero.`,
   };
@@ -92,6 +94,9 @@ export default async function EncuestaDetailPage({
     no_publicada: "Publicá la encuesta antes de enviarla.",
     envio_datos: "Elegí una plantilla y un segmento.",
     envio: `No se pudo enviar: ${sp.detalle ?? ""}`,
+    prueba_datos: "Elegí una plantilla y escribí un destino de prueba.",
+    prueba_destino: "El destino de prueba no tiene un formato válido (mail o teléfono según el canal).",
+    prueba: `No se pudo enviar la prueba: ${sp.detalle ?? ""}`,
   };
   const okMsg = sp.ok ? okMap[sp.ok] ?? null : null;
   const errMsg = sp.error
@@ -232,6 +237,7 @@ export default async function EncuestaDetailPage({
                 segments={segments}
                 grupos={grupos}
                 action={enviarEncuestaPorMail}
+                testAction={probarEnvioEncuesta}
               />
             )}
             <p className="text-[11px] text-zinc-400">
