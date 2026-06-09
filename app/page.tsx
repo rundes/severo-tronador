@@ -120,7 +120,7 @@ function Hero() {
             className="mt-1 block font-extrabold"
             style={{
               color: "oklch(60% 0.13 80)",
-              fontSize: "clamp(2.75rem, 7.5vw, 5.75rem)",
+              fontSize: "clamp(2.25rem, 5.5vw, 4rem)",
             }}
           >
             La fuerza de los datos
