@@ -187,10 +187,17 @@ Pago (~$0.04/SMS AR), sin free tier. Tope mensual configurable como guardarraíl
 2. Comprar un número con capacidad SMS.
 3. *Messaging → Messaging Profiles* → crear → tomar el **Messaging Profile ID**.
 4. *API Keys* → crear.
+5. (Opcional, recomendado) *Estados de entrega*: en el Messaging Profile →
+   **Webhook URL** `https://TU_DOMINIO/api/webhooks/telnyx`. La **Failover URL**
+   se puede dejar vacía. Copiar la **Public Key** (*Account → Keys &
+   Credentials*) a `TELNYX_PUBLIC_KEY` para validar la firma Ed25519; sin esa
+   clave el webhook responde 403 a todo. Si solo envías (sin estados), omití
+   este paso y dejá ambas URLs vacías.
 
 ```env
 TELNYX_API_KEY=KEY...
 TELNYX_MESSAGING_PROFILE_ID=...
+TELNYX_PUBLIC_KEY=...          # opcional, requerido para el webhook de entrega
 TELNYX_SMS_MONTHLY_CAP=2000   # opcional, default 2000
 ```
 
