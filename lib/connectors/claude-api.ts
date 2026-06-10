@@ -112,6 +112,14 @@ export const claudeApiConnector: AnalysisConnector = {
       required: true,
       placeholder: "sk-ant-…",
     },
+    {
+      key: "ANTHROPIC_MODEL",
+      label: "Modelo",
+      type: "text",
+      required: false,
+      placeholder: "claude-sonnet-4-6 (o claude-fable-5, claude-opus-4-8…)",
+      help: "Id del modelo de Anthropic a usar. Si lo dejás vacío usa el default (claude-sonnet-4-6). También se puede fijar con la env ANTHROPIC_MODEL.",
+    },
   ],
 
   async test(config?: Config): Promise<TestResult> {

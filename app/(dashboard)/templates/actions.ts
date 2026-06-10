@@ -103,7 +103,7 @@ export async function generarHtmlConIA(
   let claudeErr: string | null = null;
   if (claude.ANTHROPIC_API_KEY) {
     try {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt });
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, model: claude.ANTHROPIC_MODEL });
       text = r.text;
       usedClaude = true;
       await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);

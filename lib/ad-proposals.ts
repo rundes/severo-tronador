@@ -128,14 +128,14 @@ async function modelRefs(): Promise<ModelRef[]> {
   }
   const c = await getConnectorConfig("claude-api");
   if (c.ANTHROPIC_API_KEY) {
-    out.push({ provider: "claude", modelName: "claude", label: "Claude", key: c.ANTHROPIC_API_KEY });
+    out.push({ provider: "claude", modelName: c.ANTHROPIC_MODEL || "claude-sonnet-4-6", label: "Claude", key: c.ANTHROPIC_API_KEY });
   }
   return out;
 }
 
 async function callModel(ref: ModelRef, system: string, prompt: string): Promise<string> {
   if (ref.provider === "claude") {
-    return (await generateText({ apiKey: ref.key, system, prompt, maxTokens: 2048 })).text;
+    return (await generateText({ apiKey: ref.key, system, prompt, maxTokens: 2048, model: ref.modelName })).text;
   }
   if (ref.provider === "gemini") {
     return (await generateGeminiText({ apiKey: ref.key, system, prompt })).text;
