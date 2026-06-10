@@ -299,7 +299,11 @@ describe("send-queue cron — procesamiento", () => {
     expect(q0.status).toBe("failed");
   });
 
-  it("connector_id mismatch → queue row failed sin llamar send", async () => {
+  it("connector desconocido → no se selecciona (drena por conector conocido)", async () => {
+    // El cron itera los conectores CONOCIDOS y consulta pending por cada uno.
+    // Una fila con connector_id fuera de ese set no se selecciona: no se envía
+    // ni se marca failed (queda pending). En prod el connector_id siempre sale
+    // del registry, así que este caso no ocurre.
     let sendCalls = 0;
     connectorState.sendImpl = async () => {
       sendCalls++;
@@ -311,11 +315,11 @@ describe("send-queue cron — procesamiento", () => {
     });
     const GET = await getHandler();
     const res = await GET(makeReq());
-    const json = (await res.json()) as { failed: number };
-    expect(json.failed).toBe(1);
+    const json = (await res.json()) as { failed: number; done: number };
+    expect(json.failed).toBe(0);
+    expect(json.done).toBe(0);
     expect(sendCalls).toBe(0);
     const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
-    expect(q0.status).toBe("failed");
-    expect(String(q0.last_error)).toMatch(/no registrado/);
+    expect(q0.status).toBe("pending");
   });
 });

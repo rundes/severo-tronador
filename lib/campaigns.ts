@@ -357,6 +357,11 @@ export function outreachConnectorById(id: string): OutreachConnector | undefined
   return OUTREACH_BY_ID[id];
 }
 
+// Ids de todos los conectores outreach (para drenar la cola por proveedor sin
+// depender de una query "distinct" que el límite de 1000 filas de PostgREST
+// truncaría a un solo proveedor cuando otro tiene mucha cola).
+export const OUTREACH_CONNECTOR_IDS = Object.keys(OUTREACH_BY_ID);
+
 // Conector efectivo para una campaña: si es email y se pidió un proveedor
 // específico válido, ese; si no, el default del canal.
 function resolveOutreachConnector(
