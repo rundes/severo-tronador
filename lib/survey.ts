@@ -222,13 +222,14 @@ async function listEncuestaResponsesForCampaign(
     .from("encuesta_respuestas")
     .select("token, dni, answers, created_at")
     .eq("project_id", projectId)
-    .not("token", "is", null)
     .order("created_at", { ascending: false });
   if (tokenFilter) q = q.in("token", tokenFilter);
 
   const { data, error } = await q;
   if (error) throw error;
-  return ((data ?? []) as EncuestaRespRow[]).map((r) => ({
+  return ((data ?? []) as EncuestaRespRow[])
+    .filter((r) => r.token)
+    .map((r) => ({
     token: r.token ?? "",
     campaignId: campaignId ?? "",
     dni: r.dni ?? "",
