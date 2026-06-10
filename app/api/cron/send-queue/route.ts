@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import {
   outreachConnectorById,
+  OUTREACH_CONNECTOR_IDS,
   type EnvioQueueRow,
   type Campaign,
 } from "@/lib/campaigns";
@@ -71,20 +72,10 @@ export async function GET(req: Request) {
   // Colas SEPARADAS por proveedor: cada connector drena hasta BATCH filas por
   // corrida, en paralelo. Así una cola grande de un proveedor (ej. 1300 de
   // Resend) no tapa la de otro (Brevo), y cada uno respeta su propia cuota.
-  const { data: distinct, error: distErr } = await db
-    .from("envio_queue")
-    .select("connector_id")
-    .eq("status", "pending")
-    .lte("scheduled_at", nowIso);
-  if (distErr) {
-    return NextResponse.json({ error: distErr.message }, { status: 500 });
-  }
-  const connectorIds = [
-    ...new Set((distinct ?? []).map((r) => (r as { connector_id: string }).connector_id)),
-  ];
-
+  // Iteramos los conectores CONOCIDOS (no una query "distinct", que el límite
+  // de 1000 filas de PostgREST truncaría a un solo proveedor con mucha cola).
   const pending: PendingRow[] = [];
-  for (const cid of connectorIds) {
+  for (const cid of OUTREACH_CONNECTOR_IDS) {
     const { data, error } = await db
       .from("envio_queue")
       .select("*")
