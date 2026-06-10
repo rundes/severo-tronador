@@ -88,7 +88,7 @@ export async function generarContenidoPostIA(
       text = r.text;
       await incrementUsage("google-ai", Math.ceil((userPrompt.length + text.length) / 4), projectId);
     } else if (claude.ANTHROPIC_API_KEY) {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1024 });
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1024, model: claude.ANTHROPIC_MODEL });
       text = r.text;
       await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
     } else {
@@ -150,7 +150,7 @@ export async function sugerirMejorasAviso(
       raw = r.text;
       await incrementUsage("google-ai", Math.ceil((userPrompt.length + raw.length) / 4), projectId);
     } else if (claude.ANTHROPIC_API_KEY) {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1200 });
+      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1200, model: claude.ANTHROPIC_MODEL });
       raw = r.text;
       await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
     } else {

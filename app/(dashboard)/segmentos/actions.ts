@@ -124,7 +124,7 @@ export async function crearSegmentoIA(formData: FormData) {
   let text: string | null = null;
   let apiErr: string | null = null;
   try {
-    const r = await generateText({ apiKey, system, prompt: `Descripción: ${prompt}`, maxTokens: 1024 });
+    const r = await generateText({ apiKey, system, prompt: `Descripción: ${prompt}`, maxTokens: 1024, model: cfg.ANTHROPIC_MODEL });
     text = r.text;
     await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
   } catch (e) {
