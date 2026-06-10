@@ -45,7 +45,7 @@ export default async function TemplatesPage({
 
   // Edición: ?edit=<id> precarga la plantilla en el editor de arriba.
   const editId = params.edit?.trim();
-  const editing = editId ? await getTemplate(editId) : undefined;
+  const editing = editId ? await getTemplate(editId, projectId) : undefined;
   const okMsg =
     params.ok === "actualizada"
       ? "Plantilla actualizada."

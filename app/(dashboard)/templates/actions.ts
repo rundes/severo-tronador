@@ -21,6 +21,7 @@ export async function nuevaPlantilla(formData: FormData) {
   const parsed = NuevaPlantillaSchema.safeParse(formToObject(formData));
   if (!parsed.success) redirect("/templates?error=campos");
 
+  const { id: projectId } = await requireProject();
   const id = String(formData.get("id") ?? "").trim();
   const payload = {
     channel: parsed.data.channel,
@@ -33,7 +34,7 @@ export async function nuevaPlantilla(formData: FormData) {
   };
 
   if (id) {
-    const updated = await updateTemplate(id, payload);
+    const updated = await updateTemplate(id, projectId, payload);
     if (!updated) redirect("/templates?error=no_existe");
     redirect("/templates?ok=actualizada");
   }
