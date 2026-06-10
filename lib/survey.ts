@@ -208,27 +208,27 @@ async function listEncuestaResponsesForCampaign(
 ): Promise<SurveyResponse[]> {
   const db = getSupabase();
 
-  let tokenFilter: string[] | undefined;
+  // Tokens de la campaña → Set. NO usamos .in(token, [...]) porque con miles de
+  // tokens la URL de PostgREST explota (HTTP 400). Filtramos en JS: la tabla de
+  // respuestas de encuestas es chica comparada con los envíos.
+  let tokenSet: Set<string> | undefined;
   if (campaignId) {
     const { data: toks } = await db
       .from("survey_tokens")
       .select("token")
       .eq("campaign_id", campaignId);
-    tokenFilter = (toks ?? []).map((t) => (t as { token: string }).token);
-    if (tokenFilter.length === 0) return [];
+    tokenSet = new Set((toks ?? []).map((t) => (t as { token: string }).token));
+    if (tokenSet.size === 0) return [];
   }
 
-  let q = db
+  const { data, error } = await db
     .from("encuesta_respuestas")
     .select("token, dni, answers, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
-  if (tokenFilter) q = q.in("token", tokenFilter);
-
-  const { data, error } = await q;
   if (error) throw error;
   return ((data ?? []) as EncuestaRespRow[])
-    .filter((r) => r.token)
+    .filter((r) => r.token && (!tokenSet || tokenSet.has(r.token)))
     .map((r) => ({
     token: r.token ?? "",
     campaignId: campaignId ?? "",
