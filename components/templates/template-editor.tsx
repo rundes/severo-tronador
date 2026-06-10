@@ -100,6 +100,17 @@ ${inner}
 const DEFAULT_TEXT_BODY =
   "{{saludo}}, {{nombre}}.\n\nDesde {{org}} estamos haciendo un relevamiento. ¿Podés responder unas preguntas?\n\n{{encuesta_url}}\n\n{{firma}}";
 
+// Plantilla a precargar para editar (todos los campos opcionales salvo id).
+export interface TemplateInitial {
+  id: string;
+  channel: string;
+  nombre: string;
+  asunto?: string;
+  formato: "texto" | "html" | "html_full";
+  cuerpo: string;
+  cuerpoHtml?: string;
+}
+
 export function TemplateEditor({
   action,
   testAction,
@@ -110,6 +121,7 @@ export function TemplateEditor({
   statusOk,
   statusError,
   modelos = [],
+  initial,
 }: {
   action: (formData: FormData) => Promise<void>;
   testAction?: TestAction;
@@ -122,19 +134,26 @@ export function TemplateEditor({
   // Diseños HTML guardados (plantillas email formato html) reutilizables como
   // modelo de partida para nuevas plantillas / campañas.
   modelos?: { id: string; nombre: string; html: string }[];
+  // Si viene, el editor arranca precargado para EDITAR esa plantilla (incluye
+  // un hidden `id` y el guardado actualiza en vez de crear).
+  initial?: TemplateInitial;
 }) {
-  const [channel, setChannel] = useState<string>("email");
-  const [nombre, setNombre] = useState("");
-  const [asunto, setAsunto] = useState("");
-  const [formato, setFormato] = useState<"texto" | "html">("texto");
-  const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
-  const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
+  const isEditing = Boolean(initial?.id);
+  const initialIsHtml = initial?.formato === "html" || initial?.formato === "html_full";
+  const [channel, setChannel] = useState<string>(initial?.channel ?? "email");
+  const [nombre, setNombre] = useState(initial?.nombre ?? "");
+  const [asunto, setAsunto] = useState(initial?.asunto ?? "");
+  const [formato, setFormato] = useState<"texto" | "html">(initialIsHtml ? "html" : "texto");
+  const [cuerpo, setCuerpo] = useState(initial?.cuerpo || DEFAULT_TEXT_BODY);
+  const [cuerpoHtml, setCuerpoHtml] = useState(
+    initial?.cuerpoHtml || HTML_PRESETS[0].html,
+  );
   // Sub-vista del modo HTML: editor visual (con barra de formato + imágenes),
   // código crudo, o asistente IA. El diseño se ve en vivo en el preview.
   const [htmlView, setHtmlView] = useState<"visual" | "code" | "ia">("visual");
   // "Email completo": el editor controla TODO el documento (encabezado + cuerpo
   // + pie) y se envía sin el envoltorio de marca ni la nota de baja automática.
-  const [fullEmail, setFullEmail] = useState(false);
+  const [fullEmail, setFullEmail] = useState(initial?.formato === "html_full");
 
   const isEmail = channel === "email";
   const isHtml = isEmail && formato === "html";
@@ -363,6 +382,7 @@ export function TemplateEditor({
           )}
 
           {/* Hidden inputs que siempre se envían */}
+          {isEditing && <input type="hidden" name="id" value={initial!.id} />}
           <input type="hidden" name="formato" value={effFormato} />
           {isHtml && (
             <input type="hidden" name="cuerpoHtml" value={cuerpoHtml} />
@@ -549,7 +569,7 @@ export function TemplateEditor({
 
           <div className="space-y-2">
             <SubmitButton pendingLabel="Guardando…">
-              Guardar plantilla
+              {isEditing ? "Guardar cambios" : "Guardar plantilla"}
             </SubmitButton>
             <FormStatus ok={statusOk} error={statusError} />
             <p className="text-[10px] text-zinc-400">

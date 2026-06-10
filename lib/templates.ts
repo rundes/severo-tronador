@@ -181,14 +181,19 @@ export async function listTemplates(channel?: Channel): Promise<Template[]> {
   return channel ? all.filter((t) => t.channel === channel) : all;
 }
 
-export async function getTemplate(id: string): Promise<Template | undefined> {
+// Busca una plantilla por id. Si se pasa `projectId`, la limita a ese proyecto
+// (anti-IDOR cross-tenant): una plantilla de otro proyecto se trata como
+// inexistente. Sin projectId, mantiene el comportamiento global (callers que
+// ya operan sobre ids de su propio contexto, ej. envío de campañas).
+export async function getTemplate(
+  id: string,
+  projectId?: string,
+): Promise<Template | undefined> {
   await ensureSeed();
   if (!dbConfigured()) return mem.find((t) => t.id === id);
-  const { data } = await getSupabase()
-    .from("templates")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  let q = getSupabase().from("templates").select("*").eq("id", id);
+  if (projectId) q = q.eq("project_id", projectId);
+  const { data } = await q.maybeSingle();
   return data ? rowToTemplate(data as TemplateRow) : undefined;
 }
 
@@ -202,6 +207,28 @@ export async function createTemplate(
     formato: input.formato ?? "texto",
     id: `tpl-${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
+  };
+  return upsertTemplate(tpl);
+}
+
+// Actualiza una plantilla existente del proyecto dado (conserva id + createdAt).
+// Devuelve undefined si el id no existe o pertenece a otro proyecto: el chequeo
+// de pertenencia vive acá, en la capa de datos, para que el caller no lo olvide.
+export async function updateTemplate(
+  id: string,
+  projectId: string,
+  input: Omit<Template, "id" | "createdAt" | "formato"> & {
+    formato?: TemplateFormato;
+  },
+): Promise<Template | undefined> {
+  const existing = await getTemplate(id, projectId);
+  if (!existing) return undefined;
+  const tpl: Template = {
+    ...existing,
+    ...input,
+    formato: input.formato ?? existing.formato,
+    id,
+    createdAt: existing.createdAt,
   };
   return upsertTemplate(tpl);
 }
