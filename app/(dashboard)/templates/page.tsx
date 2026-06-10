@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { nuevaPlantilla, enviarPruebaTemplate, generarHtmlConIA } from "./actions";
-import { listTemplates, templateVars } from "@/lib/templates";
+import { listTemplates, getTemplate, templateVars } from "@/lib/templates";
 import { SUPPORTED_VARS, buildVarMap } from "@/lib/interpolate-vars";
 import { loadContacts } from "@/lib/segments";
 import { requireProject } from "@/lib/workspace";
@@ -41,6 +42,22 @@ export default async function TemplatesPage({
   const templates = await listTemplates();
   const session = await auth();
   const userEmail = session?.user?.email ?? undefined;
+
+  // Edición: ?edit=<id> precarga la plantilla en el editor de arriba.
+  const editId = params.edit?.trim();
+  const editing = editId ? await getTemplate(editId) : undefined;
+  const okMsg =
+    params.ok === "actualizada"
+      ? "Plantilla actualizada."
+      : params.ok === "creada"
+        ? "Plantilla creada."
+        : null;
+  const errMsg =
+    params.error === "campos"
+      ? "Completá nombre y cuerpo de la plantilla."
+      : params.error === "no_existe"
+        ? "Esa plantilla ya no existe."
+        : null;
 
   // Sample contact para el preview. Tomamos el primero del padrón para
   // mantener el render puro (sin Math.random/Date.now de regla react/purity).
@@ -86,12 +103,26 @@ export default async function TemplatesPage({
         </dl>
       </details>
 
-      {/* Nueva plantilla — editor rich */}
-      <section className="rounded-lg border border-dashed border-zinc-300 p-5 dark:border-zinc-700">
-        <h2 className="mb-4 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-          Nueva plantilla
-        </h2>
+      {/* Nueva plantilla / edición — editor rich */}
+      <section
+        id="editor"
+        className="scroll-mt-6 rounded-lg border border-dashed border-zinc-300 p-5 dark:border-zinc-700"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+            {editing ? `Editar plantilla · ${editing.nombre}` : "Nueva plantilla"}
+          </h2>
+          {editing && (
+            <Link
+              href="/templates#editor"
+              className="text-xs text-zinc-500 underline-offset-4 hover:underline"
+            >
+              Cancelar edición
+            </Link>
+          )}
+        </div>
         <TemplateEditor
+          key={editing?.id ?? "nueva"}
           action={nuevaPlantilla}
           testAction={enviarPruebaTemplate}
           aiAction={generarHtmlConIA}
@@ -101,11 +132,21 @@ export default async function TemplatesPage({
           modelos={templates
             .filter((t) => t.channel === "email" && t.formato === "html" && t.cuerpoHtml)
             .map((t) => ({ id: t.id, nombre: t.nombre, html: t.cuerpoHtml as string }))}
-          statusError={
-            params.error === "campos"
-              ? "Completá nombre y cuerpo de la plantilla."
-              : null
+          initial={
+            editing
+              ? {
+                  id: editing.id,
+                  channel: editing.channel,
+                  nombre: editing.nombre,
+                  asunto: editing.asunto,
+                  formato: editing.formato,
+                  cuerpo: editing.cuerpo,
+                  cuerpoHtml: editing.cuerpoHtml ?? undefined,
+                }
+              : undefined
           }
+          statusOk={okMsg}
+          statusError={errMsg}
         />
       </section>
 
@@ -137,6 +178,12 @@ export default async function TemplatesPage({
                     <Badge tone={t.estado === "activo" ? "ok" : "neutral"} dot>
                       {t.estado}
                     </Badge>
+                    <Link
+                      href={`/templates?edit=${t.id}#editor`}
+                      className="rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      Editar
+                    </Link>
                   </span>
                 </div>
                 {t.asunto && (

@@ -206,6 +206,26 @@ export async function createTemplate(
   return upsertTemplate(tpl);
 }
 
+// Actualiza una plantilla existente (conserva id + createdAt). Devuelve
+// undefined si el id no existe.
+export async function updateTemplate(
+  id: string,
+  input: Omit<Template, "id" | "createdAt" | "formato"> & {
+    formato?: TemplateFormato;
+  },
+): Promise<Template | undefined> {
+  const existing = await getTemplate(id);
+  if (!existing) return undefined;
+  const tpl: Template = {
+    ...existing,
+    ...input,
+    formato: input.formato ?? existing.formato,
+    id,
+    createdAt: existing.createdAt,
+  };
+  return upsertTemplate(tpl);
+}
+
 // Sustituye {{var}} por el campo del contacto (vacío si no existe).
 export function interpolate(text: string, contact: Contact): string {
   return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {

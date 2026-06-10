@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createTemplate } from "@/lib/templates";
+import { createTemplate, updateTemplate } from "@/lib/templates";
 import { NuevaPlantillaSchema, formToObject, isValidEmail } from "@/lib/schemas";
 import { auth } from "@/lib/auth";
 import { requireProject } from "@/lib/workspace";
@@ -21,16 +21,25 @@ export async function nuevaPlantilla(formData: FormData) {
   const parsed = NuevaPlantillaSchema.safeParse(formToObject(formData));
   if (!parsed.success) redirect("/templates?error=campos");
 
-  await createTemplate({
+  const id = String(formData.get("id") ?? "").trim();
+  const payload = {
     channel: parsed.data.channel,
     nombre: parsed.data.nombre,
     asunto: parsed.data.asunto,
     cuerpo: parsed.data.cuerpo,
     formato: parsed.data.formato,
     cuerpoHtml: parsed.data.cuerpoHtml,
-    estado: "activo",
-  });
-  redirect("/templates");
+    estado: "activo" as const,
+  };
+
+  if (id) {
+    const updated = await updateTemplate(id, payload);
+    if (!updated) redirect("/templates?error=no_existe");
+    redirect("/templates?ok=actualizada");
+  }
+
+  await createTemplate(payload);
+  redirect("/templates?ok=creada");
 }
 
 export interface AiHtmlState {
