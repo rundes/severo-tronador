@@ -5,7 +5,7 @@ import { listEncuestaResponses } from "@/lib/encuestas/responses";
 import { listSavedSegments } from "@/lib/segments-store";
 import { listGrupos } from "@/lib/grupos";
 import { listTemplates } from "@/lib/templates";
-import { outreachConnectorFor, SURVEY_SEND_CHANNELS } from "@/lib/campaigns";
+import { outreachConnectorFor, SURVEY_SEND_CHANNELS, EMAIL_PROVIDERS } from "@/lib/campaigns";
 import type { Channel } from "@/lib/relationship";
 import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
@@ -240,6 +240,7 @@ export default async function EncuestaDetailPage({
                 channels={sendChannels}
                 segments={segments}
                 grupos={grupos}
+                emailProviders={EMAIL_PROVIDERS}
                 action={enviarEncuestaPorMail}
                 testAction={probarEnvioEncuesta}
               />

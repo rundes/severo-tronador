@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { crearCampana } from "./actions";
-import { outreachConnectorFor, OUTREACH_CHANNELS } from "@/lib/campaigns";
+import { outreachConnectorFor, OUTREACH_CHANNELS, EMAIL_PROVIDERS } from "@/lib/campaigns";
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
@@ -197,6 +197,30 @@ export default async function NuevaCampanaPage({
               ))}
             </select>
           </label>
+
+          {channel === "email" && (
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Proveedor de email
+              <select
+                name="emailProvider"
+                defaultValue={params.emailProvider ?? EMAIL_PROVIDERS[0].id}
+                className={inputCls}
+              >
+                {EMAIL_PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-zinc-400">
+                Elegí con qué proveedor sale esta campaña. Cargá su API key en{" "}
+                <Link href="/conectores" className="underline">
+                  Conectores
+                </Link>
+                ; sin key, ese proveedor corre en modo simulado.
+              </span>
+            </label>
+          )}
 
           <details className="rounded-lg border border-dashed border-zinc-300 p-3 text-xs dark:border-zinc-700">
             <summary className="cursor-pointer font-medium uppercase tracking-[0.18em] text-zinc-500">

@@ -80,9 +80,12 @@ export async function crearCampana(formData: FormData) {
     if (enc && enc.estado === "publicada") encuestaId = enc.id;
   }
 
+  const emailProvider = String(formData.get("emailProvider") ?? "").trim() || undefined;
+
   const res = await executeCampaign(projectId, {
     ...parsed.data,
     encuestaId,
+    emailProvider,
     segmentQuery: segmentQuery ?? undefined,
     variants,
   });

@@ -21,6 +21,7 @@ export function EncuestaSendForm({
   channels,
   segments,
   grupos,
+  emailProviders,
   action,
   testAction,
 }: {
@@ -28,6 +29,7 @@ export function EncuestaSendForm({
   channels: SendChannel[];
   segments: { id: string; nombre: string }[];
   grupos: { id: string; nombre: string; count: number }[];
+  emailProviders: { id: string; label: string }[];
   action: (formData: FormData) => void | Promise<void>;
   testAction: (formData: FormData) => void | Promise<void>;
 }) {
@@ -71,6 +73,19 @@ export function EncuestaSendForm({
           ))}
         </select>
       </label>
+
+      {isEmail && emailProviders.length > 1 && (
+        <label className="text-xs text-zinc-500">
+          <span className="mb-1 block">Proveedor</span>
+          <select name="emailProvider" defaultValue={emailProviders[0].id} className={selectCls}>
+            {emailProviders.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="text-xs text-zinc-500">
         <span className="mb-1 block">Destino</span>
