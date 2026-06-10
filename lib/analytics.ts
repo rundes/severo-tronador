@@ -153,7 +153,7 @@ export async function loadDashboard(
   const db = getSupabase();
 
   // Fetch en paralelo (scopeado por proyecto).
-  const [enviosRes, respuestasRes, optoutsRes, campanasRes] = await Promise.all([
+  const [enviosRes, respuestasRes, encuestaRespRes, optoutsRes, campanasRes] = await Promise.all([
     db
       .from("envios")
       .select("campaign_id, estado, token, created_at")
@@ -163,6 +163,14 @@ export async function loadDashboard(
       .from("respuestas")
       .select("token, created_at")
       .eq("project_id", projectId)
+      .gte("created_at", since),
+    // Respuestas del módulo nuevo de encuestas, atribuibles a una campaña por
+    // token (las campañas "Encuesta:" guardan acá, no en `respuestas` legacy).
+    db
+      .from("encuesta_respuestas")
+      .select("token, created_at")
+      .eq("project_id", projectId)
+      .not("token", "is", null)
       .gte("created_at", since),
     db
       .from("opt_outs")
@@ -193,7 +201,11 @@ export async function loadDashboard(
   };
 
   const envios = (enviosRes.data ?? []) as EnvioRow[];
-  const respuestas = (respuestasRes.data ?? []) as RespRow[];
+  // Unimos respuestas legacy + las del módulo encuestas (ambas keyed por token).
+  const respuestas = [
+    ...((respuestasRes.data ?? []) as RespRow[]),
+    ...((encuestaRespRes.data ?? []) as RespRow[]),
+  ];
   const optouts = optoutsRes.data ?? [];
   const campanas = (campanasRes.data ?? []) as CampRow[];
 

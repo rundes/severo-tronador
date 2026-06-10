@@ -184,5 +184,58 @@ export async function listResponses(
   }
   const { data, error } = await query;
   if (error) throw error;
-  return (data as RespRow[]).map(rowToResponse);
+  const legacy = (data as RespRow[]).map(rowToResponse);
+
+  // Respuestas del módulo nuevo de encuestas: guardan en `encuesta_respuestas`
+  // por token (no por campaign_id). Para atribuirlas a una campaña, mapeamos sus
+  // tokens vía `survey_tokens`. Sin esto las campañas "Encuesta:" mostraban 0.
+  const enc = await listEncuestaResponsesForCampaign(projectId, campaignId);
+  return [...legacy, ...enc].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+}
+
+interface EncuestaRespRow {
+  token: string | null;
+  dni: string | null;
+  answers: { label?: string; value?: unknown }[] | null;
+  created_at: string;
+}
+
+// Lee encuesta_respuestas atribuibles a una campaña (o todas las del proyecto
+// con token si no se pasa campaignId) y las mapea al shape SurveyResponse.
+async function listEncuestaResponsesForCampaign(
+  projectId: string,
+  campaignId?: string,
+): Promise<SurveyResponse[]> {
+  const db = getSupabase();
+
+  let tokenFilter: string[] | undefined;
+  if (campaignId) {
+    const { data: toks } = await db
+      .from("survey_tokens")
+      .select("token")
+      .eq("campaign_id", campaignId);
+    tokenFilter = (toks ?? []).map((t) => (t as { token: string }).token);
+    if (tokenFilter.length === 0) return [];
+  }
+
+  let q = db
+    .from("encuesta_respuestas")
+    .select("token, dni, answers, created_at")
+    .eq("project_id", projectId)
+    .not("token", "is", null)
+    .order("created_at", { ascending: false });
+  if (tokenFilter) q = q.in("token", tokenFilter);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data ?? []) as EncuestaRespRow[]).map((r) => ({
+    token: r.token ?? "",
+    campaignId: campaignId ?? "",
+    dni: r.dni ?? "",
+    answers: (r.answers ?? []).map((a) => ({
+      pregunta: String(a.label ?? ""),
+      respuesta: Array.isArray(a.value) ? a.value.join(", ") : String(a.value ?? ""),
+    })),
+    at: r.created_at,
+  }));
 }
