@@ -13,15 +13,18 @@ import type {
   SendResult,
   TestResult,
 } from "./types";
-import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
+import { getUsage, incrementUsage, nextDailyReset, dailyQuotaKey } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
 import { isValidEmail } from "@/lib/schemas";
 
-// Guardarraíl mensual. El free de Brevo son 300/día (~9.000/mes); subilo con
-// BREVO_MONTHLY_LIMIT si tu plan es mayor.
-const FREE_LIMIT = Number(process.env.BREVO_MONTHLY_LIMIT) || 9000;
+// Brevo limita por DÍA (free = 300/día). La cuota se trackea bajo una key
+// fechada (`brevo:YYYY-MM-DD`) que se auto-resetea al cambiar de día. Subí el
+// tope con BREVO_DAILY_LIMIT si tu plan es mayor.
+const DAILY_LIMIT = Number(process.env.BREVO_DAILY_LIMIT) || 300;
 const ID = "brevo";
+// Key de cuota del día de hoy (UTC). Usar siempre esta para get/increment.
+const quotaKey = () => dailyQuotaKey(ID);
 
 export const brevoConnector: OutreachConnector = {
   id: ID,
@@ -66,16 +69,16 @@ export const brevoConnector: OutreachConnector = {
   },
 
   async getStatus(): Promise<ConnectorStatus> {
-    return (await getUsage(ID)) >= FREE_LIMIT ? "quota_exhausted" : "enabled";
+    return (await getUsage(quotaKey())) >= DAILY_LIMIT ? "quota_exhausted" : "enabled";
   },
 
   async getQuota(projectId: string = DEFAULT_PROJECT_ID): Promise<Quota> {
     return {
-      used: await getUsage(ID, projectId),
-      limit: FREE_LIMIT,
+      used: await getUsage(quotaKey(), projectId),
+      limit: DAILY_LIMIT,
       unit: "messages",
-      period: "month",
-      resetAt: nextMonthlyReset(),
+      period: "day",
+      resetAt: nextDailyReset(),
     };
   },
 
@@ -83,7 +86,7 @@ export const brevoConnector: OutreachConnector = {
     count: number,
     projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<{ willFit: boolean; remaining: number }> {
-    const remaining = FREE_LIMIT - (await getUsage(ID, projectId));
+    const remaining = DAILY_LIMIT - (await getUsage(quotaKey(), projectId));
     return { willFit: count <= remaining, remaining };
   },
 
@@ -101,7 +104,7 @@ export const brevoConnector: OutreachConnector = {
 
     if (!cfg.BREVO_API_KEY) {
       // Mock: simula un envío exitoso y consume cuota igual.
-      await incrementUsage(ID, 1, projectId);
+      await incrementUsage(quotaKey(), 1, projectId);
       return { ok: true, providerMessageId: `mock-${recipient.dni}-${Date.now()}` };
     }
 
@@ -135,7 +138,7 @@ export const brevoConnector: OutreachConnector = {
         return { ok: false, error: `Brevo ${detail}` };
       }
       const data = (await res.json()) as { messageId?: string };
-      await incrementUsage(ID, 1, projectId);
+      await incrementUsage(quotaKey(), 1, projectId);
       return { ok: true, providerMessageId: data.messageId };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

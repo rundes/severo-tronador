@@ -66,20 +66,38 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return NextResponse.json({ skipped: "no db" });
 
   const db = getSupabase();
-  const { data: rows, error } = await db
+  const nowIso = new Date().toISOString();
+
+  // Colas SEPARADAS por proveedor: cada connector drena hasta BATCH filas por
+  // corrida, en paralelo. Así una cola grande de un proveedor (ej. 1300 de
+  // Resend) no tapa la de otro (Brevo), y cada uno respeta su propia cuota.
+  const { data: distinct, error: distErr } = await db
     .from("envio_queue")
-    .select("*")
+    .select("connector_id")
     .eq("status", "pending")
-    .lte("scheduled_at", new Date().toISOString())
-    .order("created_at")
-    .limit(BATCH);
-  if (error) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 },
-    );
+    .lte("scheduled_at", nowIso);
+  if (distErr) {
+    return NextResponse.json({ error: distErr.message }, { status: 500 });
   }
-  const pending = (rows ?? []) as PendingRow[];
+  const connectorIds = [
+    ...new Set((distinct ?? []).map((r) => (r as { connector_id: string }).connector_id)),
+  ];
+
+  const pending: PendingRow[] = [];
+  for (const cid of connectorIds) {
+    const { data, error } = await db
+      .from("envio_queue")
+      .select("*")
+      .eq("status", "pending")
+      .eq("connector_id", cid)
+      .lte("scheduled_at", nowIso)
+      .order("created_at")
+      .limit(BATCH);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    pending.push(...((data ?? []) as PendingRow[]));
+  }
 
   let done = 0;
   let failed = 0;
@@ -175,12 +193,16 @@ export async function GET(req: Request) {
     const quota = await connector.getQuota(row.project_id);
     const orgUsed = await getOrgUsage(row.connector_id);
     if (quota.used >= quota.limit || orgUsed >= quota.limit) {
+      // Reprogramar al reset de la cuota (diaria→mañana, mensual→mes que viene)
+      // si es futuro; si no, reintento corto. Evita reintentar cada minuto un
+      // tope que recién libera al cambiar de período.
+      const retryAt =
+        quota.resetAt && new Date(quota.resetAt).getTime() > Date.now()
+          ? quota.resetAt
+          : new Date(Date.now() + 60_000).toISOString();
       await db
         .from("envio_queue")
-        .update({
-          scheduled_at: new Date(Date.now() + 60_000).toISOString(),
-          last_error: "quota_blocked",
-        })
+        .update({ scheduled_at: retryAt, last_error: "quota_blocked" })
         .eq("id", row.id);
       rescheduled++;
       continue;

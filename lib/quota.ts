@@ -22,6 +22,19 @@ export function nextMonthlyReset(now = Date.now()): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
 }
 
+// Próxima medianoche UTC — reset de cuotas diarias (ej. Brevo 300/día).
+export function nextDailyReset(now = Date.now()): string {
+  const d = new Date(now);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)).toISOString();
+}
+
+// Sufijo de día (UTC) para claves de cuota diaria: `<connector>:YYYY-MM-DD`.
+// El uso de un día queda bajo su propia key, así el contador "se resetea" solo
+// al cambiar de día (la key de hoy arranca en 0 sin job de reset).
+export function dailyQuotaKey(connectorId: string, now = Date.now()): string {
+  return `${connectorId}:${new Date(now).toISOString().slice(0, 10)}`;
+}
+
 export async function getUsage(
   connectorId: string,
   projectId: string = DEFAULT_PROJECT_ID,
