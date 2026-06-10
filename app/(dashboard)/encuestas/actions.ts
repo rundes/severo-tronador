@@ -15,7 +15,12 @@ import {
   duplicateEncuesta,
 } from "@/lib/encuestas";
 import { deleteResponses } from "@/lib/encuestas/responses";
-import { executeCampaign, SURVEY_SEND_CHANNELS, outreachConnectorFor } from "@/lib/campaigns";
+import {
+  executeCampaign,
+  SURVEY_SEND_CHANNELS,
+  outreachConnectorFor,
+  outreachConnectorById,
+} from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
 import { listGrupos, grupoExiste } from "@/lib/grupos";
 import { getTemplate, interpolate } from "@/lib/templates";
@@ -155,12 +160,15 @@ export async function enviarEncuestaPorMail(formData: FormData) {
     destinoNombre = seg.nombre;
   }
 
+  const emailProvider = String(formData.get("emailProvider") ?? "").trim() || undefined;
+
   const result = await executeCampaign(projectId, {
     nombre: `Encuesta: ${enc.titulo}`,
     channel,
     templateId,
     segmentFilter,
     encuestaId: enc.id,
+    emailProvider,
   });
   await logAudit({
     action: "survey.send",
@@ -207,7 +215,12 @@ export async function probarEnvioEncuesta(formData: FormData) {
   const tpl = await getTemplate(templateId);
   if (!tpl) redirect(`/encuestas/${id}?error=prueba_datos`);
 
-  const connector = outreachConnectorFor(channel);
+  // Para email, respeta el proveedor elegido (resend/brevo); resto, default.
+  const emailProvider = String(formData.get("emailProvider") ?? "").trim();
+  const connector =
+    channel === "email" && emailProvider
+      ? outreachConnectorById(emailProvider) ?? outreachConnectorFor(channel)
+      : outreachConnectorFor(channel);
   if (!connector) redirect(`/encuestas/${id}?error=prueba&detalle=canal sin conector`);
 
   const contact: Contact = {

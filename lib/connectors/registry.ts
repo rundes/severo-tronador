@@ -6,6 +6,7 @@ import { googleSheetsConnector } from "./google-sheets";
 import { googleSheetsArchiveConnector } from "./google-sheets-archive";
 import { googleOAuthConnector } from "./google-oauth";
 import { resendConnector } from "./resend";
+import { brevoConnector } from "./brevo";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
 import { telnyxSmsConnector } from "./telnyx-sms";
 import { telnyxVoiceConnector } from "./telnyx-voice";
@@ -26,6 +27,7 @@ export const connectors: Connector[] = [
   googleSheetsArchiveConnector,
   googleOAuthConnector,
   resendConnector,
+  brevoConnector,
   metaWaCloudConnector,
   telnyxSmsConnector,
   telnyxVoiceConnector,

@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import {
-  outreachConnectorFor,
+  outreachConnectorById,
   type EnvioQueueRow,
   type Campaign,
 } from "@/lib/campaigns";
@@ -151,8 +151,11 @@ export async function GET(req: Request) {
       }
     }
 
-    const connector = outreachConnectorFor(row.channel);
-    if (!connector || connector.id !== row.connector_id) {
+    // Resolución por connector_id (no por canal): el email tiene 2 proveedores
+    // (resend / brevo), así que cada fila se despacha por el conector con que
+    // se encoló.
+    const connector = outreachConnectorById(row.connector_id);
+    if (!connector) {
       await db
         .from("envio_queue")
         .update({

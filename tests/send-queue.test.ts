@@ -138,13 +138,18 @@ vi.mock("@/lib/campaigns", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    outreachConnectorFor: () => ({
-      id: "resend",
-      getQuota: async () => connectorState.quota,
-      send: connectorState.sendImpl
-        ? connectorState.sendImpl
-        : async () => connectorState.sendResult,
-    }),
+    // El route resuelve el conector por connector_id (soporta 2 proveedores de
+    // email). El stub responde solo para "resend"; otros ids → undefined.
+    outreachConnectorById: (id: string) =>
+      id === "resend"
+        ? {
+            id: "resend",
+            getQuota: async () => connectorState.quota,
+            send: connectorState.sendImpl
+              ? connectorState.sendImpl
+              : async () => connectorState.sendResult,
+          }
+        : undefined,
   };
 });
 

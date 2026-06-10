@@ -4,6 +4,7 @@
 //
 // F3: ejecución síncrona (sin Vercel Cron todavía) y store en memoria.
 import { resendConnector } from "@/lib/connectors/resend";
+import { brevoConnector } from "@/lib/connectors/brevo";
 import { metaWaCloudConnector } from "@/lib/connectors/meta-wa-cloud";
 import { telnyxSmsConnector } from "@/lib/connectors/telnyx-sms";
 import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
@@ -334,6 +335,41 @@ export function outreachConnectorFor(
   return CONNECTOR_BY_CHANNEL[channel];
 }
 
+// Proveedores de email seleccionables por envío (el primero es el default).
+export const EMAIL_PROVIDERS: { id: string; label: string }[] = [
+  { id: resendConnector.id, label: "Resend" },
+  { id: brevoConnector.id, label: "Brevo" },
+];
+
+// Resolución de conector outreach por id (no por canal): el email tiene 2
+// proveedores (resend / brevo), así que el cron y executeCampaign resuelven
+// por el connector_id guardado en cada envío, no por el canal.
+const OUTREACH_BY_ID: Record<string, OutreachConnector> = {
+  [resendConnector.id]: resendConnector,
+  [brevoConnector.id]: brevoConnector,
+  [metaWaCloudConnector.id]: metaWaCloudConnector,
+  [telnyxSmsConnector.id]: telnyxSmsConnector,
+  [telnyxVoiceConnector.id]: telnyxVoiceConnector,
+  [telegramBotConnector.id]: telegramBotConnector,
+};
+
+export function outreachConnectorById(id: string): OutreachConnector | undefined {
+  return OUTREACH_BY_ID[id];
+}
+
+// Conector efectivo para una campaña: si es email y se pidió un proveedor
+// específico válido, ese; si no, el default del canal.
+function resolveOutreachConnector(
+  channel: Channel,
+  emailProvider?: string,
+): OutreachConnector | undefined {
+  if (channel === "email" && emailProvider) {
+    const byId = OUTREACH_BY_ID[emailProvider];
+    if (byId && byId.category === "outreach") return byId;
+  }
+  return CONNECTOR_BY_CHANNEL[channel];
+}
+
 export const OUTREACH_CHANNELS = Object.keys(CONNECTOR_BY_CHANNEL) as Channel[];
 
 // Canales por los que tiene sentido mandar el link de una encuesta (texto +
@@ -350,6 +386,9 @@ export type ExecuteInput = {
   preguntas?: string[];
   // Distribuir una encuesta del módulo nuevo: los tokens resuelven a ella.
   encuestaId?: string;
+  // Proveedor de email a usar (resend | brevo). Solo aplica a channel email;
+  // si falta o es inválido, usa el default del canal (resend).
+  emailProvider?: string;
   // A/B testing: si trae 2+ variantes, executeCampaign hace pickVariant
   // por destinatario. Cada variante apunta a su propio template_id (puede
   // ser el mismo templateId del input para una variante baseline).
@@ -365,7 +404,7 @@ export async function executeCampaign(
   projectId: string,
   input: ExecuteInput,
 ): Promise<ExecuteResult> {
-  const connector = CONNECTOR_BY_CHANNEL[input.channel];
+  const connector = resolveOutreachConnector(input.channel, input.emailProvider);
   if (!connector) return { ok: false, reason: "no_connector" };
   // No enviar por un conector desactivado desde el panel.
   if (!(await isEnabled(connector.id))) return { ok: false, reason: "no_connector" };
