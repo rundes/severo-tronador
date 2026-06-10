@@ -11,6 +11,7 @@ import { textToHtml, wrapEmailShell, wrapEmailMinimal } from "@/lib/email-html";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { buttonClass } from "@/components/ui/button";
 import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
+import { VisualEditor } from "@/components/templates/visual-editor";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
 
 interface VarOption {
@@ -128,9 +129,9 @@ export function TemplateEditor({
   const [formato, setFormato] = useState<"texto" | "html">("texto");
   const [cuerpo, setCuerpo] = useState(DEFAULT_TEXT_BODY);
   const [cuerpoHtml, setCuerpoHtml] = useState(HTML_PRESETS[0].html);
-  // Sub-vista del modo HTML: código crudo o asistente IA (el diseño se ve en
-  // el preview de la derecha; no hay editor "visual" para no confundir).
-  const [htmlView, setHtmlView] = useState<"code" | "ia">("code");
+  // Sub-vista del modo HTML: editor visual (con barra de formato + imágenes),
+  // código crudo, o asistente IA. El diseño se ve en vivo en el preview.
+  const [htmlView, setHtmlView] = useState<"visual" | "code" | "ia">("visual");
   // "Email completo": el editor controla TODO el documento (encabezado + cuerpo
   // + pie) y se envía sin el envoltorio de marca ni la nota de baja automática.
   const [fullEmail, setFullEmail] = useState(false);
@@ -331,6 +332,7 @@ export function TemplateEditor({
               <div className="flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 p-1 text-xs dark:border-zinc-800">
                 {([
                   { id: "texto", label: "Texto plano" },
+                  { id: "visual", label: "✎ Visual" },
                   { id: "code", label: "Código HTML" },
                   ...(aiAction ? [{ id: "ia", label: "✦ Asistente IA" }] : []),
                 ] as const).map((m) => {
@@ -343,7 +345,7 @@ export function TemplateEditor({
                         if (m.id === "texto") setFormato("texto");
                         else {
                           setFormato("html");
-                          setHtmlView(m.id as "code" | "ia");
+                          setHtmlView(m.id as "visual" | "code" | "ia");
                         }
                       }}
                       className={`rounded-full px-3 py-1 transition-colors ${
@@ -481,6 +483,9 @@ export function TemplateEditor({
                 </span>
               </label>
 
+              {htmlView === "visual" && (
+                <VisualEditor value={cuerpoHtml} onChange={setCuerpoHtml} />
+              )}
               {htmlView === "code" && (
                 <textarea
                   value={cuerpoHtml}
