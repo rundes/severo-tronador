@@ -12,6 +12,7 @@ import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
 import { VolumeChart } from "@/components/escucha/volume-chart";
 import { MarkButton } from "@/components/escucha/mark-button";
+import { RadioPlayer } from "@/components/escucha/radio-player";
 import { ReportTray } from "@/components/escucha/report-tray";
 
 const POLL_MS = 30_000;
@@ -200,8 +201,8 @@ export function LiveMonitor({
                       <p className="mt-1 line-clamp-2 text-sm leading-snug text-zinc-700 dark:text-zinc-200">
                         {item.text}
                       </p>
-                      <div className="mt-1.5 flex items-center gap-3">
-                        {item.url && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        {item.url && !item.meta?.audioObject && (
                           <a
                             href={item.url}
                             target="_blank"
@@ -226,6 +227,7 @@ export function LiveMonitor({
                           disabled={!persistOk}
                           onChange={(m) => updateMarked(key, m)}
                         />
+                        {item.meta && item.meta.audioObject ? <RadioPlayer meta={item.meta} /> : null}
                       </div>
                     </div>
                   </li>

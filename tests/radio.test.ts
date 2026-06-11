@@ -10,6 +10,7 @@ import {
   programDurationSec,
   matchKeywords,
   transcriptToItems,
+  segmentsToItems,
   radioItemUrl,
   type RadioProgram,
 } from "@/lib/radio";
@@ -54,6 +55,25 @@ describe("RadioProgramSchema (seguridad de URL)", () => {
     expect(RadioProgramSchema.safeParse({ ...base, url: "file:///etc/passwd" }).success).toBe(false);
     expect(RadioProgramSchema.safeParse({ ...base, url: "http://169.254.169.254/x" }).success).toBe(false);
     expect(RadioProgramSchema.safeParse({ ...base, url: "https://stream/radio.mp3" }).success).toBe(true);
+  });
+});
+
+describe("segmentsToItems (Whisper → offsets)", () => {
+  const meta = { station: "Radio X", programa: "Mañanas", isoStart: "2026-06-11T07:00:00Z", audioObject: "radios/x.mp3" };
+  const segs = [
+    { start: 0, end: 5, text: "Buenos días a todos." },
+    { start: 5, end: 12, text: "Hablamos de inseguridad en el barrio." },
+    { start: 12, end: 18, text: "Y del transporte." },
+  ];
+  it("una mención por segmento que matchea, con meta de offsets", () => {
+    const items = segmentsToItems(segs, ["inseguridad", "transporte"], meta);
+    expect(items).toHaveLength(2);
+    expect(items[0].meta).toEqual({ audioObject: "radios/x.mp3", start: 5, end: 12, programa: "Mañanas" });
+    expect(items[0].url).toContain("#t5");
+    expect(items[1].meta?.start).toBe(12);
+  });
+  it("sin keywords → vacío (no inunda)", () => {
+    expect(segmentsToItems(segs, [], meta)).toEqual([]);
   });
 });
 

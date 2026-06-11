@@ -7,6 +7,14 @@ import { dbConfigured } from "@/lib/db/supabase";
 import { requireMember } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
 import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
+import { signedReadUrl } from "@/lib/gcs";
+
+// Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
+export async function firmarAudioRadio(audioObject: string): Promise<{ url: string | null }> {
+  await requireMember("viewer");
+  if (!audioObject) return { url: null };
+  return { url: await signedReadUrl(audioObject, 3600) };
+}
 
 export async function guardarEscucha(formData: FormData) {
   // Sin Supabase la config no puede persistir. Redirigimos con flag para que

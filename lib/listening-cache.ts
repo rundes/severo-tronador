@@ -24,6 +24,7 @@ interface ListeningRow {
   parent_url: string | null;
   lat: number | null;
   lng: number | null;
+  meta?: Record<string, unknown> | null;
   updated_at?: string;
 }
 
@@ -36,6 +37,7 @@ function toListenItem(r: ListeningRow): ListenItem {
     author: r.author ?? undefined,
     kind: (r.kind ?? undefined) as ListenItem["kind"],
     parentUrl: r.parent_url ?? undefined,
+    meta: r.meta ?? undefined,
   };
 }
 
@@ -57,6 +59,7 @@ function toRow(
     parent_url: item.parentUrl ?? null,
     lat: null,
     lng: null,
+    meta: item.meta ?? null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -75,7 +78,7 @@ export async function readCachedItems(
   let q = getSupabase()
     .from("listening_items")
     .select(
-      "source, text, url, published_at, topic, author, kind, parent_url, lat, lng, connector_id",
+      "source, text, url, published_at, topic, author, kind, parent_url, lat, lng, meta, connector_id",
     )
     .eq("project_id", projectId)
     .gte("published_at", since)

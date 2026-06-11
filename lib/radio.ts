@@ -163,6 +163,45 @@ export interface RadioItem {
   author: string; // estación
   publishedAt: string; // ISO (inicio del programa)
   matched: string[]; // keywords encontradas
+  // Para reproducir la mención: objeto de audio en GCS + offsets (seg) dentro
+  // del programa. Presente solo en items por-segmento (Whisper).
+  meta?: { audioObject: string; start: number; end: number; programa: string };
+}
+
+export interface RadioSegment {
+  start: number; // seg desde el inicio del audio
+  end: number;
+  text: string;
+}
+
+// Items por segmento (transcripción con timestamps, ej. Whisper): una mención
+// por segmento que matchea keyword, con sus offsets para reproducir ±10s.
+// Sin keywords devuelve [] (evita inundar con todo el programa segmento a
+// segmento; para radio se espera tener keywords configuradas).
+export function segmentsToItems(
+  segments: RadioSegment[],
+  keywords: string[],
+  meta: { station: string; programa: string; isoStart: string; audioObject: string },
+): RadioItem[] {
+  if (keywords.filter((k) => k.trim()).length === 0) return [];
+  const baseUrl = radioItemUrl(meta.station, meta.isoStart);
+  const items: RadioItem[] = [];
+  segments.forEach((seg) => {
+    const text = (seg.text ?? "").trim();
+    if (!text) return;
+    const matched = matchKeywords(text, keywords);
+    if (matched.length === 0) return;
+    items.push({
+      source: meta.station,
+      text: `[${meta.programa}] ${text}`.slice(0, 2000),
+      url: `${baseUrl}#t${Math.round(seg.start)}`,
+      author: meta.station,
+      publishedAt: meta.isoStart,
+      matched,
+      meta: { audioObject: meta.audioObject, start: seg.start, end: seg.end, programa: meta.programa },
+    });
+  });
+  return items;
 }
 
 // URL sintética estable para dedup por (project_id, url).

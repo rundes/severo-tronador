@@ -46,6 +46,8 @@ export interface FeedItem {
   // X, parentUrl referencia al post padre. La UI agrupa visualmente.
   kind?: "post" | "reel" | "comment" | "tweet" | "reply";
   parentUrl?: string;
+  // Radio: { audioObject, start, end, programa } para reproducir la mención.
+  meta?: Record<string, unknown>;
 }
 
 export interface AuthorRanking {
