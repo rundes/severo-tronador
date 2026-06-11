@@ -72,3 +72,53 @@ body {
     transform: translateX(100%) scaleX(0.3);
   }
 }
+
+/* ── Monitor en vivo (Escucha) ─────────────────────────────────────────────
+   Movimiento que comunica estado, no decoración: ítems nuevos que entran al
+   stream y el latido del indicador LIVE. Solo transform/opacity (no layout). */
+@keyframes escucha-feed-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes escucha-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+}
+/* Destello breve de fondo cuando un ítem recién entra (se desvanece). */
+@keyframes escucha-flash {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.escucha-enter {
+  animation:
+    escucha-feed-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    escucha-flash 1400ms ease-out both;
+}
+.escucha-live-dot {
+  animation: escucha-live-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escucha-enter,
+  .escucha-live-dot {
+    animation: none !important;
+  }
+}
