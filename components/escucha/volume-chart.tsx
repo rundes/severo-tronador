@@ -1,5 +1,5 @@
-// Sparkline SVG inline de volumen por día. Server component.
-import { volumeBuckets } from "@/lib/escucha-marcas";
+// Sparkline SVG inline de volumen por día. Puro: usable en server o cliente.
+import { volumeBuckets } from "@/lib/escucha-keys";
 import type { FeedItem } from "@/lib/listening";
 
 interface VolumeChartProps {

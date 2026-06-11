@@ -9,6 +9,8 @@ interface MarkButtonProps {
   payload: Record<string, unknown>;
   initialMarked: boolean;
   disabled?: boolean;
+  // Notifica cambios de marca (para contadores en vivo, ej. ReportTray).
+  onChange?: (marked: boolean) => void;
 }
 
 export function MarkButton({
@@ -17,6 +19,7 @@ export function MarkButton({
   payload,
   initialMarked,
   disabled = false,
+  onChange,
 }: MarkButtonProps) {
   const [marked, setMarked] = useState(initialMarked);
   const [msg, setMsg] = useState<string | null>(null);
@@ -26,14 +29,17 @@ export function MarkButton({
     if (disabled) return;
     const prev = marked;
     setMarked(!prev); // optimistic
+    onChange?.(!prev);
     setMsg(null);
     startTransition(async () => {
       const res = await marcarToggle({ itemKey, kind, payload });
       if (!res.ok) {
         setMarked(prev); // revert
+        onChange?.(prev);
         setMsg(res.msg);
       } else {
         setMarked(res.marked);
+        onChange?.(res.marked);
       }
     });
   }
