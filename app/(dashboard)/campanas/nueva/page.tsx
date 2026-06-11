@@ -19,7 +19,9 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   email: "📧 Email",
   whatsapp: "💬 WhatsApp",
   sms: "📱 SMS",
-  voice: "☎️ Voz", telegram: "✈️ Telegram",
+  voice: "☎️ Voz",
+  telegram: "✈️ Telegram",
+  "meta-ad": "📣 Anuncio Meta",
 };
 
 const ERROR_MSG: Record<string, string> = {

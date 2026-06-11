@@ -115,6 +115,7 @@ function zeroChannelMap<T>(filler: () => T): Record<Channel, T> {
     sms: filler(),
     voice: filler(),
     telegram: filler(),
+    "meta-ad": filler(),
   };
 }
 

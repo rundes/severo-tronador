@@ -10,6 +10,9 @@ import { chiSquare2x2 } from "@/lib/ab-test";
 import { requireProject } from "@/lib/workspace";
 import { generarShareLink } from "./actions";
 import { ShareLinkBox } from "@/components/campanas/share-link-box";
+import { getInsights } from "@/lib/meta";
+import { getSavedSegment } from "@/lib/segments-store";
+import { loadContacts, applySegment } from "@/lib/segments";
 
 export const metadata = { title: "Campaña · Severo Tronador" };
 
@@ -24,6 +27,8 @@ const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: "💬 WhatsApp",
   sms: "📱 SMS",
   voice: "☎️ Voz",
+  telegram: "✈️ Telegram",
+  "meta-ad": "📣 Anuncio Meta",
 };
 
 const DELIVERY_LABEL: Record<string, string> = {
@@ -57,6 +62,158 @@ export default async function CampanaPage({
     shareExp = sp.exp ? Number(sp.exp) : null;
   }
 
+  // ── Bifurcación: Anuncio Meta vs outreach normal ────────────────────────
+  if (campaign.channel === "meta-ad") {
+    // Datos específicos del panel Meta.
+    // getInsights("ad", id) ya llama computeAdMetrics internamente y devuelve
+    // Metric[]. No necesitamos re-computar: usamos adInsights.metrics directo.
+    const adInsights = campaign.metaAdId
+      ? await getInsights("ad", campaign.metaAdId)
+      : null;
+
+    // Segmento asociado.
+    const savedSegment = campaign.segmentId
+      ? await getSavedSegment(projectId, campaign.segmentId)
+      : null;
+    let segmentSize: number | null = null;
+    if (savedSegment) {
+      const all = await loadContacts(projectId);
+      const matched = applySegment(all, savedSegment.filtros);
+      segmentSize = matched.length;
+    }
+
+    // Alcance del anuncio (si está disponible en insights).
+    const adReach = adInsights?.metrics.find((m) => m.label === "Alcance")?.value ?? null;
+    const cobertura =
+      adReach !== null && segmentSize && segmentSize > 0
+        ? Math.round((adReach / segmentSize) * 100)
+        : null;
+
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <Link href="/campanas" className="text-sm text-zinc-500 hover:underline">
+          ← Campañas
+        </Link>
+
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {campaign.nombre}
+            </h1>
+            <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-xs font-medium text-fuchsia-800 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+              Anuncio Meta
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-zinc-500">
+            Creada el {new Date(campaign.createdAt).toLocaleString("es-AR")}
+            {campaign.metaAdId && (
+              <>
+                {" · "}
+                <span className="font-mono text-xs">Ad ID: {campaign.metaAdId}</span>
+              </>
+            )}
+          </p>
+        </div>
+
+        {shareUrl && shareExp && <ShareLinkBox url={shareUrl} exp={shareExp} />}
+
+        {/* Segmento asociado */}
+        <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+            Segmento objetivo
+          </div>
+          {savedSegment ? (
+            <div className="flex flex-wrap items-baseline gap-4">
+              <div>
+                <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {savedSegment.nombre}
+                </div>
+                {segmentSize !== null && (
+                  <div className="mt-0.5 font-mono text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                    {segmentSize.toLocaleString("es-AR")}
+                    <span className="ml-1 text-sm font-normal text-zinc-400">
+                      personas en padrón
+                    </span>
+                  </div>
+                )}
+              </div>
+              {cobertura !== null && (
+                <div className="rounded-lg border border-[oklch(90%_0.03_255)] bg-[oklch(97.5%_0.02_255)] px-4 py-3 text-center dark:border-[oklch(40%_0.05_255)] dark:bg-[oklch(28%_0.04_255)]">
+                  <div className="text-2xl font-semibold tabular-nums text-[oklch(45%_0.13_255)] dark:text-[oklch(82%_0.1_255)]">
+                    {cobertura}%
+                  </div>
+                  <div className="text-xs text-zinc-500">cobertura</div>
+                  <div className="text-[10px] text-zinc-400">
+                    alcance Meta / tamaño segmento
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Sin segmento asociado.{" "}
+              <span className="text-zinc-400">
+                Editá la campaña para vincular un segmento.
+              </span>
+            </p>
+          )}
+        </div>
+
+        {/* Panel de métricas del anuncio */}
+        <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+              Métricas del anuncio Meta
+            </div>
+            {adInsights?.mode === "mock" && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                modo simulado · configurá Meta en Conectores
+              </span>
+            )}
+          </div>
+
+          {!campaign.metaAdId ? (
+            <div className="rounded-lg border border-dashed border-zinc-300 p-6 text-center dark:border-zinc-700">
+              <p className="text-sm text-zinc-500">
+                Esta campaña todavía no tiene un anuncio vinculado.
+              </p>
+              <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-400">
+                Creá el aviso en{" "}
+                <Link href="/difusion?tab=publicar" className="underline">
+                  Difusión → Publicar
+                </Link>{" "}
+                o vinculá el ID de un anuncio existente desde el Administrador de Meta.
+              </p>
+            </div>
+          ) : adInsights ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {adInsights.metrics.map((m) => (
+                <div
+                  key={m.label}
+                  className="rounded-lg border border-zinc-200 px-3 py-3 text-center dark:border-zinc-800"
+                >
+                  <div className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                    {typeof m.value === "number" && !Number.isInteger(m.value)
+                      ? m.value.toFixed(2)
+                      : m.value.toLocaleString("es-AR")}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                    {m.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              No se pudieron cargar las métricas del anuncio.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Outreach campaign (email / whatsapp / sms / voice / telegram) ────────
   const template = await getTemplate(campaign.templateId);
   const { metrics } = campaign;
   const respuestasList = await listResponses(projectId, campaign.id);
@@ -101,8 +258,8 @@ export default async function CampanaPage({
           {campaign.nombre}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          {CHANNEL_LABEL[campaign.channel] ?? campaign.channel} · plantilla “
-          {template?.nombre ?? campaign.templateId}” ·{" "}
+          {CHANNEL_LABEL[campaign.channel] ?? campaign.channel} · plantilla «
+          {template?.nombre ?? campaign.templateId}» ·{" "}
           {new Date(campaign.createdAt).toLocaleString("es-AR")} ·{" "}
           <Link href="/respuestas" className="hover:underline">
             {respuestas} respuestas

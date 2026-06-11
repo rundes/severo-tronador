@@ -36,7 +36,9 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   email: "📧 Email",
   whatsapp: "💬 WhatsApp",
   sms: "📱 SMS",
-  voice: "☎️ Voz", telegram: "✈️ Telegram",
+  voice: "☎️ Voz",
+  telegram: "✈️ Telegram",
+  "meta-ad": "📣 Anuncio Meta",
 };
 
 function Bar({ n, total }: { n: number; total: number }) {
@@ -80,6 +82,7 @@ export default async function SegmentosPage({
     sms: 0,
     voice: 0,
     telegram: 0,
+    "meta-ad": 0,
   };
   for (const m of matched)
     for (const ch of CHANNELS)
