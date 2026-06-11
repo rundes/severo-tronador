@@ -8,6 +8,15 @@ import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { requireMember } from "@/lib/workspace";
 import { createAndPopulateAudience } from "@/lib/meta-custom-audiences";
+import { getMetaConfig } from "@/lib/meta";
+import {
+  buildCreativeSpec,
+  createCampaign,
+  createAdset,
+  createAdFromProposal,
+  uploadAdVideo,
+  type ProposalMedia,
+} from "@/lib/meta-ads";
 
 // Inserta directamente una fila en `campanas` para channel="meta-ad".
 // No usa executeCampaign (que necesita un conector). No toca envios ni queue.
@@ -127,4 +136,95 @@ export async function crearAudienciaSegmento(formData: FormData) {
   redirect(
     `/campanas/${campaignId}?aud_ok=1&matched=${r.matched}&total=${r.total}&mode=${r.mode}`,
   );
+}
+
+// Fase 2 (end-to-end): crea un anuncio Meta PAUSED que TARGETEA la Custom
+// Audience de la campaña (creada desde el segmento). Cierra el loop
+// segmento → audiencia → aviso → tracking. Reusa la maquinaria de meta-ads.
+export async function crearAnuncioConAudiencia(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const campaignId = String(formData.get("campaignId") ?? "").trim();
+  if (!campaignId) redirect("/campanas");
+  if (!dbConfigured()) redirect(`/campanas/${campaignId}?ad_error=no_db`);
+
+  const mensaje = String(formData.get("mensaje") ?? "").trim();
+  const imageUrl = String(formData.get("imageUrl") ?? "").trim();
+  const videoUrl = String(formData.get("videoUrl") ?? "").trim();
+  const link = String(formData.get("link") ?? "").trim();
+  const cta = String(formData.get("cta") ?? "LEARN_MORE").trim();
+  const presupuesto = Number(formData.get("presupuesto") ?? 5);
+  const dias = Number(formData.get("dias") ?? 7);
+  const pais = (String(formData.get("pais") ?? "AR").trim().toUpperCase() || "AR").slice(0, 2);
+
+  if (!mensaje) redirect(`/campanas/${campaignId}?ad_error=sin_mensaje`);
+  if (!/^https?:\/\//i.test(link)) redirect(`/campanas/${campaignId}?ad_error=link`);
+  if (!imageUrl && !videoUrl) redirect(`/campanas/${campaignId}?ad_error=sin_media`);
+
+  const sb = getSupabase();
+  const { data: camp } = await sb
+    .from("campanas")
+    .select("id, nombre, meta_audience_id")
+    .eq("id", campaignId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!camp) redirect(`/campanas/${campaignId}?ad_error=no_existe`);
+  if (!camp.meta_audience_id) redirect(`/campanas/${campaignId}?ad_error=sin_audiencia`);
+
+  const { pageId } = await getMetaConfig();
+  if (!pageId) redirect(`/campanas/${campaignId}?ad_error=sin_pagina`);
+
+  // El trabajo va en try; los redirects van AFUERA (redirect() lanza
+  // NEXT_REDIRECT y un catch lo atraparía).
+  let media: ProposalMedia = {
+    imageUrl: imageUrl || undefined,
+    videoUrl: videoUrl || undefined,
+  };
+  let adId: string | undefined;
+  let adsetId: string | undefined;
+  let metaCampId: string | undefined;
+  let errMsg: string | null = null;
+  try {
+    if (videoUrl) {
+      const up = await uploadAdVideo(videoUrl);
+      if (!up.ok) errMsg = up.error ?? "No se pudo subir el video.";
+      else media = { ...media, videoId: up.videoId };
+    }
+    if (!errMsg) {
+      const spec = buildCreativeSpec(media, { pageId: pageId!, link, cta, message: mensaje });
+      const metaCamp = await createCampaign({ name: `Tronador · ${camp.nombre}`, objective: "OUTCOME_TRAFFIC" });
+      metaCampId = metaCamp.id;
+      const adset = await createAdset({
+        campaignId: metaCamp.id,
+        name: `${camp.nombre} · conjunto`,
+        dailyBudgetUsd: presupuesto > 0 ? presupuesto : 5,
+        days: dias > 0 ? dias : 7,
+        countries: [pais],
+        nowMs: Date.now(),
+        customAudienceId: camp.meta_audience_id as string,
+      });
+      adsetId = adset.id;
+      const ad = await createAdFromProposal({ adsetId: adset.id, spec, name: `Tronador · ${camp.nombre}` });
+      if (!ad.ok) errMsg = ad.error ?? "No se pudo crear el anuncio.";
+      else adId = ad.id;
+    }
+  } catch (e) {
+    errMsg = (e as Error).message;
+  }
+
+  if (errMsg) redirect(`/campanas/${campaignId}?ad_error=${encodeURIComponent(errMsg)}`);
+
+  await sb
+    .from("campanas")
+    .update({ meta_ad_id: adId, meta_adset_id: adsetId, meta_campaign_id: metaCampId })
+    .eq("id", campaignId);
+  await logAudit({
+    action: "ad.create",
+    projectId,
+    actor: (await auth())?.user?.email ?? null,
+    entity_type: "ad",
+    entity_id: adId,
+    details: { from: "campana-audiencia", campaignId, customAudienceId: camp.meta_audience_id },
+  });
+  revalidatePath(`/campanas/${campaignId}`);
+  redirect(`/campanas/${campaignId}?ad_ok=1`);
 }

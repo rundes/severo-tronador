@@ -14,7 +14,7 @@ import { getInsights } from "@/lib/meta";
 import { getAudienceStatus } from "@/lib/meta-custom-audiences";
 import { getSavedSegment } from "@/lib/segments-store";
 import { loadContacts, applySegment } from "@/lib/segments";
-import { crearAudienciaSegmento } from "../nueva/actions-meta-ad";
+import { crearAudienciaSegmento, crearAnuncioConAudiencia } from "../nueva/actions-meta-ad";
 
 export const metadata = { title: "Campaña · Severo Tronador" };
 
@@ -252,19 +252,65 @@ export default async function CampanaPage({
             )}
           </div>
 
+          {sp.ad_ok && (
+            <p className="mb-3 text-sm text-emerald-700 dark:text-emerald-400">
+              Anuncio creado en estado PAUSADO, targeteando la audiencia del segmento.
+              Activalo cuando quieras que empiece a gastar.
+            </p>
+          )}
+          {sp.ad_error && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">
+              No se pudo crear el anuncio: {sp.ad_error}
+            </p>
+          )}
+
           {!campaign.metaAdId ? (
-            <div className="rounded-lg border border-dashed border-zinc-300 p-6 text-center dark:border-zinc-700">
-              <p className="text-sm text-zinc-500">
-                Esta campaña todavía no tiene un anuncio vinculado.
-              </p>
-              <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-400">
-                Creá el aviso en{" "}
-                <Link href="/difusion?tab=publicar" className="underline">
-                  Difusión → Publicar
-                </Link>{" "}
-                o vinculá el ID de un anuncio existente desde el Administrador de Meta.
-              </p>
-            </div>
+            campaign.metaAudienceId ? (
+              <form action={crearAnuncioConAudiencia} className="space-y-3">
+                <p className="text-sm text-zinc-500">
+                  Creá un anuncio que targetee la audiencia de este segmento. Se crea
+                  PAUSADO (no gasta hasta que lo actives en Meta).
+                </p>
+                <input type="hidden" name="campaignId" value={campaign.id} />
+                <textarea
+                  name="mensaje"
+                  rows={3}
+                  required
+                  placeholder="Texto del anuncio…"
+                  className="w-full rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input name="imageUrl" placeholder="URL de imagen (https://…)" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input name="videoUrl" placeholder="URL de video (opcional)" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input name="link" required placeholder="Link de destino (https://…)" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <select name="cta" defaultValue="LEARN_MORE" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    {["LEARN_MORE", "SIGN_UP", "GET_OFFER", "CONTACT_US", "WATCH_MORE"].map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input name="presupuesto" type="number" min={1} defaultValue={5} placeholder="USD/día" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input name="dias" type="number" min={1} defaultValue={7} placeholder="Días" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input name="pais" defaultValue="AR" maxLength={2} placeholder="País" className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm uppercase dark:border-zinc-700 dark:bg-zinc-900" />
+                </div>
+                <button type="submit" className={buttonClass("primary", "sm")}>
+                  Crear anuncio (pausado) para la audiencia
+                </button>
+              </form>
+            ) : (
+              <div className="rounded-lg border border-dashed border-zinc-300 p-6 text-center dark:border-zinc-700">
+                <p className="text-sm text-zinc-500">
+                  Esta campaña todavía no tiene un anuncio vinculado.
+                </p>
+                <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-400">
+                  Creá la audiencia arriba para generar un anuncio que la targetee, o
+                  creá el aviso en{" "}
+                  <Link href="/difusion?tab=publicar" className="underline">
+                    Difusión → Publicar
+                  </Link>{" "}
+                  o vinculá el ID de un anuncio existente desde el Administrador de Meta.
+                </p>
+              </div>
+            )
           ) : adInsights ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {adInsights.metrics.map((m) => (
