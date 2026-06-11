@@ -6,6 +6,7 @@ import { normalizeHandle } from "@/lib/padron-handles";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireMember } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
+import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
 
 export async function guardarEscucha(formData: FormData) {
   // Sin Supabase la config no puede persistir. Redirigimos con flag para que
@@ -48,4 +49,26 @@ export async function guardarEscucha(formData: FormData) {
   await saveListeningConfig(projectId, parsed.data);
   revalidatePath("/escucha");
   redirect("/escucha?guardado=1");
+}
+
+export async function marcarToggle(input: {
+  itemKey: string;
+  kind: "feed" | "topic";
+  payload: Record<string, unknown>;
+}): Promise<{ ok: boolean; marked: boolean; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  return toggleMarca(projectId, {
+    itemKey: input.itemKey,
+    kind: input.kind,
+    payload: input.payload,
+  });
+}
+
+export async function listarMarcas(): Promise<{ itemKey: string }[]> {
+  if (!dbConfigured()) return [];
+  // requireProject can't be called in a no-auth context; use requireMember at
+  // viewer level so read-only users can hydrate the list without a redirect.
+  const { id: projectId } = await requireMember("viewer");
+  const marcas = await listMarcas(projectId);
+  return marcas.map((m) => ({ itemKey: m.itemKey }));
 }
