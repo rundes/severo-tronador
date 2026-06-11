@@ -6,7 +6,8 @@ name: Radio pull (grabar + transcribir)
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Cada 15 min: garantiza un tick en el pre-roll de cada programa (LEAD_MIN=15).
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:

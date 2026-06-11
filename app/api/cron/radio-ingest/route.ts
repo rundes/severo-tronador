@@ -6,6 +6,7 @@ import { dbConfigured } from "@/lib/db/supabase";
 import { getListeningConfig } from "@/lib/listening-config";
 import { upsertItems } from "@/lib/listening-cache";
 import { transcriptToItems } from "@/lib/radio";
+import { markRunDone } from "@/lib/radio-runs";
 import { log } from "@/lib/logger";
 
 function authOk(req: Request): boolean {
@@ -20,17 +21,20 @@ export async function POST(req: Request) {
 
   let body: {
     projectId?: string;
+    runId?: string;
     station?: string;
     programa?: string;
     isoStart?: string;
     transcript?: string;
+    audioObject?: string;
+    durationSec?: number;
   };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
-  const { projectId, station, programa, isoStart, transcript } = body;
+  const { projectId, runId, station, programa, isoStart, transcript, audioObject, durationSec } = body;
   if (!projectId || !station || !isoStart || typeof transcript !== "string") {
     return NextResponse.json({ ok: false, error: "campos faltantes" }, { status: 400 });
   }
@@ -52,6 +56,9 @@ export async function POST(req: Request) {
       publishedAt: i.publishedAt,
     })),
   );
-  log.info("radio.ingest.ok", { projectId, station, found: items.length, ...r });
+  if (runId) {
+    await markRunDone(runId, { audioObject, durationSec, mentions: items.length });
+  }
+  log.info("radio.ingest.ok", { projectId, station, runId, found: items.length, ...r });
   return NextResponse.json({ ok: true, found: items.length, ...r });
 }
