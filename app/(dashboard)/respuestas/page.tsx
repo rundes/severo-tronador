@@ -3,6 +3,7 @@ import { getCampaign } from "@/lib/campaigns";
 import { listResponses } from "@/lib/survey";
 import { requireProject } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/page-header";
+import { PopOutButton } from "@/components/dashboard/pop-out-button";
 
 export const metadata = { title: "Respuestas · Severo Tronador" };
 
@@ -31,6 +32,7 @@ export default async function RespuestasPage() {
         eyebrow="Investigación"
         title="Respuestas"
         subtitle="Respuestas a encuestas tokenizadas, logueadas contra cada contacto."
+        action={<PopOutButton />}
       />
 
       {responses.length === 0 ? (

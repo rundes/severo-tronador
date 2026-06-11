@@ -4,17 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import * as Icons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ProjectSwitcher } from "./project-switcher";
-
-interface NavItem {
-  href: string;
-  label: string;
-}
-
-interface NavGroup {
-  section: string;
-  items: NavItem[];
-}
+import { activeSection, type NavGroup } from "@/lib/nav";
 
 interface UserInfo {
   name: string | null;
@@ -26,6 +20,15 @@ interface ProjectOption {
   id: string;
   nombre: string;
   role: string;
+}
+
+const MODE_KEY = "nav:mode";
+const SECTIONS_KEY = "nav:sections";
+
+// Resuelve un ícono lucide por nombre; cae a Circle si no existe.
+function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
+  const C = (Icons as unknown as Record<string, LucideIcon>)[name] ?? Icons.Circle;
+  return <C size={size} aria-hidden className="shrink-0" />;
 }
 
 export function Sidebar({
@@ -47,9 +50,40 @@ export function Sidebar({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const activeSec = activeSection(pathname ?? "", nav);
 
-  // Cerrar al navegar. Comparamos contra ref previa para no llamar setState
-  // si no cambió (evita warning de "set-state-in-effect").
+  // Estado desktop: modo (expandido/riel) + qué secciones están abiertas.
+  const [mode, setMode] = useState<"expanded" | "rail">("expanded");
+  const [sections, setSections] = useState<Record<string, boolean>>({});
+  const [loaded, setLoaded] = useState(false);
+
+  // Hidratar de localStorage post-montaje (no en el initializer) para evitar
+  // mismatch SSR/cliente — mismo patrón que ad-studio.tsx.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem(MODE_KEY);
+      if (m === "rail" || m === "expanded") setMode(m);
+      const s = localStorage.getItem(SECTIONS_KEY);
+      if (s) setSections(JSON.parse(s) as Record<string, boolean>);
+    } catch {
+      // ignore (storage no disponible / JSON inválido)
+    }
+    setLoaded(true);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections));
+    } catch {
+      // ignore
+    }
+  }, [loaded, mode, sections]);
+
+  // Cerrar drawer al navegar (mobile).
   const prevPath = useRef<string | null>(null);
   useEffect(() => {
     if (prevPath.current !== null && prevPath.current !== pathname) {
@@ -58,7 +92,7 @@ export function Sidebar({
     prevPath.current = pathname;
   }, [pathname]);
 
-  // Bloquear scroll del body cuando el drawer está abierto en mobile.
+  // Bloquear scroll del body con el drawer abierto en mobile.
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
@@ -67,21 +101,28 @@ export function Sidebar({
     };
   }, [open]);
 
+  const rail = mode === "rail";
+
+  // ¿Sección abierta? Override explícito en estado; si no, abierta solo la de
+  // la ruta activa.
+  function isSectionOpen(section: string): boolean {
+    return section in sections ? sections[section] : section === activeSec;
+  }
+  function toggleSection(section: string) {
+    setSections((s) => ({ ...s, [section]: !isSectionOpen(section) }));
+  }
+
+  function itemActive(href: string): boolean {
+    return pathname === href || (href !== "/" && (pathname?.startsWith(href + "/") ?? false));
+  }
+
   return (
     <>
       {/* Top bar mobile */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-[#eae9e4]/95 px-4 py-3 backdrop-blur md:hidden dark:border-zinc-800 dark:bg-zinc-950/95">
         <Link href="/" className="flex items-center gap-2">
-          <Image
-            src="/brand/tronador-mark.jpeg"
-            alt=""
-            width={28}
-            height={28}
-            className="rounded-sm"
-          />
-          <span className="font-mono text-xs font-semibold tracking-[0.18em]">
-            TRONADOR
-          </span>
+          <Image src="/brand/tronador-mark.jpeg" alt="" width={28} height={28} className="rounded-sm" />
+          <span className="font-mono text-xs font-semibold tracking-[0.18em]">TRONADOR</span>
         </Link>
         <button
           type="button"
@@ -96,84 +137,103 @@ export function Sidebar({
 
       {/* Overlay mobile */}
       {open && (
-        <div
-          onClick={() => setOpen(false)}
-          aria-hidden
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-        />
+        <div onClick={() => setOpen(false)} aria-hidden className="fixed inset-0 z-30 bg-black/40 md:hidden" />
       )}
 
-      {/* Sidebar — desktop sticky, mobile drawer.
-          Layout en 3 zonas:
-            · brand fija arriba
-            · nav scrollea independiente (overflow-y-auto)
-            · user pill + version fijas abajo (mt-auto + shrink-0)
-          La aside es md:sticky → preservada por App Router entre navegaciones,
-          su scroll interno no se pierde al cambiar de pantalla. */}
+      {/* Sidebar — desktop sticky (expandido o riel), mobile drawer (siempre
+          expandido). El modo riel solo aplica en md+. */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[#eae9e4] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:w-56 md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
-          open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[#eae9e4] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
+          rail ? "md:w-14" : "md:w-56"
+        } ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
-        <Link href="/" className="block shrink-0 px-4 pb-4 pt-6">
+        {/* Brand */}
+        <Link href="/" className="block shrink-0 px-4 pb-3 pt-6">
+          {rail ? (
+            <Image
+              src="/brand/tronador-mark.jpeg"
+              alt="Tronador"
+              width={28}
+              height={28}
+              priority
+              className="mx-auto hidden h-7 w-7 rounded-sm md:block"
+            />
+          ) : null}
           <Image
             src="/brand/tronador-wordmark.jpeg"
             alt="Tronador"
             width={180}
             height={180}
             priority
-            className="h-auto w-full"
+            className={`h-auto w-full ${rail ? "md:hidden" : ""}`}
           />
         </Link>
-        {projects.length > 0 && (
-          <ProjectSwitcher
-            projects={projects}
-            activeId={activeProjectId}
-            switchAction={switchProjectAction}
-          />
+
+        {/* Toggle expandido/riel — solo desktop */}
+        <button
+          type="button"
+          onClick={() => setMode(rail ? "expanded" : "rail")}
+          aria-label={rail ? "Expandir menú" : "Colapsar menú"}
+          title={rail ? "Expandir menú" : "Colapsar menú"}
+          className="mx-3 mb-1 hidden h-7 items-center justify-center gap-1.5 rounded-md text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-800 md:flex dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+        >
+          {rail ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          {!rail && <span className="text-[11px]">Colapsar</span>}
+        </button>
+
+        {projects.length > 0 && !rail && (
+          <ProjectSwitcher projects={projects} activeId={activeProjectId} switchAction={switchProjectAction} />
         )}
+
         <nav className="flex-1 overflow-y-auto px-3 pb-2 font-mono text-sm">
-          {nav.map((group) => (
-            <div key={group.section} className="mb-3">
-              <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
-                {group.section}
-              </div>
-              <ul className="flex flex-col gap-0.5">
-                {group.items.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    (item.href !== "/" && pathname?.startsWith(item.href));
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 ${
-                          active
-                            ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                            : "text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
-                        }`}
-                      >
-                        <span
-                          aria-hidden
-                          className={`h-1 w-1 shrink-0 rounded-full transition-colors ${
-                            active ? "bg-[var(--accent)]" : "bg-zinc-400/50"
+          {nav.map((group, gi) => (
+            <div key={group.section} className={rail ? `py-1.5 ${gi > 0 ? "border-t border-zinc-200/70 dark:border-zinc-800/70" : ""}` : "mb-2"}>
+              {/* Header de sección (solo expandido) = botón colapsable */}
+              {!rail && (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(group.section)}
+                  aria-expanded={isSectionOpen(group.section)}
+                  className="flex w-full items-center justify-between gap-2 rounded px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                  {group.section}
+                  {isSectionOpen(group.section) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+              )}
+              {(rail || isSectionOpen(group.section)) && (
+                <ul className="flex flex-col gap-0.5">
+                  {group.items.map((item) => {
+                    const active = itemActive(item.href);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          aria-label={item.label}
+                          title={rail ? item.label : undefined}
+                          className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 ${
+                            rail ? "justify-center" : ""
+                          } ${
+                            active
+                              ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
+                              : "text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900"
                           }`}
-                        />
-                        {item.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+                        >
+                          <NavIcon name={item.icon} />
+                          {!rail && <span className="truncate">{item.label}</span>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           ))}
         </nav>
-        <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[#eae9e4] px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <UserPill user={user} signOutAction={signOutAction} />
-          <div className="font-mono text-[10px] text-zinc-500">
-            {versionString}
-          </div>
+
+        <div className="shrink-0 space-y-3 border-t border-zinc-200 bg-[#eae9e4] px-3 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <UserPill user={user} signOutAction={signOutAction} rail={rail} />
+          {!rail && <div className="font-mono text-[10px] text-zinc-500">{versionString}</div>}
         </div>
       </aside>
     </>
@@ -183,12 +243,16 @@ export function Sidebar({
 function UserPill({
   user,
   signOutAction,
+  rail,
 }: {
   user: UserInfo | null;
   signOutAction: () => Promise<void>;
+  rail: boolean;
 }) {
   if (!user) {
-    return (
+    return rail ? (
+      <div className="mx-auto h-7 w-7 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700" title="dev (sin login)" />
+    ) : (
       <div className="rounded-full border border-dashed border-zinc-300 px-3 py-1.5 text-[11px] text-zinc-500 dark:border-zinc-700">
         dev (sin login)
       </div>
@@ -199,32 +263,42 @@ function UserPill({
     .map((s) => s[0]?.toUpperCase() ?? "")
     .slice(0, 2)
     .join("");
+  const avatar = user.image ? (
+    <Image
+      src={user.image}
+      alt={user.name ?? user.email ?? ""}
+      width={28}
+      height={28}
+      className="h-7 w-7 rounded-full"
+      unoptimized
+    />
+  ) : (
+    <span
+      aria-hidden
+      className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 font-mono text-[10px] font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+    >
+      {initials}
+    </span>
+  );
+
+  if (rail) {
+    return (
+      <form action={signOutAction} className="flex justify-center" title={user.email ?? user.name ?? ""}>
+        <button type="submit" aria-label="Cerrar sesión" title="Cerrar sesión">
+          {avatar}
+        </button>
+      </form>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white p-1 pr-1.5 dark:border-zinc-800 dark:bg-zinc-950">
-      {user.image ? (
-        <Image
-          src={user.image}
-          alt={user.name ?? user.email ?? ""}
-          width={28}
-          height={28}
-          className="h-7 w-7 rounded-full"
-          unoptimized
-        />
-      ) : (
-        <span
-          aria-hidden
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 font-mono text-[10px] font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          {initials}
-        </span>
-      )}
+      {avatar}
       <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] font-medium leading-tight text-zinc-800 dark:text-zinc-100">
           {user.name ?? "—"}
         </div>
-        <div className="truncate text-[10px] leading-tight text-zinc-400">
-          {user.email}
-        </div>
+        <div className="truncate text-[10px] leading-tight text-zinc-400">{user.email}</div>
       </div>
       <form action={signOutAction}>
         <button
@@ -262,64 +336,17 @@ function SignOutIcon() {
 
 function Burger({ open }: { open: boolean }) {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 18 18"
-      fill="none"
-      aria-hidden
-      className="transition-transform"
-    >
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden className="transition-transform">
       {open ? (
         <>
-          <line
-            x1="3"
-            y1="3"
-            x2="15"
-            y2="15"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <line
-            x1="3"
-            y1="15"
-            x2="15"
-            y2="3"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
+          <line x1="3" y1="3" x2="15" y2="15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="3" y1="15" x2="15" y2="3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </>
       ) : (
         <>
-          <line
-            x1="3"
-            y1="5"
-            x2="15"
-            y2="5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <line
-            x1="3"
-            y1="9"
-            x2="15"
-            y2="9"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <line
-            x1="3"
-            y1="13"
-            x2="15"
-            y2="13"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
+          <line x1="3" y1="5" x2="15" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="3" y1="9" x2="15" y2="9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="3" y1="13" x2="15" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </>
       )}
     </svg>
