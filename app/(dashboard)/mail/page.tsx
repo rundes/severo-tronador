@@ -16,6 +16,7 @@ import { requireProject } from "@/lib/workspace";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
+import { PopOutButton } from "@/components/dashboard/pop-out-button";
 import { MailSetupChecklist } from "@/components/mail/setup-checklist";
 import { Dismissible } from "@/components/mail/dismissible";
 import { provisionMyMailbox, updateMyMailboxAddress } from "./actions";
@@ -110,11 +111,14 @@ export default async function MailPage({
           )
         }
         action={
-          cred ? (
-            <Link href="/mail/compose" className={buttonClass("accent")}>
-              Redactar
-            </Link>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <PopOutButton />
+            {cred && (
+              <Link href="/mail/compose" className={buttonClass("accent")}>
+                Redactar
+              </Link>
+            )}
+          </div>
         }
       />
 
