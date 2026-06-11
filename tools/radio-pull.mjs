@@ -149,6 +149,7 @@ async function main() {
       const transcript = await transcribe(uri);
       await ingest({
         projectId: p.projectId,
+        runId: p.runId,
         station: p.station,
         programa: p.programa,
         isoStart: p.isoStart,

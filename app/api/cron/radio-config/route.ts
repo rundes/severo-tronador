@@ -5,11 +5,13 @@ import { NextResponse } from "next/server";
 import { dbConfigured } from "@/lib/db/supabase";
 import { listActiveProjects } from "@/lib/projects";
 import { getListeningConfig } from "@/lib/listening-config";
-import { programsStartingNow, secondsUntilEnd, hhmmToMinutes } from "@/lib/radio";
+import { programsToRecord, secondsUntilEnd, hhmmToMinutes } from "@/lib/radio";
+import { createRunIfAbsent } from "@/lib/radio-runs";
 
-// Ventana del trigger por cron (min): captura el programa una vez cerca de su
-// inicio, tolerando demoras del scheduler de GitHub Actions.
-const START_WINDOW_MIN = 35;
+// Pre-roll (min): se empieza a grabar hasta LEAD_MIN antes del inicio para no
+// perder el arranque del programa (la radio en vivo no tiene rewind). El cron
+// corre cada 15 min → siempre cae un tick en [inicio - LEAD_MIN, inicio).
+const LEAD_MIN = 15;
 
 // Argentina = UTC-3 fijo (sin DST).
 const AR_OFFSET_MIN = -180;
@@ -33,8 +35,10 @@ export async function GET(req: Request) {
   const dd = String(ar.getUTCDate()).padStart(2, "0");
 
   const projects = await listActiveProjects();
+  const scheduledDate = `${yyyy}-${mm}-${dd}`;
   const out: Array<{
     projectId: string;
+    runId: string;
     station: string;
     programa: string;
     url: string;
@@ -46,27 +50,36 @@ export async function GET(req: Request) {
   for (const p of projects) {
     const cfg = await getListeningConfig(p.id);
     if (!cfg.radioStreams?.length) continue;
-    const starting = programsStartingNow(cfg.radioStreams, dayOfWeek, minutesOfDay, START_WINDOW_MIN);
-    for (const prog of starting) {
+    const toRec = programsToRecord(cfg.radioStreams, dayOfWeek, minutesOfDay, LEAD_MIN);
+    for (const prog of toRec) {
       // isoStart = hoy a la hora de inicio del programa (AR) en UTC.
       const startMin = hhmmToMinutes(prog.start);
       const startUtcMs =
         Date.UTC(yyyy, ar.getUTCMonth(), ar.getUTCDate(), 0, 0, 0) +
         startMin * 60_000 -
         AR_OFFSET_MIN * 60_000;
-      out.push({
+      const isoStart = new Date(startUtcMs).toISOString();
+      // Dedup: crea el run del programa-día; si ya existe, no re-grabar.
+      const run = await createRunIfAbsent({
         projectId: p.id,
         station: prog.station,
         programa: prog.programa,
+        scheduledDate,
+        scheduledStart: isoStart,
+      });
+      if (!run) continue;
+      out.push({
+        projectId: p.id,
+        runId: run.id,
+        station: prog.station,
+        programa: prog.programa,
         url: prog.url,
-        // Graba lo que queda del programa (tolera demora del cron).
+        // Graba desde ahora (con pre-roll) hasta el fin del programa.
         durationSec: secondsUntilEnd(prog, minutesOfDay),
-        isoStart: new Date(startUtcMs).toISOString(),
+        isoStart,
         keywords: cfg.keywords,
       });
     }
   }
-  // Marca de fecha para debugging del runner.
-  void `${yyyy}-${mm}-${dd}`;
   return NextResponse.json({ programs: out });
 }

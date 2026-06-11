@@ -8,6 +8,8 @@ import { requireProject } from "@/lib/workspace";
 import { listMarcas } from "@/lib/escucha-marcas";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfigForm } from "@/components/escucha/config-form";
+import { RadioAgenda } from "@/components/escucha/radio-agenda";
+import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
 import { Monitor } from "@/components/escucha/monitor";
 import type { SourceStatus } from "@/components/escucha/config-form";
 
@@ -109,14 +111,20 @@ export default async function EscuchaPage({
       {tab === "monitor" ? (
         <Monitor result={result} marcas={marcas} persistOk={persistOk} />
       ) : (
-        <ConfigForm
-          cfg={cfg}
-          sources={sources}
-          persistOk={persistOk}
-          bySource={result.bySource}
-          params={params}
-          lastXUpdate={lastXUpdate}
-        />
+        <div className="space-y-6">
+          <ConfigForm
+            cfg={cfg}
+            sources={sources}
+            persistOk={persistOk}
+            bySource={result.bySource}
+            params={params}
+            lastXUpdate={lastXUpdate}
+          />
+          <RadioAgenda
+            upcoming={agendaUpcoming(cfg.radioStreams)}
+            runs={persistOk ? await listRecentRuns(projectId) : []}
+          />
+        </div>
       )}
     </div>
   );

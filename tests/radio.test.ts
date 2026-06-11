@@ -4,6 +4,8 @@ import {
   hhmmToMinutes,
   programsActiveAt,
   programsStartingNow,
+  programsToRecord,
+  nextOccurrences,
   secondsUntilEnd,
   programDurationSec,
   matchKeywords,
@@ -94,6 +96,37 @@ describe("programsStartingNow", () => {
   });
   it("no lo captura otro día", () => {
     expect(programsStartingNow(programs, 0, 420, 35)).toEqual([]); // Domingo
+  });
+});
+
+describe("programsToRecord (pre-roll)", () => {
+  const programs = [prog()]; // Lun-Vie 07:00-09:00
+  it("captura desde leadMin antes del inicio hasta el fin", () => {
+    expect(programsToRecord(programs, 1, 410, 15)).toHaveLength(1); // 06:50 (pre-roll de 15)
+    expect(programsToRecord(programs, 1, 420, 15)).toHaveLength(1); // 07:00
+    expect(programsToRecord(programs, 1, 535, 15)).toHaveLength(1); // 08:55
+  });
+  it("no captura antes del pre-roll ni pasado el fin", () => {
+    expect(programsToRecord(programs, 1, 400, 15)).toEqual([]); // 06:40 (> 15 antes)
+    expect(programsToRecord(programs, 1, 540, 15)).toEqual([]); // 09:00 (fin)
+  });
+});
+
+describe("nextOccurrences (agenda)", () => {
+  it("lista ocurrencias futuras ordenadas dentro del horizonte", () => {
+    // Lun-Vie 07:00-09:00. Arrancamos un lunes 2026-06-08 06:00 AR (UTC-3).
+    const fromMs = Date.UTC(2026, 5, 8, 9, 0, 0); // 06:00 AR
+    const occ = nextOccurrences([prog()], fromMs, 7, -180);
+    expect(occ.length).toBeGreaterThanOrEqual(5); // Lun..Vie
+    // primera ocurrencia: ese lunes 07:00 AR = 10:00 UTC
+    expect(occ[0].startMs).toBe(Date.UTC(2026, 5, 8, 10, 0, 0));
+    // ordenadas
+    for (let i = 1; i < occ.length; i++) expect(occ[i].startMs).toBeGreaterThan(occ[i - 1].startMs);
+  });
+  it("no incluye ocurrencias ya terminadas", () => {
+    const fromMs = Date.UTC(2026, 5, 8, 13, 0, 0); // 10:00 AR (programa ya terminó 09:00)
+    const occ = nextOccurrences([prog()], fromMs, 0, -180); // solo hoy
+    expect(occ).toEqual([]);
   });
 });
 

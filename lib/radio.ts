@@ -79,6 +79,57 @@ export function programsStartingNow(
   });
 }
 
+// Programas a grabar AHORA con pre-roll: desde `leadMin` antes del inicio y
+// hasta el fin. Combinado con dedup (radio_runs), el primer tick del cron que
+// caiga en esa ventana arranca la grabación → captura el programa completo
+// aunque su horario no coincida con el cron.
+export function programsToRecord(
+  programs: RadioProgram[],
+  dayOfWeek: number,
+  minutesOfDay: number,
+  leadMin: number,
+): RadioProgram[] {
+  return programs.filter((p) => {
+    if (!p.days.includes(dayOfWeek)) return false;
+    const s = hhmmToMinutes(p.start);
+    const e = hhmmToMinutes(p.end);
+    if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return false;
+    return minutesOfDay >= s - leadMin && minutesOfDay < e;
+  });
+}
+
+// Próximas ocurrencias de los programas (para la agenda visual). Puro: recibe
+// `fromMs` y el offset de TZ (min) ya resueltos. Devuelve ocurrencias futuras
+// dentro de `horizonDays`, ordenadas por inicio.
+export function nextOccurrences(
+  programs: RadioProgram[],
+  fromMs: number,
+  horizonDays: number,
+  tzOffsetMin: number,
+): Array<{ station: string; programa: string; startMs: number; endMs: number }> {
+  const out: Array<{ station: string; programa: string; startMs: number; endMs: number }> = [];
+  const offMs = tzOffsetMin * 60_000;
+  const local = new Date(fromMs + offMs); // "ahora" en hora local
+  const baseY = local.getUTCFullYear();
+  const baseM = local.getUTCMonth();
+  const baseD = local.getUTCDate();
+  for (let d = 0; d <= horizonDays; d++) {
+    const dayLocalMidnightUtc = Date.UTC(baseY, baseM, baseD + d, 0, 0, 0);
+    const dow = new Date(dayLocalMidnightUtc).getUTCDay();
+    for (const p of programs) {
+      if (!p.days.includes(dow)) continue;
+      const s = hhmmToMinutes(p.start);
+      const e = hhmmToMinutes(p.end);
+      if (Number.isNaN(s) || Number.isNaN(e) || e <= s) continue;
+      const startMs = dayLocalMidnightUtc + s * 60_000 - offMs;
+      const endMs = dayLocalMidnightUtc + e * 60_000 - offMs;
+      if (endMs <= fromMs) continue; // ya pasó
+      out.push({ station: p.station, programa: p.programa, startMs, endMs });
+    }
+  }
+  return out.sort((a, b) => a.startMs - b.startMs);
+}
+
 // Segundos restantes hasta el fin del programa desde minutesOfDay. 0 si terminó.
 export function secondsUntilEnd(p: RadioProgram, minutesOfDay: number): number {
   const e = hhmmToMinutes(p.end);
