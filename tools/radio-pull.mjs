@@ -1,36 +1,41 @@
 // Runner de ingesta de radio para GitHub Actions (no corre en Vercel).
-// Flujo: pide los programas "al aire" al app, graba cada uno con ffmpeg,
-// lo transcribe con Gemini (Files API) y postea el transcript al app, que
-// matchea keywords y upserta menciones en listening_items.
+// Flujo por programa al aire: graba con ffmpeg → transcribe con Whisper
+// (whisper-ctranslate2, con timestamps por segmento) → sube el audio a GCS →
+// postea {segments, audioObject} al app, que matchea keywords y upserta
+// menciones (con offsets para reproducir ±10s).
 //
-// Env requeridas: APP_URL, CRON_SECRET, GOOGLE_AI_API_KEY.
-// Requiere `ffmpeg` en el runner (ubuntu-latest lo tiene vía apt).
+// Env: APP_URL, CRON_SECRET, GCS_BUCKET (def maipu-pba), WHISPER_MODEL (def base).
+// Requiere en el runner: ffmpeg, whisper-ctranslate2 (pip), gcloud (auth por SA).
 import { spawn } from "node:child_process";
-import { readFile, unlink } from "node:fs/promises";
+import { readFile, unlink, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const APP_URL = process.env.APP_URL?.replace(/\/$/, "");
 const CRON_SECRET = process.env.CRON_SECRET;
-const GEMINI_KEY = process.env.GOOGLE_AI_API_KEY;
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-// Tope de seguridad de grabación (segundos) para no agotar minutos de Actions.
-const MAX_REC_SEC = Number(process.env.RADIO_MAX_REC_SEC || 7200);
+const BUCKET = process.env.GCS_BUCKET || "maipu-pba";
+const WHISPER_MODEL = process.env.WHISPER_MODEL || "base";
+const MAX_REC_SEC = Number(process.env.RADIO_MAX_REC_SEC || 10800);
 
-if (!APP_URL || !CRON_SECRET || !GEMINI_KEY) {
-  console.error("Faltan env: APP_URL, CRON_SECRET, GOOGLE_AI_API_KEY");
+if (!APP_URL || !CRON_SECRET) {
+  console.error("Faltan env: APP_URL, CRON_SECRET");
   process.exit(1);
 }
-
 const auth = { Authorization: `Bearer ${CRON_SECRET}` };
 
-async function getPrograms() {
-  const res = await fetch(`${APP_URL}/api/cron/radio-config`, { headers: auth });
-  if (!res.ok) throw new Error(`radio-config ${res.status}`);
-  const data = await res.json();
-  return data.programs ?? [];
+function run(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { stdio: ["ignore", "inherit", "inherit"] });
+    p.on("error", reject);
+    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exit ${code}`))));
+  });
 }
 
-// Solo permitimos http(s): ffmpeg soporta file:/concat:/etc. → un url malicioso
-// podría leer archivos locales. Defensa además del schema (datos viejos / bypass).
+function slug(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "radio";
+}
+
+// Solo http(s) y host público (evita SSRF/LFI vía ffmpeg).
 function assertHttpUrl(url) {
   let u;
   try {
@@ -38,91 +43,47 @@ function assertHttpUrl(url) {
   } catch {
     throw new Error(`URL inválida: ${url}`);
   }
-  if (u.protocol !== "http:" && u.protocol !== "https:") {
-    throw new Error(`Protocolo no permitido (${u.protocol}); solo http(s)`);
-  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error(`Protocolo no permitido: ${u.protocol}`);
   const host = u.hostname.toLowerCase().replace(/\.$/, "");
-  const blocked =
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host === "[::1]" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host);
-  if (blocked) throw new Error(`Host no permitido (interno/privado): ${host}`);
+  if (
+    host === "localhost" || host === "0.0.0.0" || host === "::1" || host === "[::1]" ||
+    /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host)
+  ) {
+    throw new Error(`Host interno/privado no permitido: ${host}`);
+  }
 }
 
-// Graba `seconds` del stream a un mp3 mono 48kbps (chico para Gemini).
-function record(url, seconds, outPath) {
+async function getPrograms() {
+  const res = await fetch(`${APP_URL}/api/cron/radio-config`, { headers: auth });
+  if (!res.ok) throw new Error(`radio-config ${res.status}`);
+  return (await res.json()).programs ?? [];
+}
+
+async function record(url, seconds, outPath) {
   assertHttpUrl(url);
-  return new Promise((resolve, reject) => {
-    // -protocol_whitelist limita ffmpeg a los protocolos de red de http(s)
-    // (sin `file`), endurece contra lectura de archivos locales.
-    const args = [
-      "-y",
-      "-protocol_whitelist",
-      "http,https,tcp,tls,crypto",
-      "-i",
-      url,
-      "-t",
-      String(Math.min(seconds, MAX_REC_SEC)),
-      "-ac",
-      "1",
-      "-ab",
-      "48k",
-      "-vn",
-      outPath,
-    ];
-    const ff = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "inherit"] });
-    ff.on("error", reject);
-    ff.on("close", (code) => (code === 0 ? resolve(outPath) : reject(new Error(`ffmpeg exit ${code}`))));
-  });
+  await run("ffmpeg", [
+    "-y", "-protocol_whitelist", "http,https,tcp,tls,crypto",
+    "-i", url, "-t", String(Math.min(seconds, MAX_REC_SEC)),
+    "-ac", "1", "-ab", "48k", "-vn", outPath,
+  ]);
 }
 
-// Sube el audio a la Files API de Gemini (subida simple) → file uri.
-async function uploadToGemini(path, mime = "audio/mp3") {
-  const bytes = await readFile(path);
-  const startRes = await fetch(
-    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: {
-        "X-Goog-Upload-Protocol": "raw",
-        "X-Goog-Upload-Content-Type": mime,
-        "Content-Type": mime,
-      },
-      body: bytes,
-    },
-  );
-  if (!startRes.ok) throw new Error(`gemini upload ${startRes.status}: ${await startRes.text()}`);
-  const j = await startRes.json();
-  return j.file?.uri ?? j.uri;
+// Transcribe con whisper-ctranslate2 → JSON con segments [{start,end,text}].
+async function transcribeWhisper(audioPath, dir) {
+  await run("whisper-ctranslate2", [
+    audioPath, "--model", WHISPER_MODEL, "--language", "es",
+    "--task", "transcribe", "--output_format", "json", "--output_dir", dir,
+  ]);
+  const base = audioPath.split("/").pop().replace(/\.[^.]+$/, "");
+  const raw = await readFile(join(dir, `${base}.json`), "utf8");
+  const j = JSON.parse(raw);
+  return (j.segments ?? []).map((s) => ({ start: s.start, end: s.end, text: s.text }));
 }
 
-async function transcribe(fileUri, mime = "audio/mp3") {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: "Transcribí este audio de radio en español rioplatense. Devolvé SOLO el texto transcripto, sin comentarios." },
-              { file_data: { mime_type: mime, file_uri: fileUri } },
-            ],
-          },
-        ],
-      }),
-    },
-  );
-  if (!res.ok) throw new Error(`gemini generate ${res.status}: ${await res.text()}`);
-  const j = await res.json();
-  return j.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ?? "";
+async function gcsUpload(localPath, object) {
+  await run("gcloud", ["storage", "cp", localPath, `gs://${BUCKET}/${object}`, "--quiet"]);
+  return object;
 }
 
 async function ingest(payload) {
@@ -131,32 +92,45 @@ async function ingest(payload) {
     headers: { ...auth, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  console.log(`ingest ${payload.station}: ${res.status}`, await res.text());
+  console.log(`ingest ${payload.station}: ${res.status}`, (await res.text()).slice(0, 300));
 }
 
 async function main() {
   const programs = await getPrograms();
   if (!programs.length) {
-    console.log("Sin programas al aire ahora.");
+    console.log("Sin programas a grabar ahora.");
     return;
   }
   for (const p of programs) {
-    const out = `/tmp/radio-${Date.now()}.mp3`;
+    const dir = await mkdtemp(join(tmpdir(), "radio-"));
+    const out = join(dir, "audio.mp3");
     try {
       console.log(`Grabando ${p.station} · ${p.programa} (${p.durationSec}s)…`);
       await record(p.url, p.durationSec, out);
-      const uri = await uploadToGemini(out);
-      const transcript = await transcribe(uri);
+      const segments = await transcribeWhisper(out, dir);
+      const object = `radios/${slug(p.station)}/${p.isoStart.replace(/[:.]/g, "-")}.mp3`;
+      await gcsUpload(out, object);
       await ingest({
         projectId: p.projectId,
         runId: p.runId,
         station: p.station,
         programa: p.programa,
         isoStart: p.isoStart,
-        transcript,
+        segments,
+        audioObject: object,
+        durationSec: p.durationSec,
       });
     } catch (e) {
       console.error(`Falló ${p.station}:`, e.message);
+      // Marca el run como fallido para que la agenda lo muestre.
+      await fetch(`${APP_URL}/api/cron/radio-ingest`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: p.projectId, runId: p.runId, station: p.station,
+          programa: p.programa, isoStart: p.isoStart, transcript: "", failed: true,
+        }),
+      }).catch(() => {});
     } finally {
       await unlink(out).catch(() => {});
     }

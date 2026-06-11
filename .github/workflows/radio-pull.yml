@@ -1,8 +1,8 @@
 name: Radio pull (grabar + transcribir)
 
-# Cada 30 min: pide al app los programas de radio que arrancan ahora, graba
-# cada uno con ffmpeg, lo transcribe con Gemini y postea las menciones.
-# No corre en Vercel (la grabación es larga); vive en GitHub Actions.
+# Cada 15 min: pide al app los programas que arrancan ahora (con pre-roll),
+# graba con ffmpeg, transcribe con Whisper (timestamps), sube el audio a GCS y
+# postea las menciones. No corre en Vercel (la grabación es larga).
 
 on:
   schedule:
@@ -20,22 +20,33 @@ concurrency:
 jobs:
   pull:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 200
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Instalar ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar ffmpeg + Whisper (ctranslate2)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install --quiet whisper-ctranslate2
+      - name: Auth GCloud (service account)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SERVICE_ACCOUNT_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
       - name: Ingesta de radio
         env:
           APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET || 'maipu-pba' }}
+          WHISPER_MODEL: ${{ vars.WHISPER_MODEL || 'base' }}
         run: |
-          if [ -z "$CRON_SECRET" ] || [ -z "$GOOGLE_AI_API_KEY" ]; then
-            echo "::error::Faltan secrets CRON_SECRET / GOOGLE_AI_API_KEY"
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Falta secret CRON_SECRET"
             exit 1
           fi
           node tools/radio-pull.mjs

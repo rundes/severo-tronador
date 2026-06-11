@@ -187,6 +187,9 @@ export interface ListenItem {
   // URL del post padre cuando el item es un comentario / reply. Habilita
   // agrupado threaded en el feed cuando ambos están en la misma corrida.
   parentUrl?: string;
+  // Metadatos opcionales (ej. radio: { audioObject, start, end, programa } para
+  // reproducir la mención). Se persiste como jsonb en listening_items.meta.
+  meta?: Record<string, unknown>;
 }
 
 export interface ListeningConnector extends Connector {

@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { dbConfigured } from "@/lib/db/supabase";
 import { getListeningConfig } from "@/lib/listening-config";
 import { upsertItems } from "@/lib/listening-cache";
-import { transcriptToItems } from "@/lib/radio";
+import { transcriptToItems, segmentsToItems, type RadioSegment } from "@/lib/radio";
 import { markRunDone } from "@/lib/radio-runs";
 import { log } from "@/lib/logger";
 
@@ -26,25 +26,37 @@ export async function POST(req: Request) {
     programa?: string;
     isoStart?: string;
     transcript?: string;
+    segments?: RadioSegment[];
     audioObject?: string;
     durationSec?: number;
+    failed?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
-  const { projectId, runId, station, programa, isoStart, transcript, audioObject, durationSec } = body;
-  if (!projectId || !station || !isoStart || typeof transcript !== "string") {
+  const { projectId, runId, station, programa, isoStart, transcript, segments, audioObject, durationSec, failed } = body;
+  if (!projectId || !station || !isoStart) {
     return NextResponse.json({ ok: false, error: "campos faltantes" }, { status: 400 });
+  }
+  // La grabación/transcripción falló en el runner → marcar el run y salir.
+  if (failed) {
+    if (runId) await markRunDone(runId, { status: "failed" });
+    return NextResponse.json({ ok: true, failed: true });
   }
 
   const cfg = await getListeningConfig(projectId);
-  const items = transcriptToItems(transcript, cfg.keywords, {
-    station,
-    programa: programa ?? "",
-    isoStart,
-  });
+  // Con segments (Whisper) generamos items por-segmento con offsets para el
+  // ±10s; si no, caemos al transcript plano (Gemini).
+  const items =
+    Array.isArray(segments) && audioObject
+      ? segmentsToItems(segments, cfg.keywords, { station, programa: programa ?? "", isoStart, audioObject })
+      : transcriptToItems(typeof transcript === "string" ? transcript : "", cfg.keywords, {
+          station,
+          programa: programa ?? "",
+          isoStart,
+        });
   const r = await upsertItems(
     projectId,
     "radio",
@@ -54,6 +66,7 @@ export async function POST(req: Request) {
       url: i.url,
       author: i.author,
       publishedAt: i.publishedAt,
+      meta: i.meta,
     })),
   );
   if (runId) {
