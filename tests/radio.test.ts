@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isPublicHttpUrl,
   hhmmToMinutes,
   programsActiveAt,
   programsStartingNow,
@@ -21,11 +22,35 @@ const prog = (over: Partial<RadioProgram> = {}): RadioProgram => ({
   ...over,
 });
 
+describe("isPublicHttpUrl", () => {
+  it("acepta http(s) público", () => {
+    expect(isPublicHttpUrl("https://stream.radio.com.ar/la100")).toBe(true);
+    expect(isPublicHttpUrl("http://1.2.3.4:8000/stream")).toBe(true);
+  });
+  it("rechaza esquemas peligrosos", () => {
+    expect(isPublicHttpUrl("file:///etc/passwd")).toBe(false);
+    expect(isPublicHttpUrl("concat:/etc/passwd")).toBe(false);
+  });
+  it("rechaza hosts internos/privados/metadata", () => {
+    for (const u of [
+      "http://localhost/x",
+      "http://127.0.0.1/x",
+      "http://10.0.0.5/x",
+      "http://192.168.1.1/x",
+      "http://172.16.0.1/x",
+      "http://169.254.169.254/latest/meta-data",
+    ]) {
+      expect(isPublicHttpUrl(u)).toBe(false);
+    }
+  });
+});
+
 describe("RadioProgramSchema (seguridad de URL)", () => {
-  it("rechaza esquemas peligrosos (file:, etc.) y acepta http(s)", async () => {
+  it("rechaza file:// e internos, acepta http(s) público", async () => {
     const { RadioProgramSchema } = await import("@/lib/schemas");
     const base = { station: "R", programa: "P", days: [1], start: "07:00", end: "09:00" };
     expect(RadioProgramSchema.safeParse({ ...base, url: "file:///etc/passwd" }).success).toBe(false);
+    expect(RadioProgramSchema.safeParse({ ...base, url: "http://169.254.169.254/x" }).success).toBe(false);
     expect(RadioProgramSchema.safeParse({ ...base, url: "https://stream/radio.mp3" }).success).toBe(true);
   });
 });

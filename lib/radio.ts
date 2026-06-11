@@ -11,6 +11,28 @@ export interface RadioProgram {
   end: string; // "HH:MM" local
 }
 
+// URL de stream segura: http(s) y host NO interno/privado. Evita SSRF/LFI
+// cuando el url va a ffmpeg/fetch (file:, metadata cloud, redes internas).
+// Nota: no resuelve DNS (no cubre DNS-rebinding); el url lo carga un editor
+// autenticado, esto es defensa en profundidad estática.
+export function isPublicHttpUrl(u: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(u);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (host === "localhost" || host === "0.0.0.0" || host === "::1" || host === "[::1]") return false;
+  if (/^127\./.test(host)) return false; // loopback
+  if (/^10\./.test(host)) return false; // privada
+  if (/^192\.168\./.test(host)) return false; // privada
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false; // privada
+  if (/^169\.254\./.test(host)) return false; // link-local / metadata cloud
+  return true;
+}
+
 // Minutos desde medianoche de "HH:MM" (NaN si inválido).
 export function hhmmToMinutes(s: string): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());

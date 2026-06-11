@@ -5,6 +5,7 @@
 // En caso de error: redirect a la página origen con ?error=validacion.
 // En el path "happy" usa los datos ya tipados.
 import { z } from "zod";
+import { isPublicHttpUrl } from "@/lib/radio";
 
 // ── Enums compartidos ─────────────────────────────────────────────────────
 export const ChannelEnum = z.enum(["email", "whatsapp", "sms", "voice", "telegram"]);
@@ -126,20 +127,9 @@ const optFloat = (min: number, max: number) =>
     .pipe(z.union([z.number().min(min).max(max), z.null()]));
 
 export const RadioProgramSchema = z.object({
-  // Solo http(s): el url va a ffmpeg en el runner; evitamos esquemas peligrosos
-  // (file:, concat:, etc.) que permitirían leer archivos locales (SSRF/LFI).
-  url: z
-    .string()
-    .trim()
-    .url()
-    .refine((u) => {
-      try {
-        const p = new URL(u).protocol;
-        return p === "http:" || p === "https:";
-      } catch {
-        return false;
-      }
-    }, "La URL del stream debe ser http(s)"),
+  // Solo http(s) y host público: el url va a ffmpeg en el runner; evitamos
+  // esquemas peligrosos (file:/concat:) y SSRF a redes internas/metadata.
+  url: z.string().trim().url().refine(isPublicHttpUrl, "URL de stream inválida (http(s) público)"),
   station: z.string().trim().min(1).max(80),
   programa: z.string().trim().min(1).max(120),
   days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
