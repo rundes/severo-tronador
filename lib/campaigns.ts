@@ -75,7 +75,18 @@ function destinoFor(channel: Channel, c: Contact): string {
   return c.telefono ?? "—"; // whatsapp, sms, voice
 }
 
-export type CampaignEstado = "enviada" | "encolada" | "enviando";
+// "activa" se usa en campañas de tipo meta-ad (no tienen envíos directos).
+export type CampaignEstado = "enviada" | "encolada" | "enviando" | "activa";
+
+// Etiquetas legibles para todos los canales, incluido meta-ad.
+export const CHANNEL_LABEL: Record<Channel, string> = {
+  email: "Email",
+  whatsapp: "WhatsApp",
+  sms: "SMS",
+  voice: "Voz",
+  telegram: "Telegram",
+  "meta-ad": "Anuncio Meta",
+};
 
 export interface Campaign {
   id: string;
@@ -106,6 +117,12 @@ export interface Campaign {
     skipped: number;
     enqueued?: number;
   };
+  // Campos de Anuncio Meta (channel === "meta-ad"). Fase 1: asociar + medir.
+  segmentId?: string;        // uuid del segmento guardado en `segmentos`
+  metaAdId?: string;         // id del anuncio en Meta (vinculado o creado)
+  metaAdsetId?: string;      // id del ad set (opcional)
+  metaCampaignId?: string;   // id de la campaña Meta (opcional)
+  metaAudienceId?: string;   // reservado para Fase 2
 }
 
 // --- Fallback en memoria (sin Supabase) ---
@@ -122,7 +139,8 @@ interface CampanaRow {
   project_id: string;
   nombre: string;
   channel: Channel;
-  template_id: string;
+  // Nullable para campañas meta-ad (sin plantilla de envío).
+  template_id: string | null;
   // jsonb: SegmentFilter (flat) o SegmentQuery (tree). El runtime distingue
   // por presencia de `type: "group"`.
   segment_filter: SegmentFilter | SegmentQuery;
@@ -132,6 +150,12 @@ interface CampanaRow {
   estado: CampaignEstado;
   metrics: Campaign["metrics"];
   created_at: string;
+  // Campos de Anuncio Meta (añadidos en migración 0043). Nullable en la DB.
+  segment_id?: string | null;
+  meta_ad_id?: string | null;
+  meta_adset_id?: string | null;
+  meta_campaign_id?: string | null;
+  meta_audience_id?: string | null;
 }
 
 // Fila en envio_queue (cola async). Una por destinatario sendable.
@@ -197,7 +221,8 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
     projectId: row.project_id,
     nombre: row.nombre,
     channel: row.channel,
-    templateId: row.template_id,
+    // template_id nullable para campañas meta-ad (sin plantilla de envío).
+    templateId: row.template_id ?? "",
     segmentFilter: isQuery ? undefined : (sf as SegmentFilter),
     segmentQuery: isQuery ? (sf as SegmentQuery) : undefined,
     variants: Array.isArray(row.variants) ? row.variants : [],
@@ -207,6 +232,12 @@ function rowToCampaign(row: CampanaRow, envios: Envio[]): Campaign {
     estado: row.estado,
     envios,
     metrics: row.metrics,
+    // Campos de Anuncio Meta (snake_case → camelCase).
+    segmentId: row.segment_id ?? undefined,
+    metaAdId: row.meta_ad_id ?? undefined,
+    metaAdsetId: row.meta_adset_id ?? undefined,
+    metaCampaignId: row.meta_campaign_id ?? undefined,
+    metaAudienceId: row.meta_audience_id ?? undefined,
   };
 }
 

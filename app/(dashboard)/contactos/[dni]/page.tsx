@@ -18,6 +18,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   sms: "SMS",
   voice: "Voz",
   telegram: "Telegram",
+  "meta-ad": "Anuncio Meta",
 };
 
 const OUTCOME_LABEL: Record<string, string> = Object.fromEntries(

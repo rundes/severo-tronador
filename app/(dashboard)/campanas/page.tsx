@@ -12,6 +12,7 @@ const CHANNEL_ICON: Record<string, string> = {
   sms: "📱",
   voice: "☎️",
   telegram: "✈️",
+  "meta-ad": "📣",
 };
 
 function relativeDate(iso: string): string {
@@ -31,6 +32,7 @@ const ESTADO_BADGE: Record<string, string> = {
   enviada: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
   encolada: "bg-[oklch(95%_0.04_255)] text-[oklch(45%_0.13_255)] dark:bg-[oklch(35%_0.06_255)] dark:text-[oklch(82%_0.08_255)]",
   enviando: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  activa: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
 };
 
 export default async function CampanasPage() {
@@ -44,12 +46,20 @@ export default async function CampanasPage() {
         title="Campañas"
         subtitle="Cada campaña es un envío a un segmento, por un canal, respetando cuota y cooldowns."
         action={
-          <Link
-            href="/segmentos"
-            className="rounded-lg bg-[oklch(52%_0.13_255)] px-3.5 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
-          >
-            + Nueva (desde un segmento)
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/campanas/nueva/meta-ad"
+              className="rounded-lg border border-[oklch(90%_0.03_255)] bg-[oklch(97.5%_0.02_255)] px-3.5 py-2 text-sm font-medium text-[oklch(45%_0.13_255)] hover:bg-[oklch(94%_0.03_255)] dark:border-[oklch(40%_0.05_255)] dark:bg-[oklch(28%_0.04_255)] dark:text-[oklch(82%_0.1_255)]"
+            >
+              + Anuncio Meta
+            </Link>
+            <Link
+              href="/segmentos"
+              className="rounded-lg bg-[oklch(52%_0.13_255)] px-3.5 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
+            >
+              + Nueva (desde un segmento)
+            </Link>
+          </div>
         }
       />
 
@@ -89,18 +99,28 @@ export default async function CampanasPage() {
                     {c.nombre}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
-                    <span className={`rounded-full px-1.5 py-0.5 font-medium ${ESTADO_BADGE[c.estado] ?? ""}`}>
-                      {c.estado}
-                    </span>
+                    {c.channel === "meta-ad" ? (
+                      <span className="rounded-full bg-fuchsia-100 px-1.5 py-0.5 font-medium text-fuchsia-800 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+                        Anuncio Meta
+                      </span>
+                    ) : (
+                      <span className={`rounded-full px-1.5 py-0.5 font-medium ${ESTADO_BADGE[c.estado] ?? ""}`}>
+                        {c.estado}
+                      </span>
+                    )}
                     <span>{relativeDate(c.createdAt)}</span>
                   </div>
                 </div>
                 <div className="shrink-0 text-right text-xs tabular-nums text-zinc-500">
-                  <span className="text-emerald-600 dark:text-emerald-400">{c.metrics.sent} env.</span>
-                  {c.metrics.failed > 0 && (
-                    <span className="text-red-600 dark:text-red-400"> · {c.metrics.failed} fall.</span>
+                  {c.channel !== "meta-ad" && (
+                    <>
+                      <span className="text-emerald-600 dark:text-emerald-400">{c.metrics.sent} env.</span>
+                      {c.metrics.failed > 0 && (
+                        <span className="text-red-600 dark:text-red-400"> · {c.metrics.failed} fall.</span>
+                      )}
+                      {c.metrics.skipped > 0 && <span> · {c.metrics.skipped} omit.</span>}
+                    </>
                   )}
-                  {c.metrics.skipped > 0 && <span> · {c.metrics.skipped} omit.</span>}
                 </div>
               </Link>
             </li>

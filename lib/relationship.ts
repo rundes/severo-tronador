@@ -3,8 +3,10 @@
 // reales, así que el historial sale del mock (lib/mock/relaciones.ts); la
 // maquinaria de cálculo es la definitiva.
 
-export type Channel = "email" | "whatsapp" | "sms" | "voice" | "telegram";
+export type Channel = "email" | "whatsapp" | "sms" | "voice" | "telegram" | "meta-ad";
 
+// Canales de outreach (mensajería directa). "meta-ad" queda fuera: no tiene
+// conector de envío, no usa cooldown ni historial de relación.
 export const CHANNELS: Channel[] = ["email", "whatsapp", "sms", "voice", "telegram"];
 
 // Cooldown mínimo entre contactos por canal, en días (§5.2). Se reduce a la
@@ -15,6 +17,8 @@ export const COOLDOWN_DAYS: Record<Channel, number> = {
   telegram: 7,
   sms: 30,
   voice: 60,
+  // meta-ad no tiene cooldown de relación (sin envíos directos a contactos).
+  "meta-ad": 0,
 };
 
 // ── Historial crudo (lo que en producción saldría de la hoja `envios`) ──────
