@@ -20,6 +20,7 @@ import {
 } from "../publicaciones/actions";
 import { listMyAds, getAdPreview, type DatePreset, type AdStatusFilter } from "@/lib/meta-ads";
 import { MisAnuncios } from "@/components/publicaciones/mis-anuncios";
+import { AdsReportTable } from "@/components/publicaciones/ads-report-table";
 
 export const metadata = { title: "Difusión · Tronador" };
 
@@ -84,6 +85,8 @@ export default async function DifusionPage({
     ? (params.estado as AdStatusFilter)
     : "all";
   const misAds = tab === "anuncios" ? await listMyAds({ datePreset, status: adStatus }) : [];
+  // Tabla comparativa del reporte: todos los anuncios activos.
+  const activeAds = tab === "reporte" ? await listMyAds({ datePreset, status: "active" }) : [];
   const adPreviews: Record<string, string> = {};
   if (tab === "anuncios") {
     await Promise.all(
@@ -333,6 +336,37 @@ export default async function DifusionPage({
               )}
             </div>
           )}
+
+          {/* Tabla comparativa de todos los anuncios activos */}
+          <div className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                  Comparar anuncios activos
+                </h3>
+                <p className="text-xs text-zinc-500">
+                  Métricas de todos tus anuncios activos, lado a lado.
+                </p>
+              </div>
+              <form method="get" className="flex items-end gap-2">
+                <input type="hidden" name="tab" value="reporte" />
+                <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                  Período
+                  <select name="periodo" defaultValue={datePreset} className={inputCls}>
+                    <option value="today">Hoy</option>
+                    <option value="yesterday">Ayer</option>
+                    <option value="last_7d">Últimos 7 días</option>
+                    <option value="last_30d">Últimos 30 días</option>
+                    <option value="maximum">Histórico</option>
+                  </select>
+                </label>
+                <button type="submit" className={buttonClass("secondary", "sm")}>
+                  Filtrar
+                </button>
+              </form>
+            </div>
+            <AdsReportTable ads={activeAds} />
+          </div>
         </section>
       )}
     </div>
