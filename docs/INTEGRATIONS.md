@@ -314,6 +314,67 @@ Ref: [Reddit API](https://www.reddit.com/dev/api)
 
 ---
 
+## 11. Radio (`listening` → grabar + transcribir + reproducir)
+
+Monitoreo de programas de radio: graba el stream en vivo, transcribe con
+timestamps y deja reproducir cada mención ±10 s. La grabación es larga, así que
+**no corre en Vercel** sino en GitHub Actions (`.github/workflows/radio-pull.yml`,
+cron cada 15 min con pre-roll). El audio se guarda en Google Cloud Storage; Vercel
+solo firma URLs de lectura para el reproductor. Sin `GCS_*` la app corre en modo
+mock (transcripción sí, audio no).
+
+**Flujo:** runner graba con `ffmpeg` → transcribe con `whisper-ctranslate2`
+(timestamps por segmento) → sube el MP3 a `gs://<bucket>/radios/...` con
+`gcloud storage cp` → postea las menciones al app → el reproductor pide a Vercel
+una URL firmada V4 (`firmarAudioRadio` en `app/(dashboard)/escucha/actions.ts`).
+
+### a) Service account de GCS
+
+1. Crear un bucket (ej. `maipu-pba`) en una región cercana.
+2. Crear una service account con rol **`roles/storage.objectAdmin`** sobre ese
+   bucket (cubre el `cp` del runner y la lectura). Para firmar V4 desde Vercel no
+   hace falta `signBlob`: `lib/gcs.ts` usa la `private_key` del JSON directo.
+3. Generar una clave JSON de la SA y descargarla.
+
+> **OJO con el formato de la key.** A diferencia de `GOOGLE_SERVICE_ACCOUNT_KEY`
+> (Sheets, que va en **base64**), `GCS_SERVICE_ACCOUNT_KEY` va como **JSON crudo**:
+> `lib/gcs.ts` hace `JSON.parse` directo y el runner la pasa a
+> `google-github-actions/auth` tal cual. No la codifiques.
+
+### b) GitHub Actions (la grabación)
+
+En *Settings → Secrets and variables → Actions* del repo:
+
+| Tipo     | Nombre                    | Valor                                              |
+|----------|---------------------------|----------------------------------------------------|
+| Secret   | `GCS_SERVICE_ACCOUNT_KEY` | JSON crudo de la SA                                 |
+| Secret   | `CRON_SECRET`             | mismo valor que en Vercel (protege el endpoint)     |
+| Variable | `APP_URL`                 | opcional, default `https://severo-tronador.vercel.app` |
+| Variable | `GCS_BUCKET`              | opcional, default `maipu-pba`                       |
+| Variable | `WHISPER_MODEL`           | opcional, default `base` (`tiny`/`small`/… a gusto) |
+
+### c) Vercel (firmar las URLs de lectura)
+
+En *Project → Settings → Environment Variables* (Production + Preview):
+
+```env
+GCS_SERVICE_ACCOUNT_KEY=   # JSON crudo de la SA (la misma de arriba)
+GCS_BUCKET=maipu-pba
+CRON_SECRET=               # mismo valor que el secret de GitHub
+```
+
+### d) Probar
+
+- Manual: *Actions → Radio pull → Run workflow* (`workflow_dispatch`). Revisar
+  que aparezca el MP3 en el bucket y las menciones en *Escucha*.
+- La agenda de próximas grabaciones y el estado (grabando/grabado/falló) se ven
+  en *Escucha → Configurar*.
+
+Ref: [GCS signed URLs V4](https://cloud.google.com/storage/docs/access-control/signing-urls-manually) ·
+[whisper-ctranslate2](https://github.com/Softcatala/whisper-ctranslate2)
+
+---
+
 ## Agregar un conector nuevo
 
 La arquitectura es **abierta por diseño**: sumar una herramienta = un archivo +
