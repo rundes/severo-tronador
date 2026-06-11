@@ -1,4 +1,5 @@
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import type { RadioProgram } from "@/lib/radio";
 
 export interface ListeningConfig {
   zona: string;
@@ -10,11 +11,12 @@ export interface ListeningConfig {
   fuentes: string[];
   rssFeeds: string[];
   xHandles: string[];
+  radioStreams: RadioProgram[];
 }
 
 const DEFAULT: ListeningConfig = {
   zona: "", pais: "AR", radioKm: null, lat: null, lng: null,
-  keywords: [], fuentes: [], rssFeeds: [], xHandles: [],
+  keywords: [], fuentes: [], rssFeeds: [], xHandles: [], radioStreams: [],
 };
 
 interface Row {
@@ -26,6 +28,7 @@ interface Row {
   fuentes: string[] | null;
   rss_feeds: string[] | null;
   x_handles: string[] | null;
+  radio_streams: RadioProgram[] | null;
 }
 
 // Config de escucha POR PROYECTO. La tabla listening_config tiene PK project_id
@@ -51,6 +54,7 @@ export async function getListeningConfig(
     fuentes: r.fuentes ?? [],
     rssFeeds: r.rss_feeds ?? [],
     xHandles: r.x_handles ?? [],
+    radioStreams: r.radio_streams ?? [],
   };
 }
 
@@ -73,6 +77,7 @@ export async function saveListeningConfig(
       fuentes: cfg.fuentes,
       rss_feeds: cfg.rssFeeds,
       x_handles: cfg.xHandles,
+      radio_streams: cfg.radioStreams,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "project_id" },

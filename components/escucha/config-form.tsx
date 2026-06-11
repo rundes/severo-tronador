@@ -4,6 +4,7 @@ import { guardarEscucha } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { MapPicker } from "@/components/escucha/map-picker";
 import { MonitorHelp } from "@/components/escucha/monitor-help";
+import { RadioConfig } from "@/components/escucha/radio-config";
 import type { ListeningConfig } from "@/lib/listening-config";
 
 const inputCls =
@@ -221,6 +222,15 @@ export function ConfigForm({
           Fuente gratuita sin API key. Pegá las URLs de RSS/Atom de diarios y
           portales locales; la escucha trae sus últimas notas y las filtra por
           tus keywords. (Buscá &quot;RSS&quot; en el sitio del medio.)
+        </p>
+
+        <Field label="Radios (programas a grabar y transcribir)">
+          <RadioConfig initial={cfg.radioStreams} />
+        </Field>
+        <p className="text-xs text-zinc-500">
+          Cada programa se graba en su franja, se transcribe con IA (Gemini) y se
+          filtra por tus keywords. La ingesta corre por GitHub Actions; las
+          menciones aparecen poco después de que termina el programa.
         </p>
 
         <fieldset className="space-y-2">

@@ -1,0 +1,40 @@
+name: Radio pull (grabar + transcribir)
+
+# Cada 30 min: pide al app los programas de radio que arrancan ahora, graba
+# cada uno con ffmpeg, lo transcribe con Gemini y postea las menciones.
+# No corre en Vercel (la grabación es larga); vive en GitHub Actions.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radio-pull
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Ingesta de radio
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$GOOGLE_AI_API_KEY" ]; then
+            echo "::error::Faltan secrets CRON_SECRET / GOOGLE_AI_API_KEY"
+            exit 1
+          fi
+          node tools/radio-pull.mjs

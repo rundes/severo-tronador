@@ -32,6 +32,13 @@ export async function guardarEscucha(formData: FormData) {
         .filter(Boolean),
     ),
   );
+  // Programas de radio: la UI los manda como JSON en un campo oculto.
+  let radioStreams: unknown = [];
+  try {
+    radioStreams = JSON.parse(String(formData.get("radioStreams") ?? "[]"));
+  } catch {
+    radioStreams = [];
+  }
 
   const parsed = GuardarEscuchaSchema.safeParse({
     zona: raw.zona,
@@ -43,6 +50,7 @@ export async function guardarEscucha(formData: FormData) {
     fuentes,
     rssFeeds,
     xHandles,
+    radioStreams,
   });
   if (!parsed.success) redirect("/escucha?error=validacion");
 
