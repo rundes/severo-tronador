@@ -29,10 +29,41 @@ async function getPrograms() {
   return data.programs ?? [];
 }
 
+// Solo permitimos http(s): ffmpeg soporta file:/concat:/etc. → un url malicioso
+// podría leer archivos locales. Defensa además del schema (datos viejos / bypass).
+function assertHttpUrl(url) {
+  let proto;
+  try {
+    proto = new URL(url).protocol;
+  } catch {
+    throw new Error(`URL inválida: ${url}`);
+  }
+  if (proto !== "http:" && proto !== "https:") {
+    throw new Error(`Protocolo no permitido (${proto}); solo http(s)`);
+  }
+}
+
 // Graba `seconds` del stream a un mp3 mono 48kbps (chico para Gemini).
 function record(url, seconds, outPath) {
+  assertHttpUrl(url);
   return new Promise((resolve, reject) => {
-    const args = ["-y", "-i", url, "-t", String(Math.min(seconds, MAX_REC_SEC)), "-ac", "1", "-ab", "48k", "-vn", outPath];
+    // -protocol_whitelist limita ffmpeg a los protocolos de red de http(s)
+    // (sin `file`), endurece contra lectura de archivos locales.
+    const args = [
+      "-y",
+      "-protocol_whitelist",
+      "http,https,tcp,tls,crypto",
+      "-i",
+      url,
+      "-t",
+      String(Math.min(seconds, MAX_REC_SEC)),
+      "-ac",
+      "1",
+      "-ab",
+      "48k",
+      "-vn",
+      outPath,
+    ];
     const ff = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "inherit"] });
     ff.on("error", reject);
     ff.on("close", (code) => (code === 0 ? resolve(outPath) : reject(new Error(`ffmpeg exit ${code}`))));

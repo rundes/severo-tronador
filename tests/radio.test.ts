@@ -21,6 +21,15 @@ const prog = (over: Partial<RadioProgram> = {}): RadioProgram => ({
   ...over,
 });
 
+describe("RadioProgramSchema (seguridad de URL)", () => {
+  it("rechaza esquemas peligrosos (file:, etc.) y acepta http(s)", async () => {
+    const { RadioProgramSchema } = await import("@/lib/schemas");
+    const base = { station: "R", programa: "P", days: [1], start: "07:00", end: "09:00" };
+    expect(RadioProgramSchema.safeParse({ ...base, url: "file:///etc/passwd" }).success).toBe(false);
+    expect(RadioProgramSchema.safeParse({ ...base, url: "https://stream/radio.mp3" }).success).toBe(true);
+  });
+});
+
 describe("hhmmToMinutes", () => {
   it("parsea HH:MM", () => {
     expect(hhmmToMinutes("07:00")).toBe(420);

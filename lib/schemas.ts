@@ -126,7 +126,20 @@ const optFloat = (min: number, max: number) =>
     .pipe(z.union([z.number().min(min).max(max), z.null()]));
 
 export const RadioProgramSchema = z.object({
-  url: z.string().trim().url(),
+  // Solo http(s): el url va a ffmpeg en el runner; evitamos esquemas peligrosos
+  // (file:, concat:, etc.) que permitirían leer archivos locales (SSRF/LFI).
+  url: z
+    .string()
+    .trim()
+    .url()
+    .refine((u) => {
+      try {
+        const p = new URL(u).protocol;
+        return p === "http:" || p === "https:";
+      } catch {
+        return false;
+      }
+    }, "La URL del stream debe ser http(s)"),
   station: z.string().trim().min(1).max(80),
   programa: z.string().trim().min(1).max(120),
   days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
