@@ -31,6 +31,8 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "contact.create": "Contacto cargado",
   "post.publish": "Publicación enviada",
   "post.promote": "Publicación promocionada",
+  "ad.status": "Estado de anuncio cambiado",
+  "ad.create": "Anuncio creado",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -59,6 +61,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "contact.create": "bg-emerald-500",
   "post.publish": "bg-blue-500",
   "post.promote": "bg-fuchsia-500",
+  "ad.status": "bg-fuchsia-500",
+  "ad.create": "bg-fuchsia-500",
 };
 
 function ago(iso: string): string {

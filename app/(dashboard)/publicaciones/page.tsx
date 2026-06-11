@@ -14,6 +14,10 @@ import {
   listarBriefs,
   guardarBrief,
   eliminarBrief,
+  previsualizarPropuestaAd,
+  crearAnuncioDesdePropuesta,
+  listarCampaigns,
+  listarAdsets,
 } from "./actions";
 
 export const metadata = { title: "Estudio de contenido · Tronador" };
@@ -54,6 +58,10 @@ export default async function PublicacionesPage() {
         imageAction={generarImagenPropuesta}
         videoAction={generarVideoPropuesta}
         videoStatusAction={estadoVideoPropuesta}
+        previewAdAction={previsualizarPropuestaAd}
+        crearAdAction={crearAnuncioDesdePropuesta}
+        listCampaignsAction={listarCampaigns}
+        listAdsetsAction={listarAdsets}
         models={studioModels}
         savedBriefs={savedBriefs}
         listBriefsAction={listarBriefs}

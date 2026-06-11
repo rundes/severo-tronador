@@ -10,7 +10,10 @@ import {
   generarImagenIA,
   publicarDirecto,
   sugerirMejorasAviso,
+  cambiarEstadoAd,
 } from "../publicaciones/actions";
+import { listMyAds, getAdPreview, type DatePreset, type AdStatusFilter } from "@/lib/meta-ads";
+import { MisAnuncios } from "@/components/publicaciones/mis-anuncios";
 
 export const metadata = { title: "Difusión · Tronador" };
 
@@ -56,6 +59,24 @@ export default async function DifusionPage({
   const rtype = params.rtype === "ad" ? "ad" : "post";
   const rid = (params.rid ?? "").trim();
   const insights = rid ? await getInsights(rtype, rid) : null;
+
+  const datePreset: DatePreset = (["today", "yesterday", "last_7d", "last_30d", "maximum"] as const).includes(
+    params.periodo as DatePreset,
+  )
+    ? (params.periodo as DatePreset)
+    : "last_7d";
+  const adStatus: AdStatusFilter = (["all", "active", "paused"] as const).includes(params.estado as AdStatusFilter)
+    ? (params.estado as AdStatusFilter)
+    : "all";
+  const misAds = await listMyAds({ datePreset, status: adStatus });
+  // Preview placement fijo (Feed) para la galería; un frame por ad.
+  const adPreviews: Record<string, string> = {};
+  await Promise.all(
+    misAds.map(async (ad) => {
+      const frames = await getAdPreview(ad.id, ["MOBILE_FEED_STANDARD"]);
+      adPreviews[ad.id] = frames[0]?.html ?? "";
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -148,6 +169,42 @@ export default async function DifusionPage({
             Crear anuncio (pausado)
           </SubmitButton>
         </form>
+      </section>
+
+      {/* ── Mis anuncios ──────────────────────────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">🗂️ Mis anuncios</h2>
+          <form method="get" className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Período
+              <select name="periodo" defaultValue={datePreset} className={inputCls}>
+                <option value="today">Hoy</option>
+                <option value="yesterday">Ayer</option>
+                <option value="last_7d">Últimos 7 días</option>
+                <option value="last_30d">Últimos 30 días</option>
+                <option value="maximum">Histórico</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+              Estado
+              <select name="estado" defaultValue={adStatus} className={inputCls}>
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="paused">Pausados</option>
+              </select>
+            </label>
+            <button type="submit" className={buttonClass("secondary", "sm")}>
+              Filtrar
+            </button>
+          </form>
+        </div>
+        {!adsReady && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            Falta la cuenta publicitaria en el conector Meta — se muestran datos de ejemplo.
+          </p>
+        )}
+        <MisAnuncios ads={misAds} previews={adPreviews} estadoAction={cambiarEstadoAd} />
       </section>
 
       {/* ── Reportes de rendimiento ───────────────────────────────────────── */}

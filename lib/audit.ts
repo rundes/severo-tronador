@@ -29,7 +29,9 @@ export type AuditAction =
   | "group.assign"
   | "contact.create"
   | "post.publish"
-  | "post.promote";
+  | "post.promote"
+  | "ad.status"
+  | "ad.create";
 
 export interface AuditEntry {
   id: string;
