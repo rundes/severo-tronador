@@ -32,15 +32,27 @@ async function getPrograms() {
 // Solo permitimos http(s): ffmpeg soporta file:/concat:/etc. → un url malicioso
 // podría leer archivos locales. Defensa además del schema (datos viejos / bypass).
 function assertHttpUrl(url) {
-  let proto;
+  let u;
   try {
-    proto = new URL(url).protocol;
+    u = new URL(url);
   } catch {
     throw new Error(`URL inválida: ${url}`);
   }
-  if (proto !== "http:" && proto !== "https:") {
-    throw new Error(`Protocolo no permitido (${proto}); solo http(s)`);
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error(`Protocolo no permitido (${u.protocol}); solo http(s)`);
   }
+  const host = u.hostname.toLowerCase().replace(/\.$/, "");
+  const blocked =
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host);
+  if (blocked) throw new Error(`Host no permitido (interno/privado): ${host}`);
 }
 
 // Graba `seconds` del stream a un mp3 mono 48kbps (chico para Gemini).
