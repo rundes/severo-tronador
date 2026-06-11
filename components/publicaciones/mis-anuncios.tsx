@@ -19,8 +19,9 @@ export function MisAnuncios({
   if (!ads.length) {
     return <p className="text-sm text-zinc-500">No hay anuncios para este período/estado.</p>;
   }
+  // Una caja por fila (full width): el preview entra completo al lado de los KPIs.
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="flex flex-col gap-4">
       {ads.map((ad) => (
         <AdCard key={ad.id} ad={ad} previewHtml={previews[ad.id]} estadoAction={estadoAction} />
       ))}
@@ -77,22 +78,25 @@ function AdCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Horizontal en pantallas anchas: preview a la izquierda (ancho fijo,
+          alto suficiente para que el aviso entre completo) + KPIs llenando el
+          resto. Apila en mobile. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,440px)_1fr]">
         <div className="overflow-hidden rounded-md border border-zinc-100 dark:border-zinc-800">
           {previewHtml ? (
             <iframe
               title={`preview-${ad.id}`}
               sandbox="allow-scripts allow-same-origin allow-popups"
               srcDoc={previewHtml}
-              className="h-[420px] w-full border-0 bg-white"
+              className="h-[560px] w-full border-0 bg-white"
             />
           ) : (
-            <div className="flex h-[420px] items-center justify-center p-4 text-center text-xs text-zinc-400">
+            <div className="flex h-[560px] items-center justify-center p-4 text-center text-xs text-zinc-400">
               Conectá Meta (Conectores → Meta) para ver el preview real.
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2 self-start">
+        <div className="grid grid-cols-2 gap-2 self-start sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {ad.metrics.map((m) => (
             <div key={m.label} className="rounded-md border border-zinc-200 p-2 dark:border-zinc-800">
               <div className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
