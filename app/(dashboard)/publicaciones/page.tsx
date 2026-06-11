@@ -18,6 +18,7 @@ import {
   crearAnuncioDesdePropuesta,
   listarCampaigns,
   listarAdsets,
+  listarSegmentosGuardados,
 } from "./actions";
 
 export const metadata = { title: "Estudio de contenido · Tronador" };
@@ -62,6 +63,7 @@ export default async function PublicacionesPage() {
         crearAdAction={crearAnuncioDesdePropuesta}
         listCampaignsAction={listarCampaigns}
         listAdsetsAction={listarAdsets}
+        listSegmentsAction={listarSegmentosGuardados}
         models={studioModels}
         savedBriefs={savedBriefs}
         listBriefsAction={listarBriefs}

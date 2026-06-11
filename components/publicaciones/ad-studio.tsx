@@ -42,10 +42,19 @@ type CrearAdAction = (input: {
   link: string;
   cta: string;
   adsetId?: string;
-  nuevo?: { campaignName: string; objective: string; adsetName: string; dailyBudgetUsd: number; days: number; pais: string };
+  nuevo?: {
+    campaignName: string;
+    objective: string;
+    adsetName: string;
+    dailyBudgetUsd: number;
+    days: number;
+    pais: string;
+    segmentId?: string;
+  };
 }) => Promise<{ ok: boolean; id?: string; msg: string }>;
 type ListRefAction = () => Promise<{ id: string; name: string }[]>;
 type ListAdsetsAction = (campaignId: string) => Promise<{ id: string; name: string }[]>;
+type ListSegmentsAction = () => Promise<{ id: string; nombre: string }[]>;
 
 interface MediaState {
   imgPrompt?: string;
@@ -100,6 +109,7 @@ export function AdStudio({
   crearAdAction,
   listCampaignsAction,
   listAdsetsAction,
+  listSegmentsAction,
   models,
   savedBriefs,
   saveBriefAction,
@@ -116,6 +126,7 @@ export function AdStudio({
   crearAdAction: CrearAdAction;
   listCampaignsAction: ListRefAction;
   listAdsetsAction: ListAdsetsAction;
+  listSegmentsAction: ListSegmentsAction;
   models: string[];
   savedBriefs: SavedBrief[];
   saveBriefAction: SaveBriefAction;
@@ -273,12 +284,31 @@ export function AdStudio({
     presupuesto?: number;
     dias?: number;
     pais?: string;
+    segmentId?: string;
     busy?: boolean;
     msg?: string;
     adId?: string;
   }>>({});
   function patchCrear(id: string, patch: Partial<(typeof crearState)[string]>) {
     setCrearState((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
+  }
+
+  // Segmentos guardados: se cargan la primera vez que el usuario abre el panel
+  // "Crear campaña/conjunto nuevos" (lazy, para no bloquear la carga inicial).
+  const [segments, setSegments] = useState<{ id: string; nombre: string }[]>([]);
+  const [segmentsLoaded, setSegmentsLoaded] = useState(false);
+
+  function ensureSegmentsLoaded() {
+    if (segmentsLoaded) return;
+    setSegmentsLoaded(true);
+    start(async () => {
+      try {
+        const segs = await listSegmentsAction();
+        setSegments(segs);
+      } catch {
+        // Ignoramos: el picker simplemente no muestra segmentos guardados.
+      }
+    });
   }
 
   function cargarCampaigns(p: Proposal) {
@@ -324,6 +354,7 @@ export function AdStudio({
                 dailyBudgetUsd: st.presupuesto ?? 5,
                 days: st.dias ?? 7,
                 pais: st.pais ?? "AR",
+                ...(st.segmentId ? { segmentId: st.segmentId } : {}),
               },
             }
           : { adsetId: st.adsetId }),
@@ -734,9 +765,9 @@ export function AdStudio({
                 </div>
 
                 {/* Anuncio Meta: preview en todos los placements */}
-                <details className="rounded-md border border-zinc-100 p-2 dark:border-zinc-800">
-                  <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                    📣 Anuncio Meta (preview)
+                <details open className="rounded-md border border-indigo-100 bg-indigo-50/30 p-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+                  <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                    📣 Anuncio Meta — previsualizá y publicá con la API de Meta
                   </summary>
                   <div className="space-y-2 pt-2">
                     <div className="flex flex-wrap gap-2">
@@ -802,8 +833,10 @@ export function AdStudio({
                         <button
                           type="button"
                           onClick={() => {
-                            patchCrear(p.id, { modoNuevo: !crearState[p.id]?.modoNuevo });
+                            const goingNuevo = !crearState[p.id]?.modoNuevo;
+                            patchCrear(p.id, { modoNuevo: goingNuevo });
                             if (!crearState[p.id]?.campaigns) cargarCampaigns(p);
+                            if (goingNuevo) ensureSegmentsLoaded();
                           }}
                           className="text-[11px] text-zinc-500 underline-offset-2 hover:underline"
                         >
@@ -812,12 +845,34 @@ export function AdStudio({
                       </div>
 
                       {crearState[p.id]?.modoNuevo ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <input className={inputCls} placeholder="Nombre campaña" value={crearState[p.id]?.campaignName ?? ""} onChange={(e) => patchCrear(p.id, { campaignName: e.target.value })} />
-                          <input className={inputCls} placeholder="Nombre conjunto" value={crearState[p.id]?.adsetName ?? ""} onChange={(e) => patchCrear(p.id, { adsetName: e.target.value })} />
-                          <input className={inputCls} type="number" min={1} placeholder="USD/día" value={crearState[p.id]?.presupuesto ?? 5} onChange={(e) => patchCrear(p.id, { presupuesto: Number(e.target.value) })} />
-                          <input className={inputCls} type="number" min={1} placeholder="Días" value={crearState[p.id]?.dias ?? 7} onChange={(e) => patchCrear(p.id, { dias: Number(e.target.value) })} />
-                          <input className={`${inputCls} uppercase`} maxLength={2} placeholder="País" value={crearState[p.id]?.pais ?? "AR"} onChange={(e) => patchCrear(p.id, { pais: e.target.value })} />
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input className={inputCls} placeholder="Nombre campaña" value={crearState[p.id]?.campaignName ?? ""} onChange={(e) => patchCrear(p.id, { campaignName: e.target.value })} />
+                            <input className={inputCls} placeholder="Nombre conjunto" value={crearState[p.id]?.adsetName ?? ""} onChange={(e) => patchCrear(p.id, { adsetName: e.target.value })} />
+                            <input className={inputCls} type="number" min={1} placeholder="USD/día" value={crearState[p.id]?.presupuesto ?? 5} onChange={(e) => patchCrear(p.id, { presupuesto: Number(e.target.value) })} />
+                            <input className={inputCls} type="number" min={1} placeholder="Días" value={crearState[p.id]?.dias ?? 7} onChange={(e) => patchCrear(p.id, { dias: Number(e.target.value) })} />
+                            <input className={`${inputCls} uppercase`} maxLength={2} placeholder="País" value={crearState[p.id]?.pais ?? "AR"} onChange={(e) => patchCrear(p.id, { pais: e.target.value })} />
+                          </div>
+                          {/* Segmento / Custom Audience */}
+                          <div className="space-y-0.5">
+                            <label className="flex flex-col gap-1 text-[11px] text-zinc-500">
+                              Targetear segmento (Custom Audience)
+                              <select
+                                className={inputCls}
+                                value={crearState[p.id]?.segmentId ?? ""}
+                                onFocus={ensureSegmentsLoaded}
+                                onChange={(e) => patchCrear(p.id, { segmentId: e.target.value || undefined })}
+                              >
+                                <option value="">— Sin segmento (targeting nativo de Meta) —</option>
+                                {segments.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <p className="text-[10px] text-zinc-400">
+                              Los emails/teléfonos del segmento se hashean con SHA-256 antes de enviarse a Meta. Requiere aceptar los Términos de Custom Audiences en Meta Business.
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
