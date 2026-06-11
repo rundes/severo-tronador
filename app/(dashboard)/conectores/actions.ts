@@ -8,6 +8,7 @@ import {
   getConnectorConfig,
   type ConnectorConfigValues,
 } from "@/lib/connectors/config";
+import { invalidateConnectorHealth } from "@/lib/connectors/health";
 
 function valuesFromForm(connectorId: string, fd: FormData): ConnectorConfigValues {
   const schema = getConnector(connectorId)?.configSchema ?? [];
@@ -29,6 +30,7 @@ export async function guardarConfig(
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
+  invalidateConnectorHealth(connectorId);
   revalidatePath("/conectores");
   return { ok: true };
 }
@@ -45,6 +47,7 @@ export async function probarConexion(
     return { ok: false, message: (e as Error).message };
   }
   const res = await connector.test(await getConnectorConfig(connectorId));
+  invalidateConnectorHealth(connectorId);
   revalidatePath("/conectores");
   return { ok: res.ok, message: res.message };
 }
@@ -58,5 +61,6 @@ export async function toggleConector(connectorId: string, enabled: boolean) {
 export async function borrarConfig(connectorId: string) {
   if (!getConnector(connectorId)) return;
   await deleteConnectorConfig(connectorId);
+  invalidateConnectorHealth(connectorId);
   revalidatePath("/conectores");
 }

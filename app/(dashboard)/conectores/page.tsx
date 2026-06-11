@@ -14,19 +14,20 @@ import {
   borrarConfig,
 } from "./actions";
 import { PageHeader } from "@/components/ui/page-header";
+import { getConnectorHealth } from "@/lib/connectors/health";
 
 export const metadata = { title: "Conectores · Severo Tronador" };
 
-// Resuelve estado + cuota + nota de test + config de cada conector (server-side).
+// Resuelve estado + cuota + salud real + config de cada conector (server-side).
 async function resolve(connector: Connector) {
-  const [status, quota, test, fields, enabled] = await Promise.all([
+  const [status, quota, health, fields, enabled] = await Promise.all([
     connector.getStatus(),
     connector.getQuota ? connector.getQuota() : Promise.resolve(null),
-    connector.test(),
+    getConnectorHealth(connector.id),
     configFieldStatus(connector.id),
     isEnabled(connector.id),
   ]);
-  return { connector, status, quota, note: test.message, fields, enabled };
+  return { connector, status, quota, health, fields, enabled };
 }
 
 export default async function ConectoresPage() {
@@ -51,13 +52,13 @@ export default async function ConectoresPage() {
               {CATEGORY_LABELS[cat]}
             </h2>
             <div className="space-y-2">
-              {items.map(({ connector, status, quota, note, fields, enabled }) => (
+              {items.map(({ connector, status, quota, health, fields, enabled }) => (
                 <ConnectorCard
                   key={connector.id}
                   connector={connector}
                   status={status}
                   quota={quota}
-                  note={note}
+                  health={health}
                   fields={fields}
                   enabled={enabled}
                   setupUrl={setupLink(connector.id)}
