@@ -605,8 +605,8 @@ export async function promocionarPost(formData: FormData) {
   const dias = Number(formData.get("dias") ?? 0);
   const pais = (String(formData.get("pais") ?? "AR").trim().toUpperCase() || "AR").slice(0, 2);
 
-  if (!postId) redirect("/publicaciones?error=promo_post");
-  if (!(presupuesto > 0) || !(dias > 0)) redirect("/publicaciones?error=promo_datos");
+  if (!postId) redirect("/difusion?tab=publicar&error=promo_post");
+  if (!(presupuesto > 0) || !(dias > 0)) redirect("/difusion?tab=publicar&error=promo_datos");
 
   const r = await promotePagePost({
     postId,
@@ -616,7 +616,7 @@ export async function promocionarPost(formData: FormData) {
     nowMs: Date.now(),
   });
   if (!r.ok) {
-    redirect(`/publicaciones?error=promo&detalle=${encodeURIComponent(r.error ?? "")}`);
+    redirect(`/difusion?tab=publicar&error=promo&detalle=${encodeURIComponent(r.error ?? "")}`);
   }
 
   await logAudit({
@@ -627,8 +627,8 @@ export async function promocionarPost(formData: FormData) {
     entity_id: r.id,
     details: { postId, presupuesto, dias, pais, mode: r.mode },
   });
-  const qs = new URLSearchParams({ ok: "promocionado", mode: r.mode });
+  const qs = new URLSearchParams({ ok: "promocionado", mode: r.mode, tab: "publicar" });
   if (r.id) qs.set("ad", r.id);
-  revalidatePath("/publicaciones");
-  redirect(`/publicaciones?${qs.toString()}`);
+  revalidatePath("/difusion");
+  redirect(`/difusion?${qs.toString()}`);
 }

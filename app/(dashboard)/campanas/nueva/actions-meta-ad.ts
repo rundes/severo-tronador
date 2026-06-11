@@ -1,11 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { requireMember } from "@/lib/workspace";
+import { createAndPopulateAudience } from "@/lib/meta-custom-audiences";
 
 // Inserta directamente una fila en `campanas` para channel="meta-ad".
 // No usa executeCampaign (que necesita un conector). No toca envios ni queue.
@@ -83,4 +85,46 @@ export async function crearCampanaMetaAd(formData: FormData) {
   });
 
   redirect(`/campanas/${id}`);
+}
+
+// Fase 2: empuja el segmento de la campaña como Custom Audience de Meta
+// (emails/teléfonos hasheados) y guarda el audience_id en la campaña.
+export async function crearAudienciaSegmento(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const campaignId = String(formData.get("campaignId") ?? "").trim();
+  if (!campaignId) redirect("/campanas");
+  if (!dbConfigured()) redirect(`/campanas/${campaignId}?aud_error=no_db`);
+
+  const sb = getSupabase();
+  const { data: camp } = await sb
+    .from("campanas")
+    .select("id, nombre, segment_id")
+    .eq("id", campaignId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!camp) redirect(`/campanas/${campaignId}?aud_error=no_existe`);
+  if (!camp.segment_id) redirect(`/campanas/${campaignId}?aud_error=sin_segmento`);
+
+  const r = await createAndPopulateAudience({
+    projectId,
+    segmentId: camp.segment_id as string,
+    name: `Tronador · ${camp.nombre}`,
+  });
+  if (!r.ok) {
+    redirect(`/campanas/${campaignId}?aud_error=${encodeURIComponent(r.error ?? "fallo")}`);
+  }
+
+  await sb.from("campanas").update({ meta_audience_id: r.audienceId }).eq("id", campaignId);
+  await logAudit({
+    action: "campaign.meta_ad.audience",
+    projectId,
+    actor: (await auth())?.user?.email ?? null,
+    entity_type: "campaign",
+    entity_id: campaignId,
+    details: { audienceId: r.audienceId, matched: r.matched, total: r.total, mode: r.mode },
+  });
+  revalidatePath(`/campanas/${campaignId}`);
+  redirect(
+    `/campanas/${campaignId}?aud_ok=1&matched=${r.matched}&total=${r.total}&mode=${r.mode}`,
+  );
 }
