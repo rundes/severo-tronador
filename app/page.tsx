@@ -2,12 +2,13 @@
 // del logo. Editorial-typographic: jerarquía con peso + escala, sin cards
 // repetidas, ritmo de espacio variable, sin gradientes ni glass.
 //
-// Sin redirect automático a /conectores — eso vivía antes acá. El acceso
-// al panel queda como CTA explícito; quien llega sin sesión ve la
-// presentación.
+// Usuarios autenticados son redirigidos a /dashboard directamente.
+// El acceso al panel queda como CTA explícito para quien llega sin sesión.
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { VERSION_STRING } from "@/lib/version";
+import { auth, authConfigured } from "@/lib/auth";
 import { enviarContacto } from "./actions";
 
 export const metadata = {
@@ -21,6 +22,12 @@ export default async function Landing({
 }: {
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
+  // Si ya hay sesión activa, ir directo al panel.
+  if (authConfigured) {
+    const session = await auth();
+    if (session) redirect("/dashboard");
+  }
+
   const params = (await searchParams) ?? {};
 
   return (
@@ -88,7 +95,7 @@ function NavBar() {
           Contacto
         </Link>
         <Link
-          href="/conectores"
+          href="/signin"
           className="rounded-full bg-[oklch(28%_0.06_250)] px-4 py-1.5 text-sm font-medium text-[oklch(96%_0.01_80)] hover:bg-[oklch(20%_0.06_250)]"
         >
           Panel
@@ -137,7 +144,7 @@ function Hero() {
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
-            href="/conectores"
+            href="/signin"
             className="rounded-full bg-[oklch(28%_0.06_250)] px-6 py-3 text-sm font-medium text-[oklch(96%_0.01_80)] hover:bg-[oklch(20%_0.06_250)]"
           >
             Acceder al panel
@@ -327,7 +334,7 @@ function AccessSection() {
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <Link
-              href="/conectores"
+              href="/signin"
               className="inline-flex items-center gap-2 rounded-full bg-[oklch(28%_0.06_250)] px-6 py-3 text-sm font-medium text-[oklch(96%_0.01_80)] hover:bg-[oklch(20%_0.06_250)]"
             >
               <svg

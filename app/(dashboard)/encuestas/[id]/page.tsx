@@ -282,6 +282,7 @@ export default async function EncuestaDetailPage({
           { id: "estadisticas", label: "Estadísticas", content: estadisticas },
           { id: "envio", label: "Envío", content: envio },
         ]}
+        initialTab={isPublished || isClosed ? "estadisticas" : "edicion"}
       />
     </div>
   );

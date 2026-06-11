@@ -4,12 +4,16 @@ import { useState } from "react";
 
 // Tabs client que muestran/ocultan paneles ya renderizados (server) sin
 // recargar → preserva el estado del editor al cambiar de pestaña.
+// initialTab: permite al servidor pre-seleccionar una pestaña (ej. estadísticas
+// para encuestas publicadas).
 export function EditTabs({
   items,
+  initialTab,
 }: {
   items: { id: string; label: string; content: React.ReactNode }[];
+  initialTab?: string;
 }) {
-  const [active, setActive] = useState(items[0]?.id);
+  const [active, setActive] = useState(initialTab ?? items[0]?.id);
   return (
     <div>
       <nav
