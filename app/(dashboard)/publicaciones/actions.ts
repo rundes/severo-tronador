@@ -55,6 +55,8 @@ import {
   type SavedBrief,
   type BriefInput,
 } from "@/lib/estudio-briefs";
+import { listSavedSegments } from "@/lib/segments-store";
+import { createAndPopulateAudience } from "@/lib/meta-custom-audiences";
 
 async function actorEmail(): Promise<string | null> {
   return (await auth())?.user?.email ?? null;
@@ -456,6 +458,13 @@ export async function eliminarBrief(id: string): Promise<{ ok: boolean; msg: str
   }
 }
 
+// Lista los segmentos guardados del proyecto para el picker del Estudio.
+export async function listarSegmentosGuardados(): Promise<{ id: string; nombre: string }[]> {
+  const { id: projectId } = await requireMember("editor");
+  const segs = await listSavedSegments(projectId);
+  return segs.map((s) => ({ id: s.id, nombre: s.nombre }));
+}
+
 // ── Anuncios Meta (galería + estudio) ───────────────────────────────────
 
 // Lista mis ads para la galería de Difusión (lectura).
@@ -544,7 +553,16 @@ export interface CrearAnuncioInput {
   cta: string;
   // Conjunto existente, o datos para crear campaña+conjunto nuevos.
   adsetId?: string;
-  nuevo?: { campaignName: string; objective: string; adsetName: string; dailyBudgetUsd: number; days: number; pais: string };
+  nuevo?: {
+    campaignName: string;
+    objective: string;
+    adsetName: string;
+    dailyBudgetUsd: number;
+    days: number;
+    pais: string;
+    /** Segmento guardado a empujar como Custom Audience en el nuevo conjunto. */
+    segmentId?: string;
+  };
 }
 
 // Crea el anuncio PAUSED desde una propuesta (elige o crea campaña/conjunto).
@@ -557,9 +575,28 @@ export async function crearAnuncioDesdePropuesta(
   if (!/^https?:\/\//i.test(input.link)) return { ok: false, msg: "Link de destino inválido." };
 
   let adsetId = input.adsetId;
+  let audienceNote = "";
   if (!adsetId) {
     if (!input.nuevo) return { ok: false, msg: "Elegí un conjunto o creá uno nuevo." };
     const camp = await createCampaign({ name: input.nuevo.campaignName, objective: input.nuevo.objective });
+
+    // Si se eligió un segmento, empujarlo como Custom Audience antes de crear el conjunto.
+    let customAudienceId: string | undefined;
+    if (input.nuevo.segmentId) {
+      const audResult = await createAndPopulateAudience({
+        projectId,
+        segmentId: input.nuevo.segmentId,
+        name: `Tronador · ${input.nuevo.adsetName}`,
+      });
+      if (audResult.ok && audResult.audienceId) {
+        customAudienceId = audResult.audienceId;
+        audienceNote = ` Audiencia personalizada aplicada (${audResult.matched}/${audResult.total} contactos hasheados).`;
+      } else {
+        // No bloqueamos la creación del anuncio; se crea sin segmento y se informa.
+        audienceNote = ` (La audiencia personalizada no pudo crearse: ${audResult.error ?? "error desconocido"}. Anuncio creado sin segmento.)`;
+      }
+    }
+
     const adset = await createAdset({
       campaignId: camp.id,
       name: input.nuevo.adsetName,
@@ -567,6 +604,7 @@ export async function crearAnuncioDesdePropuesta(
       days: input.nuevo.days,
       countries: [input.nuevo.pais.toUpperCase().slice(0, 2) || "AR"],
       nowMs: Date.now(),
+      customAudienceId,
     });
     adsetId = adset.id;
   }
@@ -591,7 +629,7 @@ export async function crearAnuncioDesdePropuesta(
       entity_id: r.id,
       details: { from: "studio", mode: r.mode, adsetId },
     });
-    return { ok: true, id: r.id, msg: `Anuncio creado en PAUSADO${r.mode === "mock" ? " (mock)" : ""}. Activalo en Difusión o en el Administrador de Meta.` };
+    return { ok: true, id: r.id, msg: `Anuncio creado en PAUSADO${r.mode === "mock" ? " (mock)" : ""}. Activalo en Difusión o en el Administrador de Meta.${audienceNote}` };
   } catch (e) {
     return { ok: false, msg: (e as Error).message };
   }
