@@ -32,7 +32,8 @@ export type AuditAction =
   | "post.promote"
   | "ad.status"
   | "ad.create"
-  | "campaign.meta_ad.create";
+  | "campaign.meta_ad.create"
+  | "campaign.meta_ad.audience";
 
 export interface AuditEntry {
   id: string;

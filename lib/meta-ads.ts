@@ -412,17 +412,21 @@ export async function createAdset(input: {
   days: number;
   countries: string[];
   nowMs: number;
+  // Fase 2: targetear una Custom Audience (segmento empujado como audiencia).
+  customAudienceId?: string;
 }): Promise<{ id: string }> {
   const { token, adAccountId } = await getMetaConfig();
   if (!token || !adAccountId) return { id: `mock-adset-${idStamp(input.name)}` };
   const endTime = Math.floor((input.nowMs + input.days * 86_400_000) / 1000);
+  const targeting: Record<string, unknown> = { geo_locations: { countries: input.countries } };
+  if (input.customAudienceId) targeting.custom_audiences = [{ id: input.customAudienceId }];
   const data = await graphPost(`${withAct(adAccountId)}/adsets`, {
     name: input.name,
     campaign_id: input.campaignId,
     daily_budget: String(Math.round(input.dailyBudgetUsd * 100)),
     billing_event: "IMPRESSIONS",
     optimization_goal: "LINK_CLICKS",
-    targeting: JSON.stringify({ geo_locations: { countries: input.countries } }),
+    targeting: JSON.stringify(targeting),
     end_time: String(endTime),
     status: "PAUSED",
     access_token: token,

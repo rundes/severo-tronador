@@ -11,8 +11,10 @@ import { requireProject } from "@/lib/workspace";
 import { generarShareLink } from "./actions";
 import { ShareLinkBox } from "@/components/campanas/share-link-box";
 import { getInsights } from "@/lib/meta";
+import { getAudienceStatus } from "@/lib/meta-custom-audiences";
 import { getSavedSegment } from "@/lib/segments-store";
 import { loadContacts, applySegment } from "@/lib/segments";
+import { crearAudienciaSegmento } from "../nueva/actions-meta-ad";
 
 export const metadata = { title: "Campaña · Severo Tronador" };
 
@@ -89,6 +91,11 @@ export default async function CampanaPage({
         ? Math.round((adReach / segmentSize) * 100)
         : null;
 
+    // Fase 2: estado de la Custom Audience (si ya se creó).
+    const audStatus = campaign.metaAudienceId
+      ? await getAudienceStatus(campaign.metaAudienceId)
+      : null;
+
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <Link href="/campanas" className="text-sm text-zinc-500 hover:underline">
@@ -156,6 +163,79 @@ export default async function CampanaPage({
                 Editá la campaña para vincular un segmento.
               </span>
             </p>
+          )}
+        </div>
+
+        {/* Audiencia personalizada (Fase 2) */}
+        <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+              Audiencia personalizada (Meta)
+            </div>
+            {audStatus?.mode === "mock" && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                modo simulado
+              </span>
+            )}
+          </div>
+
+          {sp.aud_ok && (
+            <p className="mb-3 text-sm text-emerald-700 dark:text-emerald-400">
+              Audiencia creada: {sp.matched} de {sp.total} contactos con email/teléfono
+              {sp.mode === "mock" ? " (simulado, sin credenciales de Meta)" : ""}.
+            </p>
+          )}
+          {sp.aud_error && (
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">
+              No se pudo crear la audiencia:{" "}
+              {sp.aud_error === "sin_segmento"
+                ? "la campaña no tiene segmento asociado."
+                : sp.aud_error === "no_db"
+                  ? "Supabase no configurado."
+                  : sp.aud_error}
+            </p>
+          )}
+
+          {campaign.metaAudienceId ? (
+            <div className="space-y-1">
+              <div className="font-mono text-xs text-zinc-500">
+                Audience ID: {campaign.metaAudienceId}
+              </div>
+              {audStatus?.ok && audStatus.mode === "live" && (
+                <div className="text-sm text-zinc-700 dark:text-zinc-200">
+                  ~{(audStatus.approximateCount ?? 0).toLocaleString("es-AR")} personas ·{" "}
+                  <span className="text-zinc-500">{audStatus.status}</span>
+                </div>
+              )}
+              <form action={crearAudienciaSegmento}>
+                <input type="hidden" name="campaignId" value={campaign.id} />
+                <button type="submit" className={buttonClass("secondary", "sm")}>
+                  Resincronizar desde el segmento
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-zinc-500">
+                Empujá el segmento como Custom Audience para que el anuncio pueda
+                targetear a esa gente. Los emails/teléfonos se hashean (SHA-256)
+                antes de salir de la app.
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                Requiere aceptar los Términos de Custom Audiences en tu Meta Business
+                Manager. Sin eso, Meta rechaza la subida.
+              </p>
+              <form action={crearAudienciaSegmento}>
+                <input type="hidden" name="campaignId" value={campaign.id} />
+                <button
+                  type="submit"
+                  disabled={!campaign.segmentId}
+                  className={buttonClass("primary", "sm")}
+                >
+                  Crear audiencia desde el segmento
+                </button>
+              </form>
+            </div>
           )}
         </div>
 

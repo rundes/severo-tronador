@@ -34,6 +34,7 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "ad.status": "Estado de anuncio cambiado",
   "ad.create": "Anuncio creado",
   "campaign.meta_ad.create": "Campaña Meta creada",
+  "campaign.meta_ad.audience": "Audiencia Meta creada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -65,6 +66,7 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "ad.status": "bg-fuchsia-500",
   "ad.create": "bg-fuchsia-500",
   "campaign.meta_ad.create": "bg-fuchsia-500",
+  "campaign.meta_ad.audience": "bg-fuchsia-500",
 };
 
 function ago(iso: string): string {
