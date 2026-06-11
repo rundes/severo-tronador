@@ -6,6 +6,7 @@ import type {
   Platform,
   BriefRefs,
 } from "@/lib/ad-proposals";
+import type { PreviewFrame, ProposalMedia } from "@/lib/meta-ads";
 import type { GenProposalsResult } from "@/app/(dashboard)/publicaciones/actions";
 import type { SavedBrief, BriefInput } from "@/lib/estudio-briefs";
 import { buttonClass } from "@/components/ui/button";
@@ -28,6 +29,23 @@ type VideoAction = (prompt: string) => Promise<{ ok: boolean; requestId?: string
 type VideoStatusAction = (
   requestId: string,
 ) => Promise<{ ok: boolean; status: string; url?: string; reason?: string }>;
+
+type PreviewAdAction = (
+  proposal: Proposal,
+  media: ProposalMedia,
+  link: string,
+  cta: string,
+) => Promise<{ ok: boolean; previews: PreviewFrame[]; msg: string }>;
+type CrearAdAction = (input: {
+  proposal: Proposal;
+  media: ProposalMedia;
+  link: string;
+  cta: string;
+  adsetId?: string;
+  nuevo?: { campaignName: string; objective: string; adsetName: string; dailyBudgetUsd: number; days: number; pais: string };
+}) => Promise<{ ok: boolean; id?: string; msg: string }>;
+type ListRefAction = () => Promise<{ id: string; name: string }[]>;
+type ListAdsetsAction = (campaignId: string) => Promise<{ id: string; name: string }[]>;
 
 interface MediaState {
   imgPrompt?: string;
@@ -78,6 +96,10 @@ export function AdStudio({
   imageAction,
   videoAction,
   videoStatusAction,
+  previewAdAction,
+  crearAdAction,
+  listCampaignsAction,
+  listAdsetsAction,
   models,
   savedBriefs,
   saveBriefAction,
@@ -90,6 +112,10 @@ export function AdStudio({
   imageAction: ImageAction;
   videoAction: VideoAction;
   videoStatusAction: VideoStatusAction;
+  previewAdAction: PreviewAdAction;
+  crearAdAction: CrearAdAction;
+  listCampaignsAction: ListRefAction;
+  listAdsetsAction: ListAdsetsAction;
   models: string[];
   savedBriefs: SavedBrief[];
   saveBriefAction: SaveBriefAction;
@@ -206,6 +232,104 @@ export function AdStudio({
 
   function patchMedia(id: string, patch: Partial<MediaState>) {
     setMedia((m) => ({ ...m, [id]: { ...m[id], ...patch } }));
+  }
+
+  const [adState, setAdState] = useState<Record<string, {
+    link?: string;
+    cta?: string;
+    previews?: PreviewFrame[];
+    fmtIdx?: number;
+    busy?: boolean;
+    msg?: string;
+  }>>({});
+  function patchAd(id: string, patch: Partial<(typeof adState)[string]>) {
+    setAdState((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
+  }
+  const CTAS = ["LEARN_MORE", "SIGN_UP", "GET_OFFER", "CONTACT_US", "WATCH_MORE"];
+
+  function previsualizarAd(p: Proposal) {
+    const st = adState[p.id] ?? {};
+    const link = (st.link ?? "").trim();
+    if (!/^https?:\/\//i.test(link)) {
+      patchAd(p.id, { msg: "Poné un link de destino válido (https://…)." });
+      return;
+    }
+    const adMedia: ProposalMedia = { imageUrl: media[p.id]?.imageUrl, videoUrl: media[p.id]?.videoUrl };
+    patchAd(p.id, { busy: true, msg: "" });
+    start(async () => {
+      const r = await previewAdAction(p, adMedia, link, st.cta ?? "LEARN_MORE");
+      patchAd(p.id, { busy: false, msg: r.msg, ...(r.ok ? { previews: r.previews, fmtIdx: 0 } : {}) });
+    });
+  }
+
+  const [crearState, setCrearState] = useState<Record<string, {
+    campaigns?: { id: string; name: string }[];
+    adsets?: { id: string; name: string }[];
+    campaignId?: string;
+    adsetId?: string;
+    modoNuevo?: boolean;
+    campaignName?: string;
+    adsetName?: string;
+    presupuesto?: number;
+    dias?: number;
+    pais?: string;
+    busy?: boolean;
+    msg?: string;
+    adId?: string;
+  }>>({});
+  function patchCrear(id: string, patch: Partial<(typeof crearState)[string]>) {
+    setCrearState((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
+  }
+
+  function cargarCampaigns(p: Proposal) {
+    start(async () => {
+      const campaigns = await listCampaignsAction();
+      patchCrear(p.id, { campaigns });
+    });
+  }
+  function cargarAdsets(p: Proposal, campaignId: string) {
+    patchCrear(p.id, { campaignId, adsetId: undefined });
+    start(async () => {
+      const adsets = await listAdsetsAction(campaignId);
+      patchCrear(p.id, { adsets });
+    });
+  }
+
+  function crearAd(p: Proposal) {
+    const st = crearState[p.id] ?? {};
+    const ad = adState[p.id] ?? {};
+    const link = (ad.link ?? "").trim();
+    if (!/^https?:\/\//i.test(link)) {
+      patchCrear(p.id, { msg: "Poné el link de destino en el preview de arriba." });
+      return;
+    }
+    const adMedia: ProposalMedia = { imageUrl: media[p.id]?.imageUrl, videoUrl: media[p.id]?.videoUrl };
+    if (!adMedia.imageUrl && !adMedia.videoUrl) {
+      patchCrear(p.id, { msg: "Generá una imagen o video primero." });
+      return;
+    }
+    patchCrear(p.id, { busy: true, msg: "" });
+    start(async () => {
+      const r = await crearAdAction({
+        proposal: p,
+        media: adMedia,
+        link,
+        cta: ad.cta ?? "LEARN_MORE",
+        ...(st.modoNuevo || !st.adsetId
+          ? {
+              nuevo: {
+                campaignName: st.campaignName?.trim() || `Estudio · ${p.label}`,
+                objective: "OUTCOME_TRAFFIC",
+                adsetName: st.adsetName?.trim() || `Estudio · ${p.label} · conjunto`,
+                dailyBudgetUsd: st.presupuesto ?? 5,
+                days: st.dias ?? 7,
+                pais: st.pais ?? "AR",
+              },
+            }
+          : { adsetId: st.adsetId }),
+      });
+      patchCrear(p.id, { busy: false, msg: r.msg, ...(r.ok ? { adId: r.id } : {}) });
+    });
   }
 
   const platformList = [...platforms];
@@ -608,6 +732,132 @@ export function AdStudio({
                     {media[p.id]?.vidMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.vidMsg}</p>}
                   </div>
                 </div>
+
+                {/* Anuncio Meta: preview en todos los placements */}
+                <details className="rounded-md border border-zinc-100 p-2 dark:border-zinc-800">
+                  <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                    📣 Anuncio Meta (preview)
+                  </summary>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        value={adState[p.id]?.link ?? ""}
+                        onChange={(e) => patchAd(p.id, { link: e.target.value })}
+                        placeholder="Link de destino (https://…)"
+                        className={`${inputCls} flex-1`}
+                      />
+                      <select
+                        value={adState[p.id]?.cta ?? "LEARN_MORE"}
+                        onChange={(e) => patchAd(p.id, { cta: e.target.value })}
+                        className={inputCls}
+                      >
+                        {CTAS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => previsualizarAd(p)}
+                        disabled={pending || (!media[p.id]?.imageUrl && !media[p.id]?.videoUrl)}
+                        className={buttonClass("secondary", "sm")}
+                      >
+                        {adState[p.id]?.busy ? "Generando…" : "Previsualizar anuncio"}
+                      </button>
+                    </div>
+                    {!media[p.id]?.imageUrl && !media[p.id]?.videoUrl && (
+                      <p className="text-[11px] text-zinc-400">Generá una imagen o video arriba para previsualizar el anuncio.</p>
+                    )}
+                    {adState[p.id]?.previews?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {adState[p.id]!.previews!.map((f, i) => (
+                            <button
+                              key={f.format}
+                              type="button"
+                              onClick={() => patchAd(p.id, { fmtIdx: i })}
+                              className={`rounded border px-2 py-0.5 text-[10px] ${
+                                (adState[p.id]?.fmtIdx ?? 0) === i
+                                  ? "border-[oklch(52%_0.13_255)] text-zinc-900 dark:text-zinc-100"
+                                  : "border-zinc-200 text-zinc-500 dark:border-zinc-700"
+                              }`}
+                            >
+                              {f.format}
+                            </button>
+                          ))}
+                        </div>
+                        <iframe
+                          title={`adpreview-${p.id}`}
+                          sandbox="allow-scripts allow-same-origin allow-popups"
+                          srcDoc={adState[p.id]!.previews![adState[p.id]?.fmtIdx ?? 0]?.html ?? ""}
+                          className="h-[480px] w-full rounded-md border border-zinc-200 bg-white dark:border-zinc-800"
+                        />
+                      </div>
+                    ) : null}
+                    {adState[p.id]?.msg && <p className="text-[11px] text-zinc-400">{adState[p.id]!.msg}</p>}
+
+                    {/* Crear el anuncio (PAUSED) */}
+                    <div className="space-y-2 rounded-md border border-zinc-100 p-2 dark:border-zinc-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Crear anuncio (pausado)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            patchCrear(p.id, { modoNuevo: !crearState[p.id]?.modoNuevo });
+                            if (!crearState[p.id]?.campaigns) cargarCampaigns(p);
+                          }}
+                          className="text-[11px] text-zinc-500 underline-offset-2 hover:underline"
+                        >
+                          {crearState[p.id]?.modoNuevo ? "Usar existente" : "Crear campaña/conjunto nuevos"}
+                        </button>
+                      </div>
+
+                      {crearState[p.id]?.modoNuevo ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input className={inputCls} placeholder="Nombre campaña" value={crearState[p.id]?.campaignName ?? ""} onChange={(e) => patchCrear(p.id, { campaignName: e.target.value })} />
+                          <input className={inputCls} placeholder="Nombre conjunto" value={crearState[p.id]?.adsetName ?? ""} onChange={(e) => patchCrear(p.id, { adsetName: e.target.value })} />
+                          <input className={inputCls} type="number" min={1} placeholder="USD/día" value={crearState[p.id]?.presupuesto ?? 5} onChange={(e) => patchCrear(p.id, { presupuesto: Number(e.target.value) })} />
+                          <input className={inputCls} type="number" min={1} placeholder="Días" value={crearState[p.id]?.dias ?? 7} onChange={(e) => patchCrear(p.id, { dias: Number(e.target.value) })} />
+                          <input className={`${inputCls} uppercase`} maxLength={2} placeholder="País" value={crearState[p.id]?.pais ?? "AR"} onChange={(e) => patchCrear(p.id, { pais: e.target.value })} />
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <select
+                            className={inputCls}
+                            value={crearState[p.id]?.campaignId ?? ""}
+                            onFocus={() => { if (!crearState[p.id]?.campaigns) cargarCampaigns(p); }}
+                            onChange={(e) => cargarAdsets(p, e.target.value)}
+                          >
+                            <option value="">— Campaña —</option>
+                            {crearState[p.id]?.campaigns?.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                          <select
+                            className={inputCls}
+                            value={crearState[p.id]?.adsetId ?? ""}
+                            onChange={(e) => patchCrear(p.id, { adsetId: e.target.value })}
+                            disabled={!crearState[p.id]?.adsets?.length}
+                          >
+                            <option value="">— Conjunto —</option>
+                            {crearState[p.id]?.adsets?.map((a) => (
+                              <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <button type="button" onClick={() => crearAd(p)} disabled={pending || crearState[p.id]?.busy} className={buttonClass("primary", "sm")}>
+                        {crearState[p.id]?.busy ? "Creando…" : "Crear anuncio (pausado)"}
+                      </button>
+                      {crearState[p.id]?.adId && (
+                        <a href="/difusion" className="text-[11px] text-[oklch(52%_0.13_255)] underline-offset-2 hover:underline">
+                          Ver en Difusión → ({crearState[p.id]!.adId})
+                        </a>
+                      )}
+                      {crearState[p.id]?.msg && <p className="text-[11px] text-zinc-400">{crearState[p.id]!.msg}</p>}
+                    </div>
+                  </div>
+                </details>
               </div>
             ))}
           </div>

@@ -2,6 +2,7 @@
 // promoción paga (Marketing API). Server-only. Sin credenciales del conector
 // `meta` corre en modo mock (devuelve ids falsos), para probar el flujo.
 import { getConnectorConfig } from "@/lib/connectors/config";
+import { computeAdMetrics, type InsightsRow } from "@/lib/meta-ads";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -197,25 +198,14 @@ export async function getInsights(
   try {
     if (kind === "ad") {
       const res = await fetch(
-        `${GRAPH}/${id}/insights?fields=impressions,reach,clicks,spend,ctr&access_token=${encodeURIComponent(token)}`,
+        `${GRAPH}/${id}/insights?fields=impressions,reach,frequency,clicks,ctr,spend,cpc,cpm,actions&access_token=${encodeURIComponent(token)}`,
       );
       const data = (await res.json()) as {
-        data?: Record<string, string>[];
+        data?: InsightsRow[];
         error?: { message?: string };
       };
       if (!res.ok || data.error) throw new Error(data.error?.message ?? `HTTP ${res.status}`);
-      const row = data.data?.[0] ?? {};
-      return {
-        ok: true,
-        mode: "live",
-        metrics: [
-          { label: "Impresiones", value: num(row.impressions) },
-          { label: "Alcance", value: num(row.reach) },
-          { label: "Clics", value: num(row.clicks) },
-          { label: "Gasto (USD)", value: num(row.spend) },
-          { label: "CTR (%)", value: num(row.ctr) },
-        ],
-      };
+      return { ok: true, mode: "live", metrics: computeAdMetrics(data.data?.[0] ?? {}) };
     }
     const metrics = "post_impressions,post_impressions_unique,post_engaged_users,post_clicks";
     const res = await fetch(
@@ -249,17 +239,19 @@ function mockInsights(kind: "post" | "ad", id: string): InsightsResult {
   const reach = Math.round(imp * 0.72);
   const clicks = Math.round(imp * 0.04);
   if (kind === "ad") {
-    return {
-      ok: true,
-      mode: "mock",
-      metrics: [
-        { label: "Impresiones", value: imp },
-        { label: "Alcance", value: reach },
-        { label: "Clics", value: clicks },
-        { label: "Gasto (USD)", value: Math.round(clicks * 0.12 * 100) / 100 },
-        { label: "CTR (%)", value: Math.round((clicks / imp) * 1000) / 10 },
-      ],
+    const spend = Math.round(clicks * 0.12 * 100) / 100;
+    const row: InsightsRow = {
+      impressions: String(imp),
+      reach: String(reach),
+      frequency: String(Math.round((imp / reach) * 100) / 100),
+      clicks: String(clicks),
+      ctr: String(Math.round((clicks / imp) * 1000) / 10),
+      spend: String(spend),
+      cpc: String(clicks ? Math.round((spend / clicks) * 100) / 100 : 0),
+      cpm: String(Math.round((spend / imp) * 1000 * 100) / 100),
+      actions: [{ action_type: "link_click", value: String(clicks) }],
     };
+    return { ok: true, mode: "mock", metrics: computeAdMetrics(row) };
   }
   return {
     ok: true,

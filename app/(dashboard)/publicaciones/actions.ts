@@ -9,7 +9,26 @@ import {
   publishToPage,
   publishToInstagram,
   promotePagePost,
+  getMetaConfig,
 } from "@/lib/meta";
+import {
+  listMyAds,
+  setAdStatus,
+  listCampaigns,
+  listAdsets,
+  uploadAdVideo,
+  buildCreativeSpec,
+  previewProposal,
+  createCampaign,
+  createAdset,
+  createAdFromProposal,
+  AD_FORMATS,
+  type AdRow,
+  type DatePreset,
+  type AdStatusFilter,
+  type ProposalMedia,
+  type PreviewFrame,
+} from "@/lib/meta-ads";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateGeminiText, generateGeminiImage } from "@/lib/gemini";
 import { generateText } from "@/lib/anthropic";
@@ -434,6 +453,147 @@ export async function eliminarBrief(id: string): Promise<{ ok: boolean; msg: str
     return { ok: true, msg: "Contexto eliminado." };
   } catch (e) {
     return { ok: false, msg: `No se pudo eliminar: ${(e as Error).message}` };
+  }
+}
+
+// ── Anuncios Meta (galería + estudio) ───────────────────────────────────
+
+// Lista mis ads para la galería de Difusión (lectura).
+export async function listarMisAnuncios(
+  datePreset: DatePreset,
+  status: AdStatusFilter,
+): Promise<AdRow[]> {
+  await requireMember("editor");
+  return listMyAds({ datePreset, status });
+}
+
+// Pausa/activa un ad. Activar puede empezar a gastar (confirmación en UI).
+export async function cambiarEstadoAd(
+  adId: string,
+  status: "ACTIVE" | "PAUSED",
+): Promise<{ ok: boolean; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  if (!adId) return { ok: false, msg: "Falta el ad." };
+  const r = await setAdStatus(adId, status);
+  if (!r.ok) return { ok: false, msg: r.error ?? "No se pudo cambiar el estado." };
+  await logAudit({
+    action: "ad.status",
+    projectId,
+    actor: await actorEmail(),
+    entity_type: "ad",
+    entity_id: adId,
+    details: { status, mode: r.mode },
+  });
+  revalidatePath("/difusion");
+  return { ok: true, msg: status === "ACTIVE" ? "Anuncio activado." : "Anuncio pausado." };
+}
+
+export async function listarCampaigns(): Promise<{ id: string; name: string }[]> {
+  await requireMember("editor");
+  return listCampaigns();
+}
+
+export async function listarAdsets(campaignId: string): Promise<{ id: string; name: string }[]> {
+  await requireMember("editor");
+  if (!campaignId) return [];
+  return listAdsets(campaignId);
+}
+
+// Sube el video (si hay) y arma el media para spec.
+async function resolveMedia(media: ProposalMedia): Promise<{ media: ProposalMedia; error?: string }> {
+  if (media.videoUrl && !media.videoId) {
+    const up = await uploadAdVideo(media.videoUrl);
+    if (!up.ok) return { media, error: up.error ?? "No se pudo subir el video." };
+    return { media: { ...media, videoId: up.videoId } };
+  }
+  return { media };
+}
+
+function proposalMessage(p: Proposal): string {
+  const fb = p.platforms?.facebook as Record<string, string | string[]> | undefined;
+  const pick = (v?: string | string[]) => (Array.isArray(v) ? v.join("\n") : v ?? "");
+  return pick(fb?.post) || pick(fb?.headline) || p.angle || "";
+}
+
+// Previsualiza una propuesta como anuncio Meta en los formatos pedidos.
+export async function previsualizarPropuestaAd(
+  proposal: Proposal,
+  media: ProposalMedia,
+  link: string,
+  cta: string,
+): Promise<{ ok: boolean; previews: PreviewFrame[]; msg: string }> {
+  await requireMember("editor");
+  const { pageId } = await getMetaConfig();
+  if (!pageId) return { ok: false, previews: [], msg: "Falta la Página de Meta (Conectores → Meta)." };
+  if (!/^https?:\/\//i.test(link)) return { ok: false, previews: [], msg: "Poné un link de destino válido." };
+  const resolved = await resolveMedia(media);
+  if (resolved.error) return { ok: false, previews: [], msg: resolved.error };
+  try {
+    const spec = buildCreativeSpec(resolved.media, { pageId, link, cta, message: proposalMessage(proposal) });
+    const previews = await previewProposal(spec, [...AD_FORMATS]);
+    return { ok: true, previews, msg: "Preview generado." };
+  } catch (e) {
+    return { ok: false, previews: [], msg: (e as Error).message };
+  }
+}
+
+export interface CrearAnuncioInput {
+  proposal: Proposal;
+  media: ProposalMedia;
+  link: string;
+  cta: string;
+  // Conjunto existente, o datos para crear campaña+conjunto nuevos.
+  adsetId?: string;
+  nuevo?: { campaignName: string; objective: string; adsetName: string; dailyBudgetUsd: number; days: number; pais: string };
+}
+
+// Crea el anuncio PAUSED desde una propuesta (elige o crea campaña/conjunto).
+export async function crearAnuncioDesdePropuesta(
+  input: CrearAnuncioInput,
+): Promise<{ ok: boolean; id?: string; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  const { pageId } = await getMetaConfig();
+  if (!pageId) return { ok: false, msg: "Falta la Página de Meta (Conectores → Meta)." };
+  if (!/^https?:\/\//i.test(input.link)) return { ok: false, msg: "Link de destino inválido." };
+
+  let adsetId = input.adsetId;
+  if (!adsetId) {
+    if (!input.nuevo) return { ok: false, msg: "Elegí un conjunto o creá uno nuevo." };
+    const camp = await createCampaign({ name: input.nuevo.campaignName, objective: input.nuevo.objective });
+    const adset = await createAdset({
+      campaignId: camp.id,
+      name: input.nuevo.adsetName,
+      dailyBudgetUsd: input.nuevo.dailyBudgetUsd,
+      days: input.nuevo.days,
+      countries: [input.nuevo.pais.toUpperCase().slice(0, 2) || "AR"],
+      nowMs: Date.now(),
+    });
+    adsetId = adset.id;
+  }
+
+  const resolved = await resolveMedia(input.media);
+  if (resolved.error) return { ok: false, msg: resolved.error };
+
+  try {
+    const spec = buildCreativeSpec(resolved.media, {
+      pageId,
+      link: input.link,
+      cta: input.cta,
+      message: proposalMessage(input.proposal),
+    });
+    const r = await createAdFromProposal({ adsetId, spec, name: `Estudio · ${input.proposal.label}` });
+    if (!r.ok) return { ok: false, msg: r.error ?? "No se pudo crear el anuncio." };
+    await logAudit({
+      action: "ad.create",
+      projectId,
+      actor: await actorEmail(),
+      entity_type: "ad",
+      entity_id: r.id,
+      details: { from: "studio", mode: r.mode, adsetId },
+    });
+    return { ok: true, id: r.id, msg: `Anuncio creado en PAUSADO${r.mode === "mock" ? " (mock)" : ""}. Activalo en Difusión o en el Administrador de Meta.` };
+  } catch (e) {
+    return { ok: false, msg: (e as Error).message };
   }
 }
 
