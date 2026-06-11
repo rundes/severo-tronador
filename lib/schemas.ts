@@ -125,6 +125,15 @@ const optFloat = (min: number, max: number) =>
     .transform((v) => (v == null ? null : Number(v)))
     .pipe(z.union([z.number().min(min).max(max), z.null()]));
 
+export const RadioProgramSchema = z.object({
+  url: z.string().trim().url(),
+  station: z.string().trim().min(1).max(80),
+  programa: z.string().trim().min(1).max(120),
+  days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+  start: z.string().trim().regex(/^\d{1,2}:\d{2}$/, "Hora HH:MM"),
+  end: z.string().trim().regex(/^\d{1,2}:\d{2}$/, "Hora HH:MM"),
+});
+
 export const GuardarEscuchaSchema = z.object({
   zona: z.string().trim().max(120).catch(""),
   pais: z
@@ -142,6 +151,7 @@ export const GuardarEscuchaSchema = z.object({
   fuentes: z.array(z.string().trim().min(1)).max(20).default([]),
   rssFeeds: z.array(z.string().trim().url()).max(40).default([]),
   xHandles: z.array(z.string().trim().min(1)).max(100).default([]),
+  radioStreams: z.array(RadioProgramSchema).max(30).default([]),
 });
 export type GuardarEscuchaInput = z.infer<typeof GuardarEscuchaSchema>;
 
