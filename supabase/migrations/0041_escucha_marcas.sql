@@ -8,3 +8,7 @@ create table if not exists escucha_marcas (
   unique (project_id, item_key)
 );
 create index if not exists escucha_marcas_project_idx on escucha_marcas (project_id, created_at desc);
+
+-- RLS habilitado como el resto del esquema: la app usa SERVICE_ROLE (bypass);
+-- el anon key queda bloqueado. Sin policies (mismo patrón que las demás tablas).
+alter table escucha_marcas enable row level security;
