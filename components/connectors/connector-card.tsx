@@ -1,5 +1,6 @@
 import type { Connector, ConnectorStatus, Quota } from "@/lib/connectors/types";
 import type { FieldStatus } from "@/lib/connectors/config";
+import type { ConnectorHealth } from "@/lib/connectors/health";
 import { ConfigButton } from "@/components/connectors/config-modal";
 
 const STATUS_META: Record<
@@ -30,11 +31,36 @@ function quotaLabel(q: Quota): string {
   return `${q.used.toLocaleString("es-AR")}/${q.limit.toLocaleString("es-AR")} ${q.unit}`;
 }
 
+function HealthBadge({ health }: { health: ConnectorHealth }) {
+  if (health.ok) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+        <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-500/20">
+          Conecta
+        </span>
+        <span className="truncate max-w-[22ch] text-zinc-500 dark:text-zinc-400">
+          {health.message}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-red-700 dark:text-red-400">
+      <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 font-medium text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-950 dark:text-red-400 dark:ring-red-500/20">
+        No conecta
+      </span>
+      <span className="truncate max-w-[22ch] text-zinc-500 dark:text-zinc-400">
+        {health.message}
+      </span>
+    </span>
+  );
+}
+
 export function ConnectorCard({
   connector,
   status,
   quota,
-  note,
+  health,
   fields,
   enabled,
   setupUrl,
@@ -46,7 +72,7 @@ export function ConnectorCard({
   connector: Connector;
   status: ConnectorStatus;
   quota: Quota | null;
-  note?: string;
+  health: ConnectorHealth | null;
   fields: FieldStatus[];
   enabled: boolean;
   setupUrl: string;
@@ -67,8 +93,13 @@ export function ConnectorCard({
             {connector.name}
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">
-            {note ?? connector.description}
+            {connector.description}
           </div>
+          {health && (
+            <div className="mt-1">
+              <HealthBadge health={health} />
+            </div>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
