@@ -7,6 +7,7 @@ import { dbConfigured } from "@/lib/db/supabase";
 import { requireMember } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
 import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
+import { listDescartes, toggleDescarte } from "@/lib/escucha-descartes";
 import { signedReadUrl } from "@/lib/gcs";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
@@ -87,4 +88,22 @@ export async function listarMarcas(): Promise<{ itemKey: string }[]> {
   const { id: projectId } = await requireMember("viewer");
   const marcas = await listMarcas(projectId);
   return marcas.map((m) => ({ itemKey: m.itemKey }));
+}
+
+// Descartar/restaurar una mención del feed (ocultar reversible).
+export async function descartarToggle(input: {
+  itemKey: string;
+  payload: Record<string, unknown>;
+}): Promise<{ ok: boolean; descartado: boolean; msg: string }> {
+  const { id: projectId } = await requireMember("editor");
+  return toggleDescarte(projectId, {
+    itemKey: input.itemKey,
+    payload: input.payload,
+  });
+}
+
+export async function listarDescartes(): Promise<string[]> {
+  if (!dbConfigured()) return [];
+  const { id: projectId } = await requireMember("viewer");
+  return listDescartes(projectId);
 }

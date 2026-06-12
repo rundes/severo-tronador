@@ -8,15 +8,17 @@ import { LiveMonitor } from "@/components/escucha/live-monitor";
 interface MonitorProps {
   result: ListeningResult;
   marcas: Marca[];
+  descartados: string[];
   persistOk: boolean;
 }
 
-export function Monitor({ result, marcas, persistOk }: MonitorProps) {
+export function Monitor({ result, marcas, descartados, persistOk }: MonitorProps) {
   const markedKeys = marcas.map((m) => m.itemKey);
   return (
     <LiveMonitor
       initial={result}
       markedKeys={markedKeys}
+      dismissedKeys={descartados}
       persistOk={persistOk}
       territory={TERRITORY}
     />
