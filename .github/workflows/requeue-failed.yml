@@ -1,0 +1,38 @@
+name: Requeue failed (one-shot)
+
+# Disparo manual para re-encolar las filas de envio_queue que quedaron `failed`
+# por un 429/5xx transitorio de Resend. Default DRY RUN; pasar confirm=1 para
+# mutar. Golpea el endpoint con el Bearer (mismo CRON_SECRET que el resto).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "1 = mutar (re-encolar). 0 = dry run (solo reporta)"
+        default: "0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/requeue-failed
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET no configurado en el repo"
+            exit 1
+          fi
+          resp=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/requeue-failed?confirm=${{ inputs.confirm }}")
+          body=$(echo "$resp" | head -n -1)
+          code=$(echo "$resp" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body"
+          [ "$code" = "200" ] || { echo "::error::endpoint devolvió $code"; exit 1; }
