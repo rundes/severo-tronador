@@ -122,7 +122,11 @@ export const resendConnector: OutreachConnector = {
         }),
       });
       if (!res.ok) {
-        return { ok: false, error: `Resend HTTP ${res.status}` };
+        // Rate limit (429) y errores de servidor (5xx) son transitorios: el
+        // cron debe reintentar con backoff. El resto (4xx de validación) es
+        // un rechazo permanente del envío.
+        const retryable = res.status === 429 || res.status >= 500;
+        return { ok: false, error: `Resend HTTP ${res.status}`, retryable };
       }
       const data = (await res.json()) as { id?: string };
       await incrementUsage(ID, 1, projectId);

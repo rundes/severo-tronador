@@ -114,6 +114,11 @@ const supabaseStub = {
   },
 };
 
+// Throttle: el route espacia los envíos con sleep() para no pasar el rate
+// limit de Resend (2/seg). Mockeado para no dormir de verdad en los tests.
+const { sleepSpy } = vi.hoisted(() => ({ sleepSpy: vi.fn() }));
+vi.mock("@/lib/sleep", () => ({ sleep: sleepSpy }));
+
 vi.mock("@/lib/db/supabase", () => ({
   dbConfigured: () => true,
   getSupabase: () => supabaseStub,
@@ -129,6 +134,7 @@ const connectorState = {
     ok: boolean;
     providerMessageId?: string;
     error?: string;
+    retryable?: boolean;
   },
   sendImpl: undefined as
     | ((msg: unknown, c: unknown) => Promise<unknown>)
@@ -177,6 +183,8 @@ beforeEach(() => {
   };
   connectorState.sendResult = { ok: true, providerMessageId: "msg-1" };
   connectorState.sendImpl = undefined;
+  sleepSpy.mockReset();
+  sleepSpy.mockResolvedValue(undefined);
   vi.unstubAllEnvs();
   vi.stubEnv("SUPABASE_URL", "https://x.supabase.co");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "x");
@@ -297,6 +305,46 @@ describe("send-queue cron — procesamiento", () => {
     expect(tables.envios.inserted[0].reason).toBe("rejected");
     const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
     expect(q0.status).toBe("failed");
+  });
+
+  it("send ok=false retryable → vuelve a pending con backoff (no failed)", async () => {
+    // Un 429/5xx de Resend es transitorio: no debe marcar la fila como failed
+    // permanente, sino reintentar con backoff (como una excepción).
+    connectorState.sendResult = { ok: false, retryable: true, error: "Resend HTTP 429" };
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as { failed: number; rescheduled: number };
+    expect(json.failed).toBe(0);
+    expect(json.rescheduled).toBe(1);
+    // No se inserta envío "failed": el envío no ocurrió, quedó diferido.
+    expect(tables.envios.inserted).toHaveLength(0);
+    const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
+    expect(q0.status).toBe("pending");
+    expect(q0.attempts).toBe(1);
+    expect(q0.last_error).toBe("Resend HTTP 429");
+  });
+
+  it("send ok=false retryable en el último intento → failed permanente", async () => {
+    connectorState.sendResult = { ok: false, retryable: true, error: "Resend HTTP 429" };
+    tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 2 });
+    const GET = await getHandler();
+    await GET(makeReq());
+    const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
+    expect(q0.attempts).toBe(3);
+    expect(q0.status).toBe("failed");
+  });
+
+  it("throttle: espacia con sleep una vez por envío", async () => {
+    tables.envio_queue.rows.push({ ...PENDING_ROW, id: "q1" });
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "q2",
+      contact: { dni: "2", nombre: "Bea", apellido: "Ruiz", email: "b@x.com" },
+    });
+    const GET = await getHandler();
+    await GET(makeReq());
+    expect(sleepSpy).toHaveBeenCalledTimes(2);
   });
 
   it("connector desconocido → no se selecciona (drena por conector conocido)", async () => {
