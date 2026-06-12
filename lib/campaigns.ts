@@ -75,6 +75,15 @@ function destinoFor(channel: Channel, c: Contact): string {
   return c.telefono ?? "—"; // whatsapp, sms, voice
 }
 
+// True si el contacto tiene un destino usable para el canal. Email usa
+// c.email; los canales de teléfono (whatsapp/sms/voice/telegram) usan
+// c.telefono. Sin destino no se encola: antes se encolaba y fallaba en el
+// envío ("Contacto sin email").
+export function hasDestino(channel: Channel, c: Contact): boolean {
+  const dest = channel === "email" ? c.email : c.telefono;
+  return !!(dest && dest.trim());
+}
+
 // "activa" se usa en campañas de tipo meta-ad (no tienen envíos directos).
 export type CampaignEstado = "enviada" | "encolada" | "enviando" | "activa";
 
@@ -484,8 +493,14 @@ export async function executeCampaign(
   const rest = matched.filter((m) => !opted.has(m.contact.dni));
 
   // De los que quedan: disponibles en el canal (cooldown) vs. en cooldown.
-  const sendable = rest.filter((m) => channelAvailable(m.rel, input.channel));
+  const available = rest.filter((m) => channelAvailable(m.rel, input.channel));
   const cooling = rest.filter((m) => !channelAvailable(m.rel, input.channel));
+
+  // De los disponibles: con destino usable (email/telefono) vs. sin destino.
+  // Los sin destino se marcan skipped — no se encolan (encolarlos garantiza un
+  // fallo de envío y ensucia las métricas con failed espurios).
+  const sendable = available.filter((m) => hasDestino(input.channel, m.contact));
+  const sinDestino = available.filter((m) => !hasDestino(input.channel, m.contact));
 
   // Chequeo de cuota ANTES de enviar. No hay "mandar igual".
   const { willFit, remaining } = await connector.estimateQuotaImpact(
@@ -519,6 +534,15 @@ export async function executeCampaign(
       destino: destinoFor(input.channel, m.contact),
       estado: "skipped",
       reason: "cooldown",
+    });
+  }
+  for (const m of sinDestino) {
+    envios.push({
+      dni: m.contact.dni,
+      nombre: `${m.contact.nombre} ${m.contact.apellido}`,
+      destino: destinoFor(input.channel, m.contact),
+      estado: "skipped",
+      reason: input.channel === "email" ? "sin email" : "sin teléfono",
     });
   }
 
