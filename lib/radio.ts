@@ -191,12 +191,18 @@ export function segmentsToItems(
     if (!text) return;
     const matched = matchKeywords(text, keywords);
     if (matched.length === 0) return;
+    // publishedAt = inicio del programa + offset del segmento → timestamp real
+    // de la mención (no el arranque del programa). Mejora orden y ubicación.
+    const startMs = new Date(meta.isoStart).getTime();
+    const mentionAt = Number.isFinite(startMs)
+      ? new Date(startMs + Math.round(seg.start) * 1000).toISOString()
+      : meta.isoStart;
     items.push({
       source: meta.station,
       text: `[${meta.programa}] ${text}`.slice(0, 2000),
       url: `${baseUrl}#t${Math.round(seg.start)}`,
       author: meta.station,
-      publishedAt: meta.isoStart,
+      publishedAt: mentionAt,
       matched,
       meta: { audioObject: meta.audioObject, start: seg.start, end: seg.end, programa: meta.programa },
     });

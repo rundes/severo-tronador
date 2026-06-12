@@ -75,6 +75,11 @@ describe("segmentsToItems (Whisper → offsets)", () => {
   it("sin keywords → vacío (no inunda)", () => {
     expect(segmentsToItems(segs, [], meta)).toEqual([]);
   });
+  it("publishedAt = isoStart + offset del segmento (timestamp real de la mención)", () => {
+    const items = segmentsToItems(segs, ["inseguridad"], meta);
+    // isoStart 07:00:00 + 5s = 07:00:05
+    expect(items[0].publishedAt).toBe("2026-06-11T07:00:05.000Z");
+  });
 });
 
 describe("hhmmToMinutes", () => {
