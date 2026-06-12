@@ -38,6 +38,7 @@ function toListenItem(r: ListeningRow): ListenItem {
     kind: (r.kind ?? undefined) as ListenItem["kind"],
     parentUrl: r.parent_url ?? undefined,
     meta: r.meta ?? undefined,
+    connectorId: r.connector_id ?? null,
   };
 }
 

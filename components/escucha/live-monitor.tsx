@@ -6,7 +6,7 @@
 // (datos que llegan), no decoración. Respeta prefers-reduced-motion.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { ListeningResult, Topic } from "@/lib/listening";
+import type { ListeningResult, Topic, FeedItem, Platform } from "@/lib/listening";
 import { feedKey, topicKey } from "@/lib/escucha-keys";
 import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
@@ -44,6 +44,30 @@ function dotClass(s: string): string {
   return s === "positive" ? "bg-emerald-500" : s === "negative" ? "bg-red-500" : "bg-zinc-400 dark:bg-zinc-600";
 }
 
+// Etiquetas humanas del filtro por fuente. Orden = orden de los chips.
+const PLATFORM_LABEL: { id: Platform; label: string }[] = [
+  { id: "medios", label: "📰 Medios" },
+  { id: "x", label: "𝕏 X" },
+  { id: "radio", label: "📻 Radio" },
+  { id: "reddit", label: "R/ Reddit" },
+  { id: "meta", label: "Meta" },
+  { id: "otros", label: "Otros" },
+];
+
+// Filtra el feed por fuente y por texto (en mención, autor o source).
+function filterFeed(feed: FeedItem[], platform: Platform | "todas", q: string): FeedItem[] {
+  const needle = q.trim().toLowerCase();
+  return feed.filter((it) => {
+    if (platform !== "todas" && (it.platform ?? "otros") !== platform) return false;
+    if (!needle) return true;
+    return (
+      it.text.toLowerCase().includes(needle) ||
+      (it.author ?? "").toLowerCase().includes(needle) ||
+      it.source.toLowerCase().includes(needle)
+    );
+  });
+}
+
 export function LiveMonitor({
   initial,
   markedKeys,
@@ -58,6 +82,9 @@ export function LiveMonitor({
   const [result, setResult] = useState<ListeningResult>(initial);
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [live, setLive] = useState(true);
+  // Filtro por fuente + búsqueda de texto (cliente).
+  const [platformFilter, setPlatformFilter] = useState<Platform | "todas">("todas");
+  const [query, setQuery] = useState("");
 
   // Claves del informe: Set para contar en vivo (idempotente ante doble-toggle).
   const initialMarked = useMemo(() => new Set(markedKeys), [markedKeys]);
@@ -122,6 +149,19 @@ export function LiveMonitor({
   }, [result.feed, seen]);
 
   const { feed, topics, bySentiment, positiveTags, negativeTags, topPositive, topNegative, bySource } = result;
+  // Conteo por plataforma (para mostrar solo chips con datos) y feed visible.
+  const platformCounts = useMemo(() => {
+    const m = new Map<Platform, number>();
+    for (const it of feed) {
+      const p = (it.platform ?? "otros") as Platform;
+      m.set(p, (m.get(p) ?? 0) + 1);
+    }
+    return m;
+  }, [feed]);
+  const visibleFeed = useMemo(
+    () => filterFeed(feed, platformFilter, query),
+    [feed, platformFilter, query],
+  );
   const emerging = topics.filter((t) => t.emerging);
   const total = bySentiment.positive + bySentiment.negative + bySentiment.neutral || 1;
   const pos = Math.round((bySentiment.positive / total) * 100);
@@ -167,19 +207,64 @@ export function LiveMonitor({
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
         {/* Stream en vivo (única región con scroll grande) */}
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Stream · menciones
-            </h3>
-            <span className="font-mono text-[10px] tabular-nums text-zinc-400">{feed.length}</span>
+          <div className="flex shrink-0 flex-col gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                Stream · menciones
+              </h3>
+              <span className="font-mono text-[10px] tabular-nums text-zinc-400">
+                {visibleFeed.length}
+                {visibleFeed.length !== feed.length ? `/${feed.length}` : ""}
+              </span>
+            </div>
+            {/* Filtro por fuente + búsqueda */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPlatformFilter("todas")}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                  platformFilter === "todas"
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
+                }`}
+              >
+                Todas
+              </button>
+              {PLATFORM_LABEL.filter((p) => (platformCounts.get(p.id) ?? 0) > 0).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPlatformFilter((cur) => (cur === p.id ? "todas" : p.id))}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    platformFilter === p.id
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
+                  }`}
+                >
+                  {p.label}{" "}
+                  <span className="font-mono tabular-nums opacity-60">{platformCounts.get(p.id)}</span>
+                </button>
+              ))}
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar…"
+                className="ml-auto w-28 rounded border border-zinc-200 bg-transparent px-2 py-0.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:w-40 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:text-zinc-200"
+              />
+            </div>
           </div>
           {feed.length === 0 ? (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-zinc-500">
               Sin menciones por ahora. Ajustá keywords o zona en Configurar.
             </div>
+          ) : visibleFeed.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-zinc-500">
+              Sin menciones para este filtro.
+            </div>
           ) : (
             <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800/70">
-              {feed.map((item) => {
+              {visibleFeed.map((item) => {
                 const key = feedKey(item);
                 const isNew = !seen.has(key);
                 return (

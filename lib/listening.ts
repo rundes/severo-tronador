@@ -23,6 +23,10 @@ import {
 // Anclado al dataset mock (2026-05-26). El real usaría Date.now().
 const NOW = Date.UTC(2026, 4, 26);
 
+// Tope de items en el feed. Antes era 50; ahora mandamos un archivo navegable
+// porque el filtro por fuente y la búsqueda se resuelven en el cliente.
+const FEED_CAP = 300;
+
 export interface Topic {
   label: string;
   recent: number;
@@ -48,6 +52,32 @@ export interface FeedItem {
   parentUrl?: string;
   // Radio: { audioObject, start, end, programa } para reproducir la mención.
   meta?: Record<string, unknown>;
+  // Connector de origen (gdelt, x-api, radio, …) y su categoría humana
+  // (medios/x/radio/reddit/meta/otros) para filtrar el feed por fuente.
+  connectorId?: string | null;
+  platform?: Platform;
+}
+
+export type Platform = "medios" | "x" | "radio" | "reddit" | "meta" | "otros";
+
+// Agrupa connector_id en categorías para el filtro de fuente del feed.
+export function platformOf(connectorId: string | null | undefined): Platform {
+  switch (connectorId) {
+    case "gdelt":
+    case "rss-medios":
+      return "medios";
+    case "x-api":
+      return "x";
+    case "radio":
+      return "radio";
+    case "reddit-api":
+      return "reddit";
+    case "meta-ad-library":
+    case "meta-content-library":
+      return "meta";
+    default:
+      return "otros";
+  }
 }
 
 export interface AuthorRanking {
@@ -109,7 +139,13 @@ export async function runListening(
     const enabledIds = cacheConnectorFilter(cfg.fuentes);
     items = await readCachedItems(projectId, 14, enabledIds);
   } else {
-    items = (await Promise.all(listeners.map((l) => l.fetch(query)))).flat();
+    items = (
+      await Promise.all(
+        listeners.map((l) =>
+          l.fetch(query).then((got) => got.map((it) => ({ ...it, connectorId: l.id }))),
+        ),
+      )
+    ).flat();
   }
 
   const coding = (
@@ -174,7 +210,8 @@ export async function runListening(
     .sort((a, b) => b.negative * -b.sentimentScore - a.negative * -a.sentimentScore)
     .slice(0, 10);
 
-  // Feed: últimos 50 ordenados por publishedAt desc.
+  // Feed ordenado por publishedAt desc. Cap alto (no 50): el filtro por fuente
+  // y la búsqueda viven en el cliente, así que mandamos un archivo navegable.
   const feed: FeedItem[] = enriched
     .slice()
     .sort((a, b) => {
@@ -182,7 +219,8 @@ export async function runListening(
       const tb = b.publishedAt ? +new Date(b.publishedAt) : 0;
       return tb - ta;
     })
-    .slice(0, 50);
+    .slice(0, FEED_CAP)
+    .map((i) => ({ ...i, platform: platformOf(i.connectorId) }));
 
   return {
     totalItems: items.length,

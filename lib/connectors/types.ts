@@ -193,6 +193,9 @@ export interface ListenItem {
   // Metadatos opcionales (ej. radio: { audioObject, start, end, programa } para
   // reproducir la mención). Se persiste como jsonb en listening_items.meta.
   meta?: Record<string, unknown>;
+  // Connector de origen. Lo asigna la cache (al leer) o el path live (al
+  // fetchear). Habilita agrupar el feed por fuente (medios/x/radio/…).
+  connectorId?: string | null;
 }
 
 export interface ListeningConnector extends Connector {
