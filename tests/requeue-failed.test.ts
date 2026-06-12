@@ -53,10 +53,12 @@ vi.mock("@/lib/db/supabase", () => ({
 function seed() {
   tables = {
     envio_queue: [
-      { id: "a", token: "t-a", status: "failed", connector_id: "resend", last_error: "Resend HTTP 429", campaign_id: "c1" },
-      { id: "b", token: "t-b", status: "failed", connector_id: "resend", last_error: "Resend HTTP 503", campaign_id: "c1" },
-      { id: "c", token: "t-c", status: "failed", connector_id: "resend", last_error: "Resend HTTP 422", campaign_id: "c1" },
-      { id: "d", token: "t-d", status: "done", connector_id: "resend", last_error: null, campaign_id: "c1" },
+      { id: "a", token: "t-a", status: "failed", connector_id: "resend", last_error: "Resend HTTP 429", campaign_id: "c1", contact: { email: "a@x.com" } },
+      { id: "b", token: "t-b", status: "failed", connector_id: "resend", last_error: "Resend HTTP 503", campaign_id: "c1", contact: { email: "b@x.com" } },
+      { id: "c", token: "t-c", status: "failed", connector_id: "resend", last_error: "Resend HTTP 422", campaign_id: "c1", contact: { email: "c@x.com" } },
+      { id: "d", token: "t-d", status: "done", connector_id: "resend", last_error: null, campaign_id: "c1", contact: { email: "d@x.com" } },
+      { id: "e", token: "t-e", status: "failed", connector_id: "resend", last_error: "Contacto sin email", campaign_id: "c1", contact: { email: null, telefono: "555" } },
+      { id: "f", token: "t-f", status: "failed", connector_id: "resend", last_error: "Contacto sin email", campaign_id: "c1", contact: { email: "", telefono: null } },
     ],
     envios: [
       { token: "t-a", estado: "failed" },
@@ -102,9 +104,13 @@ describe("requeue-failed — dry run (default)", () => {
       byError: Record<string, number>;
     };
     expect(json.dry).toBe(true);
-    expect(json.failed_total).toBe(3); // solo status=failed&resend
-    expect(json.requeueable).toBe(2); // 429 + 503 (no el 422)
+    expect(json.failed_total).toBe(5); // status=failed&resend (a,b,c,e,f)
+    expect(json.requeueable).toBe(2); // 429 + 503 (no 422 ni "sin email")
     expect(json.byError["Resend HTTP 429"]).toBe(1);
+    expect(
+      (json as unknown as { sinEmail: { total: number; conTelefono: number; emailNull: number; emailVacio: number } })
+        .sinEmail,
+    ).toEqual({ total: 2, conTelefono: 1, emailNull: 1, emailVacio: 1 });
     // sin mutación: las filas siguen failed
     expect(tables.envio_queue.find((r) => r.id === "a")!.status).toBe("failed");
     expect(tables.envios).toHaveLength(3);

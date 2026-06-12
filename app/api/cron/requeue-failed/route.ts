@@ -26,6 +26,23 @@ interface FailedRow {
   token: string;
   last_error: string | null;
   campaign_id: string;
+  contact: { email?: string | null; telefono?: string | null } | null;
+}
+
+// Agregados SIN PII (el repo es público y los logs de Actions también). Sirven
+// para decidir si los "sin email" son dato faltante o error de mapeo, y si son
+// alcanzables por otro canal.
+function profile(rows: FailedRow[]) {
+  let conTelefono = 0;
+  let emailNull = 0;
+  let emailVacio = 0;
+  for (const r of rows) {
+    const c = r.contact ?? {};
+    if (c.telefono && String(c.telefono).trim()) conTelefono++;
+    if (c.email == null) emailNull++;
+    else if (!String(c.email).trim()) emailVacio++;
+  }
+  return { total: rows.length, conTelefono, emailNull, emailVacio };
 }
 
 export async function GET(req: Request) {
@@ -44,7 +61,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await db
     .from("envio_queue")
-    .select("id, token, last_error, campaign_id")
+    .select("id, token, last_error, campaign_id, contact")
     .eq("status", "failed")
     .eq("connector_id", "resend");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -64,6 +81,7 @@ export async function GET(req: Request) {
       failed_total: rows.length,
       requeueable: transient.length,
       byError,
+      sinEmail: profile(rows.filter((r) => r.last_error === "Contacto sin email")),
     });
   }
 
