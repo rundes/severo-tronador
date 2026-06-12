@@ -70,6 +70,15 @@ export interface ListeningResult {
   feed: FeedItem[];
 }
 
+// Filtro de connectors para leer la cache del feed. La radio se ingesta aparte
+// (agenda) con connector_id "radio" y NO es una `fuente` togglable, así que sus
+// menciones deben verse siempre: cuando hay fuentes seleccionadas, sumamos
+// "radio" para que no queden ocultas. Sin fuentes → undefined (lee todo).
+export function cacheConnectorFilter(fuentes: string[]): string[] | undefined {
+  if (fuentes.length === 0) return undefined;
+  return Array.from(new Set([...fuentes, "radio"]));
+}
+
 export async function runListening(
   projectId: string,
 ): Promise<ListeningResult> {
@@ -97,7 +106,7 @@ export async function runListening(
   // /api/cron/listening-pull mantiene la cache caliente.
   let items: ListenItem[];
   if (await cacheHasFreshItems(projectId, 7)) {
-    const enabledIds = cfg.fuentes.length > 0 ? cfg.fuentes : undefined;
+    const enabledIds = cacheConnectorFilter(cfg.fuentes);
     items = await readCachedItems(projectId, 14, enabledIds);
   } else {
     items = (await Promise.all(listeners.map((l) => l.fetch(query)))).flat();
