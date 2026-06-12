@@ -23,6 +23,7 @@ import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
 import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
+import { sleep } from "@/lib/sleep";
 
 // Damos margen a la función: los envíos del batch son secuenciales (~300ms c/u
 // con Resend), así que 50 ≈ 15s. maxDuration evita el corte a 10s del default.
@@ -34,6 +35,14 @@ export const maxDuration = 60;
 // marcadas y el resto sigue pendiente para la próxima.
 const BATCH = Number(process.env.SEND_QUEUE_BATCH) || 50;
 const MAX_ATTEMPTS = 3;
+
+// Throttle entre envíos: Resend limita a ~2 req/seg por API key. Sin espaciar,
+// el batch dispara ~3/seg y dispara 429/bounce. 500ms → ~1.3/seg con latencia.
+// Ajustable con SEND_QUEUE_DELAY_MS (0 = sin pausa).
+const SEND_DELAY_MS =
+  process.env.SEND_QUEUE_DELAY_MS != null
+    ? Number(process.env.SEND_QUEUE_DELAY_MS)
+    : 500;
 
 interface PendingRow {
   id: string;
@@ -213,6 +222,13 @@ export async function GET(req: Request) {
         row.project_id,
       );
 
+      // Fallo transitorio (rate limit / 5xx): no es un rechazo real del envío.
+      // Lo tratamos como una excepción → backoff y reintento, sin insertar una
+      // fila `envios` failed ni quemar la fila en el primer 429.
+      if (!result.ok && result.retryable) {
+        throw new Error(result.error ?? "retryable");
+      }
+
       // Persistir envío en `envios` (lo que ve el dashboard de la campaña).
       const envioRow = {
         project_id: row.project_id,
@@ -272,6 +288,9 @@ export async function GET(req: Request) {
         rescheduled++;
       }
     }
+
+    // Espaciar el próximo envío para respetar el rate limit del proveedor.
+    await sleep(SEND_DELAY_MS);
   }
 
   // Actualizar metrics + estado de las campañas tocadas. Si no queda nada

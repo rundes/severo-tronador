@@ -138,6 +138,9 @@ export interface SendResult {
   ok: boolean;
   providerMessageId?: string;
   error?: string;
+  // Fallo transitorio (rate limit / 5xx): el cron debe reintentar con backoff
+  // en vez de marcar la fila como failed permanente.
+  retryable?: boolean;
 }
 
 export interface OutreachConnector extends Connector {
