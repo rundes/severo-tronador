@@ -14,6 +14,7 @@ import { VolumeChart } from "@/components/escucha/volume-chart";
 import { MarkButton } from "@/components/escucha/mark-button";
 import { RadioPlayer } from "@/components/escucha/radio-player";
 import { ReportTray } from "@/components/escucha/report-tray";
+import { descartarToggle } from "@/app/(dashboard)/escucha/actions";
 
 const POLL_MS = 30_000;
 
@@ -68,14 +69,18 @@ function filterFeed(feed: FeedItem[], platform: Platform | "todas", q: string): 
   });
 }
 
+type ViewMode = "todas" | "relevantes" | "descartadas";
+
 export function LiveMonitor({
   initial,
   markedKeys,
+  dismissedKeys,
   persistOk,
   territory,
 }: {
   initial: ListeningResult;
   markedKeys: string[];
+  dismissedKeys: string[];
   persistOk: boolean;
   territory: string;
 }) {
@@ -96,6 +101,42 @@ export function LiveMonitor({
       else n.delete(key);
       return n;
     });
+  }
+
+  // Descartes (ocultar reversible) + modo de vista del feed.
+  const [dismissedSet, setDismissedSet] = useState<Set<string>>(() => new Set(dismissedKeys));
+  const [viewMode, setViewMode] = useState<ViewMode>("todas");
+  async function toggleDismiss(item: FeedItem, key: string) {
+    const wasDismissed = dismissedSet.has(key);
+    // Optimista.
+    setDismissedSet((s) => {
+      const n = new Set(s);
+      if (wasDismissed) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+    try {
+      const res = await descartarToggle({
+        itemKey: key,
+        payload: {
+          text: item.text,
+          source: item.source,
+          author: item.author ?? null,
+          url: item.url ?? null,
+          sentiment: item.sentiment,
+          publishedAt: item.publishedAt ?? null,
+        },
+      });
+      if (!res.ok) throw new Error(res.msg);
+    } catch {
+      // Revertir ante fallo.
+      setDismissedSet((s) => {
+        const n = new Set(s);
+        if (wasDismissed) n.add(key);
+        else n.delete(key);
+        return n;
+      });
+    }
   }
 
   // Claves ya vistas: las nuevas (llegadas por polling) se animan al entrar.
@@ -158,10 +199,16 @@ export function LiveMonitor({
     }
     return m;
   }, [feed]);
-  const visibleFeed = useMemo(
-    () => filterFeed(feed, platformFilter, query),
-    [feed, platformFilter, query],
-  );
+  const visibleFeed = useMemo(() => {
+    const base = feed.filter((it) => {
+      const k = feedKey(it);
+      if (viewMode === "descartadas") return dismissedSet.has(k);
+      if (dismissedSet.has(k)) return false; // todas/relevantes ocultan descartadas
+      if (viewMode === "relevantes") return markedSet.has(k);
+      return true;
+    });
+    return filterFeed(base, platformFilter, query);
+  }, [feed, viewMode, dismissedSet, markedSet, platformFilter, query]);
   const emerging = topics.filter((t) => t.emerging);
   const total = bySentiment.positive + bySentiment.negative + bySentiment.neutral || 1;
   const pos = Math.round((bySentiment.positive / total) * 100);
@@ -216,6 +263,27 @@ export function LiveMonitor({
                 {visibleFeed.length}
                 {visibleFeed.length !== feed.length ? `/${feed.length}` : ""}
               </span>
+            </div>
+            {/* Vista: todas / relevantes (archivo) / descartadas */}
+            <div className="flex items-center gap-1.5">
+              {([
+                { id: "todas", label: "Todas" },
+                { id: "relevantes", label: `★ Relevantes ${markedSet.size || ""}`.trim() },
+                { id: "descartadas", label: `🗑 Descartadas ${dismissedSet.size || ""}`.trim() },
+              ] as { id: ViewMode; label: string }[]).map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setViewMode(v.id)}
+                  className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                    viewMode === v.id
+                      ? "bg-[oklch(52%_0.13_255)] text-white"
+                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
             </div>
             {/* Filtro por fuente + búsqueda */}
             <div className="flex flex-wrap items-center gap-1.5">
@@ -312,6 +380,15 @@ export function LiveMonitor({
                           disabled={!persistOk}
                           onChange={(m) => updateMarked(key, m)}
                         />
+                        <button
+                          type="button"
+                          disabled={!persistOk}
+                          onClick={() => toggleDismiss(item, key)}
+                          className="text-[10px] uppercase tracking-wider text-zinc-400 transition-colors hover:text-red-600 disabled:opacity-40 dark:hover:text-red-400"
+                          title={dismissedSet.has(key) ? "Restaurar al feed" : "Descartar (ocultar)"}
+                        >
+                          {dismissedSet.has(key) ? "↩ restaurar" : "✕ descartar"}
+                        </button>
                         {item.meta && item.meta.audioObject ? <RadioPlayer meta={item.meta} /> : null}
                       </div>
                     </div>

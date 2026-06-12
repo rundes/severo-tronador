@@ -6,6 +6,7 @@ import { lastListeningUpdate } from "@/lib/listening-cache";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { listMarcas } from "@/lib/escucha-marcas";
+import { listDescartes } from "@/lib/escucha-descartes";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfigForm } from "@/components/escucha/config-form";
 import { RadioAgenda } from "@/components/escucha/radio-agenda";
@@ -65,11 +66,12 @@ export default async function EscuchaPage({
   const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
 
-  const [result, cfg, lastXUpdate, marcas] = await Promise.all([
+  const [result, cfg, lastXUpdate, marcas, descartados] = await Promise.all([
     runListening(projectId),
     getListeningConfig(projectId),
     lastListeningUpdate(projectId, "x-api"),
     persistOk ? listMarcas(projectId) : Promise.resolve([]),
+    persistOk ? listDescartes(projectId) : Promise.resolve([]),
   ]);
 
   const sources = sourceStatuses(cfg.rssFeeds.length);
@@ -109,7 +111,7 @@ export default async function EscuchaPage({
 
       {/* Tab content */}
       {tab === "monitor" ? (
-        <Monitor result={result} marcas={marcas} persistOk={persistOk} />
+        <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
       ) : (
         <div className="space-y-6">
           <ConfigForm
