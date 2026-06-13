@@ -21,9 +21,6 @@ export const metadata = { title: "Escucha · Tronador" };
 
 function sourceStatuses(rssCount = 0): SourceStatus[] {
   const xToken = Boolean(process.env.X_API_BEARER_TOKEN);
-  const reddit = Boolean(
-    process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET,
-  );
   const metaCl = Boolean(process.env.META_CL_TOKEN);
   return [
     { id: "gdelt", label: "GDELT", real: true, reason: "sin auth" },
@@ -40,10 +37,12 @@ function sourceStatuses(rssCount = 0): SourceStatus[] {
       reason: xToken ? "API paga" : "sindicación (gratis, timelines de handles)",
     },
     {
+      // El connector de Reddit no tiene fetch real (devuelve []); no inventa
+      // datos. Reflejamos eso sin importar si hay creds, para no confundir.
       id: "reddit-api",
       label: "Reddit",
-      real: reddit,
-      reason: reddit ? "creds presentes" : "OAuth pendiente",
+      real: false,
+      reason: "no implementado",
     },
     {
       id: "meta-content-library",
