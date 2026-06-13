@@ -196,6 +196,10 @@ export interface ListenItem {
   // Connector de origen. Lo asigna la cache (al leer) o el path live (al
   // fetchear). Habilita agrupar el feed por fuente (medios/x/radio/…).
   connectorId?: string | null;
+  // Geolocalización cuando el provider la expone (ej. Meta Content Library).
+  // Se persiste en listening_items.lat/lng para filtros geográficos.
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface ListeningConnector extends Connector {

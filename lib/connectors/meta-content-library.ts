@@ -112,6 +112,8 @@ function mapApiResult(r: MetaApiResult): ListenItem | null {
     parentUrl: isComment ? r.parent_post_url : undefined,
     publishedAt: r.created_at,
     author,
+    lat: r.location?.lat ?? null,
+    lng: r.location?.lng ?? null,
   };
 }
 

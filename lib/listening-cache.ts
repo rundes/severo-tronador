@@ -39,6 +39,8 @@ function toListenItem(r: ListeningRow): ListenItem {
     parentUrl: r.parent_url ?? undefined,
     meta: r.meta ?? undefined,
     connectorId: r.connector_id ?? null,
+    lat: r.lat ?? undefined,
+    lng: r.lng ?? undefined,
   };
 }
 
@@ -58,8 +60,8 @@ function toRow(
     author: item.author ?? null,
     kind: item.kind ?? null,
     parent_url: item.parentUrl ?? null,
-    lat: null,
-    lng: null,
+    lat: item.lat ?? null,
+    lng: item.lng ?? null,
     meta: item.meta ?? null,
     updated_at: new Date().toISOString(),
   };
