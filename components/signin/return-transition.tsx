@@ -2,13 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LoginTransition } from "./login-transition";
+import { VideoLoader } from "@/components/video-loader";
 
-// Pantalla intermedia tras volver de Google: muestra el overlay de marca y
+// Pantalla intermedia tras volver de Google: muestra el loader de marca y
 // redirige al destino real. `router.replace` evita que "atrás" vuelva acá.
-// El redirect se dispara por timeout (no por fin de animación) para que también
-// funcione con prefers-reduced-motion, donde la barra no anima.
-const FILL_MS = 900;
+// El redirect se dispara por timeout para que también funcione con
+// prefers-reduced-motion (donde el video no se reproduce).
+const HOLD_MS = 1200;
+const HOLD_MS_REDUCED = 250;
 
 export function ReturnTransition({ to }: { to: string }) {
   const router = useRouter();
@@ -17,10 +18,12 @@ export function ReturnTransition({ to }: { to: string }) {
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    const ms = reduce ? 250 : FILL_MS;
-    const t = setTimeout(() => router.replace(to), ms);
+    const t = setTimeout(
+      () => router.replace(to),
+      reduce ? HOLD_MS_REDUCED : HOLD_MS,
+    );
     return () => clearTimeout(t);
   }, [router, to]);
 
-  return <LoginTransition label="Ingresando" mode="fill" fillMs={FILL_MS} />;
+  return <VideoLoader label="Ingresando" />;
 }

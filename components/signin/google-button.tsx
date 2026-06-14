@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { LoginTransition } from "./login-transition";
+import { VideoLoader } from "@/components/video-loader";
 
 // Botón de Google. Mientras el server action redirige al OAuth flow (~1s,
 // fetch del CSRF cookie + redirect), monta el overlay de pantalla completa
@@ -33,9 +33,7 @@ export function GoogleSignInButton() {
         </span>
       </button>
 
-      {pending && (
-        <LoginTransition label="Conectando con Google" mode="indeterminate" />
-      )}
+      {pending && <VideoLoader label="Conectando con Google" />}
     </>
   );
 }
