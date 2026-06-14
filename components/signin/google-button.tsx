@@ -33,7 +33,7 @@ export function GoogleSignInButton() {
         </span>
       </button>
 
-      {pending && <VideoLoader label="Conectando con Google" />}
+      {pending && <VideoLoader label="Conectando con Google" loop />}
     </>
   );
 }
