@@ -29,5 +29,11 @@ export default async function IngresandoPage({
     redirect(`/signin?callbackUrl=${encodeURIComponent(dest)}`);
   }
 
-  return <ReturnTransition to={dest} />;
+  // Backdrop oscuro detrás del overlay: el fade de salida revela este tono
+  // (no un flash blanco) antes de navegar al panel.
+  return (
+    <div className="fixed inset-0 bg-[oklch(16%_0.03_255)]">
+      <ReturnTransition to={dest} />
+    </div>
+  );
 }

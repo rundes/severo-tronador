@@ -50,7 +50,7 @@ export function MobileSplash() {
     if (closedRef.current) return;
     closedRef.current = true;
     setClosing(true);
-    setTimeout(() => setShow(false), 320);
+    setTimeout(() => setShow(false), 500);
   }
 
   if (!show) return null;
@@ -59,13 +59,13 @@ export function MobileSplash() {
     <div
       role="presentation"
       onClick={dismiss}
-      className={`fixed inset-0 z-[60] flex items-center justify-center bg-[oklch(93%_0.012_80)] transition-opacity duration-300 ease-out md:hidden ${
+      className={`fixed inset-0 z-[60] flex items-center justify-center bg-[oklch(93%_0.012_80)] transition-opacity duration-500 ease-out md:hidden ${
         closing ? "opacity-0" : "opacity-100"
       }`}
     >
       <video
         className="h-full w-full object-cover"
-        src="/brand/splash.mp4"
+        src="/brand/loading.mp4"
         autoPlay
         muted
         playsInline
