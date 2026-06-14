@@ -116,9 +116,94 @@ body {
   animation: escucha-live-pulse 1.8s ease-in-out infinite;
 }
 
+/* ── Transición de ingreso (login) ─────────────────────────────────────────
+   Overlay de pantalla completa en los dos saltos del OAuth: salida (click →
+   Google) y regreso (Google → panel). Movimiento sobrio: la marca entra, una
+   barra índigo marca el progreso. Solo transform/opacity, surface de marca. */
+@keyframes login-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes login-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes login-bar-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* Pulso que recorre la traza, inspirado en el video del hero (la energía que
+   viaja por el circuito), traducido al acento índigo del producto. */
+@keyframes login-pulse {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+.login-mark {
+  animation: login-mark-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.login-text {
+  animation: login-text-in 360ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+/* Barra indeterminada: un pulso índigo con glow tenue que recorre la traza. */
+.login-bar-indeterminate {
+  position: relative;
+}
+.login-bar-indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 32%;
+  border-radius: 9999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px 1px var(--accent);
+  animation: login-pulse 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+/* Barra determinada: se llena en el tiempo del regreso (sin animar layout),
+   con un glow índigo sutil que ecoa el pulso de la traza. */
+.login-bar-fill {
+  transform-origin: left;
+  box-shadow: 0 0 8px 0 var(--accent);
+  animation: login-bar-fill var(--login-fill, 900ms) cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .escucha-enter,
-  .escucha-live-dot {
+  .escucha-live-dot,
+  .login-mark,
+  .login-text,
+  .login-bar-indeterminate,
+  .login-bar-fill {
     animation: none !important;
+  }
+  .login-bar-fill {
+    transform: scaleX(1);
+  }
+  .login-bar-indeterminate::after {
+    animation: none !important;
+    transform: none;
+    width: 100%;
+    box-shadow: none;
   }
 }

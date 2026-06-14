@@ -17,7 +17,9 @@ export const metadata = {
 async function loginGoogle(formData: FormData) {
   "use server";
   const callbackUrl = String(formData.get("callbackUrl") ?? "/dashboard");
-  await signIn("google", { redirectTo: callbackUrl });
+  // Pasa por /ingresando para el overlay de marca del regreso antes del panel.
+  const dest = `/ingresando?to=${encodeURIComponent(callbackUrl)}`;
+  await signIn("google", { redirectTo: dest });
 }
 
 const ERRORS: Record<string, string> = {

@@ -10,6 +10,8 @@ import { redirect } from "next/navigation";
 import { VERSION_STRING } from "@/lib/version";
 import { auth, authConfigured } from "@/lib/auth";
 import { enviarContacto } from "./actions";
+import { HeroMedia } from "@/components/site/hero-media";
+import { MobileSplash } from "@/components/site/mobile-splash";
 
 export const metadata = {
   title: "Tronador · Centro de Estudios Políticos y Electorales",
@@ -35,6 +37,7 @@ export default async function Landing({
       className="min-h-screen text-[oklch(28%_0.06_250)]"
       style={{ backgroundColor: "oklch(93% 0.012 80)" }}
     >
+      <MobileSplash />
       <NavBar />
 
       <Hero />
@@ -157,16 +160,7 @@ function Hero() {
           </Link>
         </div>
       </div>
-      <div className="hidden items-center justify-end md:flex">
-        <Image
-          src="/brand/tronador-logo.jpeg"
-          alt="Tronador · Estudios Electorales"
-          width={1043}
-          height={1042}
-          className="h-auto w-full max-w-[480px]"
-          priority
-        />
-      </div>
+      <HeroMedia />
     </section>
   );
 }
