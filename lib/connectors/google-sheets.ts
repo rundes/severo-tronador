@@ -108,6 +108,68 @@ export async function readPadronMapped(
   });
 }
 
+// ── Lectura con token OAuth del usuario (Google Picker) ────────────────────
+// A diferencia de las funciones de arriba (service account + Sheet fijo del
+// conector), estas leen un Spreadsheet ELEGIDO por el usuario en Drive, con su
+// propio access token (scope drive.file). Range sin nombre de pestaña ("A1:ZZ")
+// lee la primera hoja del archivo, que puede llamarse de cualquier forma.
+const PICKED_RANGE = "A1:ZZ";
+
+function getUserSheetsClient(accessToken: string) {
+  const oauth = new google.auth.OAuth2();
+  oauth.setCredentials({ access_token: accessToken });
+  return google.sheets({ version: "v4", auth: oauth });
+}
+
+export async function readPickedPreview(
+  spreadsheetId: string,
+  accessToken: string,
+  sampleLimit = 2,
+): Promise<PadronPreview> {
+  const sheets = getUserSheetsClient(accessToken);
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: PICKED_RANGE,
+  });
+  const all = ((res.data.values as string[][]) ?? []).filter((r) => r.length);
+  if (all.length === 0) return { headers: [], sampleRows: [], totalRows: 0 };
+  const headers = all[0].map((h) => String(h ?? "").trim());
+  const rest = all.slice(1);
+  return {
+    headers,
+    sampleRows: rest.slice(0, sampleLimit),
+    totalRows: rest.length,
+  };
+}
+
+export async function readPickedMapped(
+  spreadsheetId: string,
+  accessToken: string,
+  mapping: Record<string, string>,
+): Promise<Contact[]> {
+  const sheets = getUserSheetsClient(accessToken);
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: PICKED_RANGE,
+  });
+  const all = ((res.data.values as string[][]) ?? []).filter((r) => r.length);
+  if (all.length < 2) return [];
+  const headers = all[0].map((h) => String(h ?? "").trim());
+  const headerIdx = new Map(headers.map((h, i) => [h, i]));
+  const contactKeys = Object.keys(mapping);
+  return all.slice(1).map((row) => {
+    const out: Record<string, string> = {};
+    for (const key of contactKeys) {
+      const headerName = mapping[key];
+      if (!headerName) continue;
+      const idx = headerIdx.get(headerName);
+      if (idx == null) continue;
+      out[key] = row[idx] ?? "";
+    }
+    return out as unknown as Contact;
+  });
+}
+
 export const googleSheetsConnector: DataConnector = {
   id: "google-sheets-padron",
   name: "Google Sheets · Padrón",

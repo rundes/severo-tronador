@@ -14,6 +14,8 @@ import type { Contact } from "@/lib/connectors/types";
 import {
   readPadronPreview,
   readPadronMapped,
+  readPickedPreview,
+  readPickedMapped,
 } from "@/lib/connectors/google-sheets";
 import { dbConfigured } from "@/lib/db/supabase";
 import { logAudit } from "@/lib/audit";
@@ -223,5 +225,86 @@ export async function importarConMapeo(formData: FormData) {
     redirect(
       `/contactos?error=gsheet&msg=${encodeURIComponent(msg.slice(0, 200))}`,
     );
+  }
+}
+
+// ── Import vía Google Picker (Sheet elegido por el usuario) ─────────────────
+// El usuario elige un Spreadsheet de su Drive con el Picker; estas actions
+// leen con SU access token (scope drive.file), no la service account. Devuelven
+// datos (no redirigen) para que el componente client maneje el flujo en pantalla.
+// El token es efímero y nunca se loguea ni persiste.
+export type PickedPreviewResult =
+  | { ok: true; preview: { headers: string[]; sampleRows: string[][]; totalRows: number } }
+  | { ok: false; error: string };
+
+export async function previewGoogleSheetPicked(
+  spreadsheetId: string,
+  accessToken: string,
+): Promise<PickedPreviewResult> {
+  if (!dbConfigured()) return { ok: false, error: "Base de datos no configurada." };
+  if (!spreadsheetId || !accessToken) {
+    return { ok: false, error: "Falta el archivo o la autorización de Drive." };
+  }
+  await requireMember("editor");
+  try {
+    const preview = await readPickedPreview(spreadsheetId, accessToken, 2);
+    if (preview.headers.length === 0) {
+      return { ok: false, error: "El Sheet elegido está vacío." };
+    }
+    log.info("contactos.preview.gsheet.picked", {
+      headers: preview.headers.length,
+      total_rows: preview.totalRows,
+    });
+    return { ok: true, preview };
+  } catch (err) {
+    const msg = (err as Error).message;
+    log.error("contactos.preview.gsheet.picked.failed", { msg });
+    return { ok: false, error: `No se pudo leer el Sheet: ${msg.slice(0, 200)}` };
+  }
+}
+
+export type PickedImportResult =
+  | { ok: true; n: number }
+  | { ok: false; error: string };
+
+export async function importarConMapeoPicked(input: {
+  spreadsheetId: string;
+  accessToken: string;
+  mapping: Record<string, string>;
+}): Promise<PickedImportResult> {
+  if (!dbConfigured()) return { ok: false, error: "Base de datos no configurada." };
+  const { spreadsheetId, accessToken, mapping } = input;
+  if (!spreadsheetId || !accessToken) {
+    return { ok: false, error: "Falta el archivo o la autorización de Drive." };
+  }
+  if (!mapping?.dni) {
+    return { ok: false, error: "Tenés que mapear la columna de DNI." };
+  }
+  try {
+    const { id: projectId } = await requireMember("editor");
+    const rows = await readPickedMapped(spreadsheetId, accessToken, mapping);
+    const filtered = rows.filter((r) => r.dni && String(r.dni).trim() !== "");
+    if (filtered.length === 0) {
+      return { ok: false, error: "Ninguna fila tiene DNI tras el mapeo." };
+    }
+    const n = await importPadron(projectId, filtered, "google-sheets");
+    await enqueueImportedHandles(projectId, filtered as { x_handle?: string }[]);
+    const session = await auth();
+    await logAudit({
+      action: "campaign.create",
+      actor: session?.user?.email ?? null,
+      entity_type: "contactos.gsheet_picker",
+      details: { rows: n, fields: Object.keys(mapping) },
+    });
+    log.info("contactos.sync.gsheet.picked.mapped", {
+      rows: n,
+      mapped_fields: Object.keys(mapping).length,
+    });
+    revalidatePath("/contactos");
+    return { ok: true, n };
+  } catch (err) {
+    const msg = (err as Error).message;
+    log.error("contactos.sync.gsheet.picked.mapped.failed", { msg });
+    return { ok: false, error: `No se pudo importar: ${msg.slice(0, 200)}` };
   }
 }
