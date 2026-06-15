@@ -2,11 +2,9 @@
 // server-rendered (sheet configurado) y el mapper client del Picker de Drive.
 // Sin dependencias de servidor para poder usarse en ambos.
 
-export const CONTACT_FIELDS: {
-  key: string;
-  label: string;
-  required?: boolean;
-}[] = [
+export type ContactField = { key: string; label: string; required?: boolean };
+
+export const CONTACT_FIELDS: ContactField[] = [
   { key: "dni", label: "DNI / Identificador único", required: true },
   { key: "nombre", label: "Nombre" },
   { key: "apellido", label: "Apellido" },
@@ -21,6 +19,17 @@ export const CONTACT_FIELDS: {
   { key: "x_handle", label: "Cuenta de X (Twitter)" },
   { key: "afiliacion", label: "Afiliación política" },
 ];
+
+// Keys de los campos básicos (columnas reales del padrón). Sirve para no chocar
+// con campos custom y para rutear valores a columna vs jsonb `custom`.
+export const BASE_FIELD_KEYS: string[] = CONTACT_FIELDS.map((f) => f.key);
+
+// Lista de campos para el mapper: básicos + custom del proyecto.
+export function fieldsWithCustom(
+  custom: { key: string; label: string }[],
+): ContactField[] {
+  return [...CONTACT_FIELDS, ...custom.map((c) => ({ key: c.key, label: c.label }))];
+}
 
 export function bestGuess(field: string, headers: string[]): string {
   const normalize = (s: string) =>

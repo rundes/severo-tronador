@@ -11,6 +11,12 @@ import {
   deleteAllPadron,
 } from "@/lib/db/padron";
 import { createGrupo, grupoExiste } from "@/lib/grupos";
+import {
+  listFieldDefs,
+  createFieldDef,
+  deleteFieldDef,
+  type FieldType,
+} from "@/lib/contactos/field-defs";
 import type { Contact } from "@/lib/connectors/types";
 import {
   readPadronPreview,
@@ -69,7 +75,7 @@ export async function agregarContacto(formData: FormData) {
   }
 
   const field = (k: string) => String(formData.get(k) ?? "").trim() || undefined;
-  const contact = {
+  const contact: Record<string, unknown> = {
     dni,
     nombre: field("nombre"),
     apellido: field("apellido"),
@@ -80,7 +86,13 @@ export async function agregarContacto(formData: FormData) {
     barrio: field("barrio"),
     x_handle: field("x_handle"),
     afiliacion: field("afiliacion"),
-  } as Contact;
+  };
+  // Campos personalizados del proyecto (inputs custom_<key>).
+  const defs = await listFieldDefs(projectId);
+  for (const d of defs) {
+    const v = field(`custom_${d.key}`);
+    if (v !== undefined) contact[d.key] = v;
+  }
 
   await addPadronContact(projectId, contact, grupoId);
   await logAudit({
@@ -338,4 +350,38 @@ export async function eliminarTodosLosContactos(formData: FormData) {
     log.error("contactos.delete_all.failed", { msg });
     redirect(`/contactos?error=delete_failed&msg=${encodeURIComponent(msg.slice(0, 200))}`);
   }
+}
+
+// ── Estructura del padrón: campos personalizados por proyecto ───────────────
+export async function crearCampoPadron(formData: FormData) {
+  "use server";
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const label = String(formData.get("label") ?? "").trim();
+  const type = (String(formData.get("type") ?? "text") || "text") as FieldType;
+  if (!label) redirect("/contactos?error=field_label");
+  const options = String(formData.get("options") ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const { id: projectId } = await requireMember("editor");
+  try {
+    await createFieldDef(projectId, { label, type, options });
+    revalidatePath("/contactos");
+    redirect("/contactos?ok=field_created");
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("NEXT_REDIRECT")) throw err;
+    redirect(`/contactos?error=field&msg=${encodeURIComponent(msg.slice(0, 200))}`);
+  }
+}
+
+export async function eliminarCampoPadron(formData: FormData) {
+  "use server";
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/contactos?error=field");
+  const { id: projectId } = await requireMember("editor");
+  await deleteFieldDef(projectId, id);
+  revalidatePath("/contactos");
+  redirect("/contactos?ok=field_deleted");
 }

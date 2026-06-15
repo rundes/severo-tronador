@@ -2,7 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CONTACT_FIELDS, bestGuess } from "@/lib/contactos/mapping";
+import {
+  CONTACT_FIELDS,
+  bestGuess,
+  type ContactField,
+} from "@/lib/contactos/mapping";
 import {
   previewGoogleSheetPicked,
   importarConMapeoPicked,
@@ -57,10 +61,12 @@ export function GoogleSheetPicker({
   clientId,
   apiKey,
   disabled,
+  fields = CONTACT_FIELDS,
 }: {
   clientId?: string;
   apiKey?: string;
   disabled?: boolean;
+  fields?: ContactField[];
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -169,7 +175,7 @@ export function GoogleSheetPicker({
     setError(null);
     const fd = new FormData(e.currentTarget);
     const mapping: Record<string, string> = {};
-    for (const f of CONTACT_FIELDS) {
+    for (const f of fields) {
       const v = String(fd.get(`map_${f.key}`) ?? "").trim();
       if (v) mapping[f.key] = v;
     }
@@ -311,7 +317,7 @@ export function GoogleSheetPicker({
 
           <form onSubmit={handleImport} className="space-y-2">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {CONTACT_FIELDS.map((f) => (
+              {fields.map((f) => (
                 <label
                   key={f.key}
                   className="flex min-w-0 items-center justify-between gap-2 rounded border border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800"

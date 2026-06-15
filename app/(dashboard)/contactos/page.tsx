@@ -7,6 +7,8 @@ import {
   agregarContacto,
   asignarGrupoMasivo,
   eliminarTodosLosContactos,
+  crearCampoPadron,
+  eliminarCampoPadron,
 } from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
 import { padronCount, readPadronPage } from "@/lib/db/padron";
@@ -20,7 +22,12 @@ import {
 } from "@/components/ui/submit-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { GoogleSheetPicker } from "@/components/contactos/google-sheet-picker";
-import { CONTACT_FIELDS, bestGuess } from "@/lib/contactos/mapping";
+import {
+  bestGuess,
+  fieldsWithCustom,
+  type ContactField,
+} from "@/lib/contactos/mapping";
+import { listFieldDefs } from "@/lib/contactos/field-defs";
 
 export const metadata = { title: "Contactos · Tronador" };
 
@@ -51,6 +58,11 @@ export default async function ContactosPage({
 
   const grupos = persistOk ? await listGrupos(projectId) : [];
 
+  // Campos personalizados del proyecto: definen columnas extra del padrón y se
+  // suman a los básicos en el mapper de importación y en el alta manual.
+  const fieldDefs = persistOk ? await listFieldDefs(projectId) : [];
+  const importFields = fieldsWithCustom(fieldDefs);
+
   // Detectar si Google Sheets está configurado para habilitar el botón.
   const gsCfg = persistOk
     ? await getConnectorConfig("google-sheets-padron")
@@ -66,6 +78,8 @@ export default async function ContactosPage({
     manual: "Contacto cargado.",
     bulk: `Grupo asignado a ${params.n ?? "?"} contactos.`,
     deleted: `${params.n ?? "?"} contactos eliminados.`,
+    field_created: "Campo agregado a la estructura del padrón.",
+    field_deleted: "Campo eliminado.",
   };
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMap: Record<string, string> = {
@@ -84,6 +98,8 @@ export default async function ContactosPage({
     bulk_dnis: "Pegá al menos un DNI para asignar a algunos contactos.",
     delete_confirm: 'Para eliminar, escribí exactamente "ELIMINAR".',
     delete_failed: `No se pudo eliminar: ${params.msg ?? ""}`,
+    field_label: "Poné un nombre para el campo.",
+    field: `No se pudo guardar el campo: ${params.msg ?? ""}`,
   };
   const errMsg = params.error ? errMap[params.error] ?? params.error : null;
 
@@ -287,6 +303,42 @@ export default async function ContactosPage({
               Afiliación política
               <input name="afiliacion" placeholder="ej. independiente / partido" disabled={!persistOk} className={inputCls} />
             </label>
+            {fieldDefs.map((d) => (
+              <label
+                key={d.id}
+                className="flex flex-col gap-1 text-xs text-zinc-500"
+              >
+                {d.label}
+                {d.type === "select" ? (
+                  <select
+                    name={`custom_${d.key}`}
+                    defaultValue=""
+                    disabled={!persistOk}
+                    className={inputCls}
+                  >
+                    <option value="">—</option>
+                    {(d.options ?? []).map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    name={`custom_${d.key}`}
+                    type={
+                      d.type === "number"
+                        ? "number"
+                        : d.type === "date"
+                          ? "date"
+                          : "text"
+                    }
+                    disabled={!persistOk}
+                    className={inputCls}
+                  />
+                )}
+              </label>
+            ))}
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
               Grupo
               <select name="grupo_id" defaultValue="" disabled={!persistOk} className={inputCls}>
@@ -311,6 +363,96 @@ export default async function ContactosPage({
             }
           />
         </form>
+      </section>
+
+      {/* ── Estructura del padrón (campos personalizados) ─────────────── */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            🧱 Estructura del padrón
+          </h2>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+            {fieldDefs.length} campos propios
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed text-zinc-500">
+          Básicos (siempre): DNI, nombre, apellido, email, teléfono, fecha de
+          nacimiento, sexo, barrio, etc. Agregá los campos propios de este
+          proyecto; aparecen en el mapeo de importación y en el alta manual.
+        </p>
+
+        {fieldDefs.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {fieldDefs.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center gap-2 rounded-full border border-zinc-200 py-1 pl-3 pr-1 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+              >
+                <span>
+                  {d.label}{" "}
+                  <span className="font-mono text-[10px] text-zinc-400">
+                    · {d.type}
+                  </span>
+                </span>
+                <form action={eliminarCampoPadron}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <button
+                    type="submit"
+                    aria-label={`Eliminar campo ${d.label}`}
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                  >
+                    ×
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form
+          action={crearCampoPadron}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <input
+            name="label"
+            required
+            placeholder="Nombre del campo (ej. Localidad)"
+            disabled={!persistOk}
+            className={`${inputCls} w-52`}
+          />
+          <select
+            name="type"
+            defaultValue="text"
+            disabled={!persistOk}
+            className={inputCls}
+          >
+            <option value="text">Texto</option>
+            <option value="number">Número</option>
+            <option value="date">Fecha</option>
+            <option value="select">Selección</option>
+          </select>
+          <input
+            name="options"
+            placeholder="Opciones separadas por coma (si es selección)"
+            disabled={!persistOk}
+            className={`${inputCls} w-64`}
+          />
+          <SubmitButton pendingLabel="Agregando…" disabled={!persistOk}>
+            Agregar campo
+          </SubmitButton>
+        </form>
+        <FormStatus
+          ok={
+            params.ok === "field_created" || params.ok === "field_deleted"
+              ? okMsg
+              : null
+          }
+          error={
+            params.error === "field" || params.error === "field_label"
+              ? errMsg
+              : null
+          }
+        />
       </section>
 
       {/* ── Sync con Google Sheet ─────────────────────────────────────── */}
@@ -338,6 +480,7 @@ export default async function ContactosPage({
           clientId={process.env.GOOGLE_OAUTH_CLIENT_ID}
           apiKey={process.env.GOOGLE_PICKER_API_KEY}
           disabled={!persistOk}
+          fields={importFields}
         />
 
         {/* Alternativa: el Sheet fijo configurado en el conector (service account). */}
@@ -365,7 +508,7 @@ export default async function ContactosPage({
               con encabezados en la primera fila.
             </p>
             {preview ? (
-              <ColumnMapper preview={preview} />
+              <ColumnMapper preview={preview} fields={importFields} />
             ) : (
               <form action={previewGoogleSheet} className="space-y-2">
                 <SubmitButton
@@ -453,6 +596,14 @@ export default async function ContactosPage({
                       </th>
                     ),
                   )}
+                  {fieldDefs.map((d) => (
+                    <th
+                      key={d.id}
+                      className="whitespace-nowrap px-2.5 py-2 font-medium"
+                    >
+                      {d.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -473,6 +624,18 @@ export default async function ContactosPage({
                     <td className="px-2.5 py-1.5">{c.barrio ?? ""}</td>
                     <td className="px-2.5 py-1.5 tabular-nums">{c.telefono ?? ""}</td>
                     <td className="px-2.5 py-1.5">{c.email ?? ""}</td>
+                    {fieldDefs.map((d) => {
+                      const cv = (c as unknown as Record<string, unknown>)
+                        .custom as Record<string, unknown> | undefined;
+                      return (
+                        <td
+                          key={d.id}
+                          className="whitespace-nowrap px-2.5 py-1.5"
+                        >
+                          {cv?.[d.key] != null ? String(cv[d.key]) : ""}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -552,8 +715,10 @@ export default async function ContactosPage({
 
 function ColumnMapper({
   preview,
+  fields,
 }: {
   preview: { headers: string[]; sampleRows: string[][]; totalRows: number };
+  fields: ContactField[];
 }) {
   return (
     <div className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
@@ -605,7 +770,7 @@ function ColumnMapper({
 
       <form action={importarConMapeo} className="space-y-2">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {CONTACT_FIELDS.map((f) => (
+          {fields.map((f) => (
             <label
               key={f.key}
               className="flex min-w-0 items-center justify-between gap-2 rounded border border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800"
