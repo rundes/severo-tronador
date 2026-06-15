@@ -104,10 +104,16 @@ export function GoogleSheetPicker({
             )
               .setIncludeFolders(true)
               .setSelectFolderEnabled(false);
-            const pickerObj = new google.picker.PickerBuilder()
+            // appId = número de proyecto, prefijo del client id
+            // (NNN-xxx.apps.googleusercontent.com). Necesario para que el
+            // permiso drive.file del archivo elegido aplique a la API al leerlo.
+            const appId = clientId ? clientId.split("-")[0] : "";
+            let builder = new google.picker.PickerBuilder()
               .addView(view)
               .setOAuthToken(token)
-              .setDeveloperKey(apiKey)
+              .setDeveloperKey(apiKey);
+            if (appId) builder = builder.setAppId(appId);
+            const pickerObj = builder
               .setCallback((data: any) => {
                 const action = data[google.picker.Response.ACTION];
                 if (action === google.picker.Action.PICKED) {
