@@ -70,6 +70,17 @@ export async function assignGroupToAll(
   return count ?? 0;
 }
 
+// Borra TODOS los contactos del proyecto. Devuelve cuántos se eliminaron.
+export async function deleteAllPadron(projectId: string): Promise<number> {
+  if (!dbConfigured()) throw new Error("Supabase no configurado");
+  const { error, count } = await getSupabase()
+    .from("padron")
+    .delete({ count: "exact" })
+    .eq("project_id", projectId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 // Asigna (o quita) un grupo a un subconjunto de contactos por DNI. Pagina los
 // DNIs en lotes para no exceder el largo de URL de PostgREST.
 export async function assignGroupToDnis(

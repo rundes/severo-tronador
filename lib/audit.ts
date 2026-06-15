@@ -28,6 +28,7 @@ export type AuditAction =
   | "group.create"
   | "group.assign"
   | "contact.create"
+  | "contact.delete_all"
   | "post.publish"
   | "post.promote"
   | "ad.status"

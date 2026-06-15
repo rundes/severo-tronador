@@ -8,6 +8,7 @@ import {
   addPadronContact,
   assignGroupToAll,
   assignGroupToDnis,
+  deleteAllPadron,
 } from "@/lib/db/padron";
 import { createGrupo, grupoExiste } from "@/lib/grupos";
 import type { Contact } from "@/lib/connectors/types";
@@ -306,5 +307,35 @@ export async function importarConMapeoPicked(input: {
     const msg = (err as Error).message;
     log.error("contactos.sync.gsheet.picked.mapped.failed", { msg });
     return { ok: false, error: `No se pudo importar: ${msg.slice(0, 200)}` };
+  }
+}
+
+// ── Eliminar TODOS los contactos del proyecto ──────────────────────────────
+// Acción destructiva: requiere tipear "ELIMINAR" como confirmación.
+export async function eliminarTodosLosContactos(formData: FormData) {
+  "use server";
+  if (!dbConfigured()) redirect("/contactos?error=no_db");
+  const confirm = String(formData.get("confirm") ?? "").trim();
+  if (confirm !== "ELIMINAR") {
+    redirect("/contactos?error=delete_confirm");
+  }
+  const { id: projectId } = await requireMember("editor");
+  try {
+    const n = await deleteAllPadron(projectId);
+    const session = await auth();
+    await logAudit({
+      action: "contact.delete_all",
+      actor: session?.user?.email ?? null,
+      entity_type: "contactos",
+      details: { deleted: n },
+    });
+    log.info("contactos.delete_all", { deleted: n });
+    revalidatePath("/contactos");
+    redirect(`/contactos?ok=deleted&n=${n}`);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("NEXT_REDIRECT")) throw err;
+    log.error("contactos.delete_all.failed", { msg });
+    redirect(`/contactos?error=delete_failed&msg=${encodeURIComponent(msg.slice(0, 200))}`);
   }
 }

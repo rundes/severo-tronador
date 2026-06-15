@@ -6,6 +6,7 @@ import {
   crearGrupo,
   agregarContacto,
   asignarGrupoMasivo,
+  eliminarTodosLosContactos,
 } from "./actions";
 import { dbConfigured } from "@/lib/db/supabase";
 import { padronCount, readPadronPage } from "@/lib/db/padron";
@@ -64,6 +65,7 @@ export default async function ContactosPage({
     grupo: "Grupo creado.",
     manual: "Contacto cargado.",
     bulk: `Grupo asignado a ${params.n ?? "?"} contactos.`,
+    deleted: `${params.n ?? "?"} contactos eliminados.`,
   };
   const okMsg = params.ok ? okMap[params.ok] ?? null : null;
   const errMap: Record<string, string> = {
@@ -80,6 +82,8 @@ export default async function ContactosPage({
     manual_grupo: "El grupo elegido no existe.",
     bulk_grupo: "El grupo elegido no existe.",
     bulk_dnis: "Pegá al menos un DNI para asignar a algunos contactos.",
+    delete_confirm: 'Para eliminar, escribí exactamente "ELIMINAR".',
+    delete_failed: `No se pudo eliminar: ${params.msg ?? ""}`,
   };
   const errMsg = params.error ? errMap[params.error] ?? params.error : null;
 
@@ -129,6 +133,10 @@ export default async function ContactosPage({
           </span>
         </div>
       </div>
+
+      {params.ok === "deleted" && (
+        <FormStatus ok={okMsg} error={null} />
+      )}
 
       {/* ── Grupos ────────────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
@@ -498,6 +506,43 @@ export default async function ContactosPage({
               )}
             </div>
           )}
+        </section>
+      )}
+
+      {/* ── Zona de peligro: eliminar todos los contactos ─────────────────── */}
+      {persistOk && count > 0 && (
+        <section className="space-y-3 rounded-lg border border-red-300 p-5 dark:border-red-900/60">
+          <h2 className="text-sm font-semibold text-red-700 dark:text-red-400">
+            Zona de peligro
+          </h2>
+          <p className="text-xs leading-relaxed text-zinc-500">
+            Elimina <strong>todos</strong> los {count.toLocaleString()} contactos
+            de este proyecto. No se puede deshacer. Escribí{" "}
+            <code>ELIMINAR</code> para confirmar.
+          </p>
+          <form
+            action={eliminarTodosLosContactos}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <input
+              name="confirm"
+              autoComplete="off"
+              placeholder="ELIMINAR"
+              className={`${inputCls} w-40`}
+            />
+            <SubmitButton pendingLabel="Eliminando…" variant="danger">
+              Eliminar todos los contactos
+            </SubmitButton>
+          </form>
+          <FormStatus
+            ok={null}
+            error={
+              params.error === "delete_confirm" ||
+              params.error === "delete_failed"
+                ? errMsg
+                : null
+            }
+          />
         </section>
       )}
     </div>
