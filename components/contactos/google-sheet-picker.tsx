@@ -26,9 +26,6 @@ const SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 const GAPI_SRC = "https://apis.google.com/js/api.js";
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY;
-
 type Preview = { headers: string[]; sampleRows: string[][]; totalRows: number };
 type Picked = { id: string; name: string };
 type Phase = "idle" | "loading" | "preview" | "importing" | "done";
@@ -56,7 +53,15 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-export function GoogleSheetPicker({ disabled }: { disabled?: boolean }) {
+export function GoogleSheetPicker({
+  clientId,
+  apiKey,
+  disabled,
+}: {
+  clientId?: string;
+  apiKey?: string;
+  disabled?: boolean;
+}) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -66,13 +71,13 @@ export function GoogleSheetPicker({ disabled }: { disabled?: boolean }) {
   const tokenRef = useRef<string>("");
   const tokenClientRef = useRef<any>(null);
 
-  const configured = Boolean(CLIENT_ID && API_KEY);
+  const configured = Boolean(clientId && apiKey);
 
   async function getToken(): Promise<string> {
     await loadScript(GIS_SRC);
     if (!tokenClientRef.current) {
       tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
+        client_id: clientId,
         scope: SCOPE,
         callback: () => {},
       });
@@ -102,7 +107,7 @@ export function GoogleSheetPicker({ disabled }: { disabled?: boolean }) {
             const pickerObj = new google.picker.PickerBuilder()
               .addView(view)
               .setOAuthToken(token)
-              .setDeveloperKey(API_KEY)
+              .setDeveloperKey(apiKey)
               .setCallback((data: any) => {
                 const action = data[google.picker.Response.ACTION];
                 if (action === google.picker.Action.PICKED) {
@@ -200,10 +205,10 @@ export function GoogleSheetPicker({ disabled }: { disabled?: boolean }) {
   if (!configured) {
     return (
       <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-400">
-        Para elegir un Sheet de Drive, configurá{" "}
-        <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> y{" "}
-        <code>NEXT_PUBLIC_GOOGLE_PICKER_API_KEY</code> (Picker API + Drive API
-        habilitadas en Google Cloud).
+        Para elegir un Sheet de Drive falta configurar el selector: en Google
+        Cloud habilitá <strong>Picker API</strong> + <strong>Drive API</strong>,
+        creá una API key y seteá la env <code>GOOGLE_PICKER_API_KEY</code>. El
+        client id de Google se reusa del login.
       </p>
     );
   }

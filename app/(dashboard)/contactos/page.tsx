@@ -326,7 +326,11 @@ export default async function ContactosPage({
           campo de contacto. Hace upsert por DNI.
         </p>
 
-        <GoogleSheetPicker disabled={!persistOk} />
+        <GoogleSheetPicker
+          clientId={process.env.GOOGLE_OAUTH_CLIENT_ID}
+          apiKey={process.env.GOOGLE_PICKER_API_KEY}
+          disabled={!persistOk}
+        />
 
         {/* Alternativa: el Sheet fijo configurado en el conector (service account). */}
         <details className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
