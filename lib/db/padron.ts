@@ -3,6 +3,23 @@ import type { Contact } from "@/lib/connectors/types";
 
 const COLS = ["dni","nombre","apellido","fecha_nac","sexo","domicilio","barrio","circuito","mesa","telefono","email","x_handle","afiliacion"];
 
+// Separa un registro en columnas reales (COLS) y campos personalizados, que van
+// a la columna jsonb `custom`. `base` son campos fijos extra (project_id, etc).
+function splitCustom(
+  row: Record<string, unknown>,
+  base: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  const custom: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (k === "project_id" || k === "source" || k === "custom" || k === "grupo_id") continue;
+    if (COLS.includes(k)) out[k] = v;
+    else if (v != null && v !== "") custom[k] = v;
+  }
+  out.custom = custom;
+  return out;
+}
+
 export function parsePadronCsv(csv: string): Contact[] {
   const lines = csv.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
@@ -23,7 +40,12 @@ export async function importPadron(
 ): Promise<number> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
   const db = getSupabase();
-  const withSource = rows.map((r) => ({ ...r, project_id: projectId, source }));
+  const withSource = rows.map((r) =>
+    splitCustom(r as unknown as Record<string, unknown>, {
+      project_id: projectId,
+      source,
+    }),
+  );
   for (let i = 0; i < withSource.length; i += 500) {
     const { error } = await db
       .from("padron")
@@ -39,16 +61,15 @@ const PAGE = 1000; // PostgREST devuelve máximo 1000 filas por request.
 // grupo_id. source 'manual' para distinguir de los importados.
 export async function addPadronContact(
   projectId: string,
-  contact: Contact,
+  contact: Record<string, unknown>,
   grupoId?: string | null,
 ): Promise<void> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
-  const row = {
-    ...contact,
+  const row = splitCustom(contact, {
     project_id: projectId,
     source: "manual",
     grupo_id: grupoId ?? null,
-  };
+  });
   const { error } = await getSupabase()
     .from("padron")
     .upsert(row, { onConflict: "project_id,dni" });
