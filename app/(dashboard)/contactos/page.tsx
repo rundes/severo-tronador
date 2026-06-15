@@ -18,6 +18,8 @@ import {
   FormStatus,
 } from "@/components/ui/submit-button";
 import { PageHeader } from "@/components/ui/page-header";
+import { GoogleSheetPicker } from "@/components/contactos/google-sheet-picker";
+import { CONTACT_FIELDS, bestGuess } from "@/lib/contactos/mapping";
 
 export const metadata = { title: "Contactos · Tronador" };
 
@@ -318,44 +320,65 @@ export default async function ContactosPage({
           </span>
         </div>
         <p className="text-xs leading-relaxed text-zinc-500">
-          Lee el Sheet configurado en{" "}
-          <a
-            href="/conectores"
-            className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
-          >
-            Google Sheets · Padrón
-          </a>{" "}
-          (ID + service account) y hace upsert por DNI en la tabla de
-          contactos. La hoja debe llamarse <code>padron</code> con
-          encabezados en la primera fila: <code>dni, nombre, apellido,
-          fecha_nac, sexo, domicilio, barrio, circuito, mesa, telefono,
-          email, x_handle</code>.
+          Elegí un Sheet de tu Google Drive con el selector (lo buscás ahí
+          mismo); no sincroniza siempre con el mismo archivo. La primera fila
+          son los encabezados y en el paso siguiente mapeás cada columna a un
+          campo de contacto. Hace upsert por DNI.
         </p>
-        {preview ? (
-          <ColumnMapper preview={preview} />
-        ) : (
-          <form action={previewGoogleSheet} className="space-y-2">
-            <SubmitButton
-              pendingLabel="Leyendo Sheet…"
-              disabled={!persistOk || !gsConfigured}
+
+        <GoogleSheetPicker disabled={!persistOk} />
+
+        {/* Alternativa: el Sheet fijo configurado en el conector (service account). */}
+        <details className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <summary className="cursor-pointer text-xs text-zinc-500">
+            Usar el Sheet configurado del conector{" "}
+            <span
+              className={`font-mono text-[10px] uppercase tracking-wider ${
+                gsConfigured ? "text-emerald-600" : "text-amber-600"
+              }`}
             >
-              {gsConfigured
-                ? "Leer Sheet (preview de columnas)"
-                : "Configurar conector primero"}
-            </SubmitButton>
-            <FormStatus
-              ok={params.ok === "gsheet" ? okMsg : null}
-              error={
-                params.error === "gsheet" ||
-                params.error === "mapping_dni_required" ||
-                params.error === "empty_after_mapping" ||
-                params.error === "empty_sheet"
-                  ? errMsg
-                  : null
-              }
-            />
-          </form>
-        )}
+              {gsConfigured ? "listo" : "sin configurar"}
+            </span>
+          </summary>
+          <div className="pt-3">
+            <p className="mb-2 text-xs leading-relaxed text-zinc-500">
+              Lee el Sheet configurado en{" "}
+              <a
+                href="/conectores"
+                className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+              >
+                Google Sheets · Padrón
+              </a>{" "}
+              (ID + service account). La hoja debe llamarse <code>padron</code>{" "}
+              con encabezados en la primera fila.
+            </p>
+            {preview ? (
+              <ColumnMapper preview={preview} />
+            ) : (
+              <form action={previewGoogleSheet} className="space-y-2">
+                <SubmitButton
+                  pendingLabel="Leyendo Sheet…"
+                  disabled={!persistOk || !gsConfigured}
+                >
+                  {gsConfigured
+                    ? "Leer Sheet (preview de columnas)"
+                    : "Configurar conector primero"}
+                </SubmitButton>
+                <FormStatus
+                  ok={params.ok === "gsheet" ? okMsg : null}
+                  error={
+                    params.error === "gsheet" ||
+                    params.error === "mapping_dni_required" ||
+                    params.error === "empty_after_mapping" ||
+                    params.error === "empty_sheet"
+                      ? errMsg
+                      : null
+                  }
+                />
+              </form>
+            )}
+          </div>
+        </details>
       </section>
 
       {/* ── Importar CSV ──────────────────────────────────────────────── */}
@@ -477,75 +500,6 @@ export default async function ContactosPage({
   );
 }
 
-const CONTACT_FIELDS: { key: string; label: string; required?: boolean }[] = [
-  { key: "dni", label: "DNI / Identificador único", required: true },
-  { key: "nombre", label: "Nombre" },
-  { key: "apellido", label: "Apellido" },
-  { key: "email", label: "Email" },
-  { key: "telefono", label: "Teléfono" },
-  { key: "fecha_nac", label: "Fecha de nacimiento" },
-  { key: "sexo", label: "Sexo" },
-  { key: "domicilio", label: "Domicilio" },
-  { key: "barrio", label: "Barrio" },
-  { key: "circuito", label: "Circuito electoral" },
-  { key: "mesa", label: "Mesa electoral" },
-  { key: "x_handle", label: "Cuenta de X (Twitter)" },
-  { key: "afiliacion", label: "Afiliación política" },
-];
-
-function bestGuess(field: string, headers: string[]): string {
-  const normalize = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-z0-9]/g, "");
-  const target = normalize(field);
-  const aliases: Record<string, string[]> = {
-    dni: ["dni", "documento", "documentonumero", "identificador", "id"],
-    nombre: ["nombre", "firstname", "first", "given", "name"],
-    apellido: ["apellido", "lastname", "last", "family", "surname"],
-    email: ["email", "correo", "mail", "correoelectronico"],
-    telefono: ["telefono", "phone", "tel", "celular", "movil", "mobile"],
-    fecha_nac: ["fechanac", "nacimiento", "birth", "fechanacimiento"],
-    domicilio: ["domicilio", "direccion", "address", "calle"],
-    circuito: ["circuito"],
-    mesa: ["mesa"],
-    sexo: ["sexo", "genero", "gender", "sex"],
-    barrio: ["barrio", "neighborhood", "zona"],
-    x_handle: [
-      "xhandle",
-      "twitter",
-      "twitterhandle",
-      "twitteruser",
-      "twitterusername",
-      "usuariox",
-      "usuariotwitter",
-      "handlex",
-      "arroba",
-    ],
-    afiliacion: [
-      "afiliacion",
-      "afiliacionpolitica",
-      "partido",
-      "partidopolitico",
-      "political",
-      "politicalaffiliation",
-      "espacio",
-      "fuerza",
-    ],
-  };
-  const aliasList = (aliases[field] ?? [target]).map(normalize);
-  for (const h of headers) {
-    const n = normalize(h);
-    for (const a of aliasList) if (n === a) return h;
-  }
-  for (const h of headers) {
-    const n = normalize(h);
-    for (const a of aliasList) if (n.includes(a)) return h;
-  }
-  return "";
-}
 
 function ColumnMapper({
   preview,
