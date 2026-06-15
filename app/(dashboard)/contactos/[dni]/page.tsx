@@ -11,6 +11,12 @@ import {
   edadLabel,
   type Channel,
 } from "@/lib/relationship";
+import { dbConfigured } from "@/lib/db/supabase";
+import { readPadronContact } from "@/lib/db/padron";
+import { requireProject } from "@/lib/workspace";
+import { listFieldDefs } from "@/lib/contactos/field-defs";
+import { CONTACT_FIELDS } from "@/lib/contactos/mapping";
+import type { Contact } from "@/lib/connectors/types";
 
 const CHANNEL_LABEL: Record<Channel, string> = {
   email: "Email",
@@ -43,9 +49,31 @@ export default async function ContactoPage({
   params: Promise<{ dni: string }>;
 }) {
   const { dni } = await params;
-  const contacts = await googleSheetsConnector.readPadron();
-  const contact = contacts.find((c) => c.dni === dni);
+
+  // Fuente de verdad: la DB (padron) scopeada por proyecto. En dev sin DB,
+  // cae al padrón mock del conector para no romper la ficha.
+  const persist = dbConfigured();
+  let projectId: string | null = null;
+  let contact: Contact | null = null;
+  if (persist) {
+    const p = await requireProject();
+    projectId = p.id;
+    contact = await readPadronContact(projectId, dni);
+  } else {
+    const contacts = await googleSheetsConnector.readPadron();
+    contact = contacts.find((c) => c.dni === dni) ?? null;
+  }
   if (!contact) notFound();
+
+  const fieldDefs = persist && projectId ? await listFieldDefs(projectId) : [];
+  const cv =
+    ((contact as unknown as Record<string, unknown>).custom as
+      | Record<string, unknown>
+      | undefined) ?? {};
+  const rec = contact as unknown as Record<string, unknown>;
+  const datosBase = CONTACT_FIELDS.filter(
+    (f) => f.key !== "dni" && rec[f.key] != null && rec[f.key] !== "",
+  );
 
   const raw = getRawRelationship(dni);
   const rel = deriveRelationship(dni, raw);
@@ -69,6 +97,33 @@ export default async function ContactoPage({
           {contact.barrio} · Circuito {contact.circuito}
         </p>
       </div>
+
+      {(datosBase.length > 0 || fieldDefs.length > 0) && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800 sm:grid-cols-3">
+          {datosBase.map((f) => (
+            <div key={f.key} className="min-w-0">
+              <dt className="text-[10px] uppercase tracking-wide text-zinc-400">
+                {f.label}
+              </dt>
+              <dd className="truncate text-zinc-800 dark:text-zinc-200">
+                {String(rec[f.key])}
+              </dd>
+            </div>
+          ))}
+          {fieldDefs.map((d) => (
+            <div key={d.id} className="min-w-0">
+              <dt className="text-[10px] uppercase tracking-wide text-zinc-400">
+                {d.label}
+              </dt>
+              <dd className="truncate text-zinc-800 dark:text-zinc-200">
+                {cv[d.key] != null && cv[d.key] !== ""
+                  ? String(cv[d.key])
+                  : "—"}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <dl className="space-y-2 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         <div className="flex justify-between">

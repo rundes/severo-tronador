@@ -169,6 +169,24 @@ export async function readPadronFromDb(
   return out;
 }
 
+// Un contacto puntual por (proyecto, dni). Incluye la columna custom (jsonb).
+export async function readPadronContact(
+  projectId: string,
+  dni: string,
+): Promise<Contact | null> {
+  if (!dbConfigured()) return null;
+  const { data, error } = await getSupabase()
+    .from("padron")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("dni", dni)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`No se pudo leer el contacto: ${error.message}`);
+  }
+  return (data as Contact) ?? null;
+}
+
 // Una página de contactos (para la tabla de /contactos). Ordena por apellido.
 export async function readPadronPage(
   projectId: string,
