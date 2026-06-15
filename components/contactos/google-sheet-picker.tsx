@@ -314,16 +314,16 @@ export function GoogleSheetPicker({
               {CONTACT_FIELDS.map((f) => (
                 <label
                   key={f.key}
-                  className="flex items-center justify-between gap-2 rounded border border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800"
+                  className="flex min-w-0 items-center justify-between gap-2 rounded border border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800"
                 >
-                  <span className="text-zinc-700 dark:text-zinc-200">
+                  <span className="min-w-0 truncate text-zinc-700 dark:text-zinc-200">
                     {f.label}
                     {f.required && <span className="ml-1 text-red-600">*</span>}
                   </span>
                   <select
                     name={`map_${f.key}`}
                     defaultValue={bestGuess(f.key, preview.headers)}
-                    className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                    className="w-[45%] min-w-0 shrink-0 truncate rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                   >
                     <option value="">— ignorar —</option>
                     {preview.headers.map((h, i) => (
