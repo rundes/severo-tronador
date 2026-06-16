@@ -32,7 +32,7 @@ import { listFieldDefs } from "@/lib/contactos/field-defs";
 export const metadata = { title: "Contactos · Tronador" };
 
 const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-base disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 sm:min-h-0 sm:text-sm";
 
 export default async function ContactosPage({
   searchParams,
@@ -154,10 +154,126 @@ export default async function ContactosPage({
         <FormStatus ok={okMsg} error={null} />
       )}
 
+      {/* ── Contactos cargados (tabla paginada) — el dato manda, va primero ── */}
+      {count > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+              Contactos cargados
+            </h2>
+            <span className="font-mono text-[11px] text-zinc-500">
+              {((cpage - 1) * PAGE_SIZE + 1).toLocaleString()}–
+              {Math.min(cpage * PAGE_SIZE, count).toLocaleString()} de{" "}
+              {count.toLocaleString()}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
+                <tr>
+                  {["DNI", "Apellido", "Nombre", "Sexo", "Nac.", "Barrio", "Teléfono", "Email"].map(
+                    (h) => (
+                      <th key={h} className="px-2.5 py-2 font-medium">
+                        {h}
+                      </th>
+                    ),
+                  )}
+                  {fieldDefs.map((d) => (
+                    <th
+                      key={d.id}
+                      className="whitespace-nowrap px-2.5 py-2 font-medium"
+                    >
+                      {d.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {rows.map((c) => (
+                  <tr key={c.dni} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                    <td className="px-2.5 py-1.5 font-mono">
+                      <Link
+                        href={`/contactos/${c.dni}`}
+                        className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                      >
+                        {c.dni}
+                      </Link>
+                    </td>
+                    <td className="px-2.5 py-1.5">{c.apellido ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.nombre ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.sexo ?? ""}</td>
+                    <td className="px-2.5 py-1.5 tabular-nums">{c.fecha_nac ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.barrio ?? ""}</td>
+                    <td className="px-2.5 py-1.5 tabular-nums">{c.telefono ?? ""}</td>
+                    <td className="px-2.5 py-1.5">{c.email ?? ""}</td>
+                    {fieldDefs.map((d) => {
+                      const cv = (c as unknown as Record<string, unknown>)
+                        .custom as Record<string, unknown> | undefined;
+                      return (
+                        <td
+                          key={d.id}
+                          className="whitespace-nowrap px-2.5 py-1.5"
+                        >
+                          {cv?.[d.key] != null ? String(cv[d.key]) : ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm">
+              {cpage > 1 ? (
+                <Link
+                  href={`/contactos?cpage=${cpage - 1}`}
+                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                >
+                  ← Anterior
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="font-mono text-xs text-zinc-500">
+                Página {cpage} / {totalPages}
+              </span>
+              {cpage < totalPages ? (
+                <Link
+                  href={`/contactos?cpage=${cpage + 1}`}
+                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                >
+                  Siguiente →
+                </Link>
+              ) : (
+                <span />
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {persistOk && count === 0 && (
+        <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
+          Todavía no hay contactos. Importá desde un Google Sheet o CSV, o
+          cargá uno a mano en las secciones de abajo.
+        </p>
+      )}
+
+      {/* ── Administración: alta, grupos, estructura, importación ─────────── */}
+      <div className="flex items-center gap-3 pt-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          Administración
+        </h2>
+        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      </div>
+
       {/* ── Grupos ────────────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          👥 Grupos de contactos
+          Grupos de contactos
         </h2>
         <p className="text-xs text-zinc-500">
           Colecciones con nombre para organizar contactos (ej. &ldquo;Referentes
@@ -171,7 +287,7 @@ export default async function ContactosPage({
                 className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
               >
                 {gr.nombre}{" "}
-                <span className="font-mono text-zinc-400">· {gr.count}</span>
+                <span className="font-mono text-zinc-500">· {gr.count}</span>
               </li>
             ))}
           </ul>
@@ -255,7 +371,7 @@ export default async function ContactosPage({
       {/* ── Agregar contacto a mano ───────────────────────────────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          ➕ Agregar contacto a mano
+          Agregar contacto a mano
         </h2>
         <form action={agregarContacto} className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -369,9 +485,9 @@ export default async function ContactosPage({
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            🧱 Estructura del padrón
+            Estructura del padrón
           </h2>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500">
             {fieldDefs.length} campos propios
           </span>
         </div>
@@ -390,7 +506,7 @@ export default async function ContactosPage({
               >
                 <span>
                   {d.label}{" "}
-                  <span className="font-mono text-[10px] text-zinc-400">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     · {d.type}
                   </span>
                 </span>
@@ -399,7 +515,7 @@ export default async function ContactosPage({
                   <button
                     type="submit"
                     aria-label={`Eliminar campo ${d.label}`}
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-base leading-none text-zinc-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
                   >
                     ×
                   </button>
@@ -459,7 +575,7 @@ export default async function ContactosPage({
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            🔄 Sincronizar con Google Sheet
+            Importar desde Google Sheet
           </h2>
           <span
             className={`font-mono text-[10px] uppercase tracking-wider ${
@@ -539,7 +655,7 @@ export default async function ContactosPage({
       {/* ── Importar CSV ──────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          ⬆️ Importar desde CSV
+          Importar desde CSV
         </h2>
         <p className="text-xs leading-relaxed text-zinc-500">
           Encabezados esperados:{" "}
@@ -571,106 +687,6 @@ export default async function ContactosPage({
         </form>
       </section>
 
-      {/* ── Contactos cargados (tabla paginada) ───────────────────────── */}
-      {count > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-              Contactos cargados
-            </h2>
-            <span className="font-mono text-[11px] text-zinc-400">
-              {((cpage - 1) * PAGE_SIZE + 1).toLocaleString()}–
-              {Math.min(cpage * PAGE_SIZE, count).toLocaleString()} de{" "}
-              {count.toLocaleString()}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-50 text-[10px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
-                <tr>
-                  {["DNI", "Apellido", "Nombre", "Sexo", "Nac.", "Barrio", "Teléfono", "Email"].map(
-                    (h) => (
-                      <th key={h} className="px-2.5 py-2 font-medium">
-                        {h}
-                      </th>
-                    ),
-                  )}
-                  {fieldDefs.map((d) => (
-                    <th
-                      key={d.id}
-                      className="whitespace-nowrap px-2.5 py-2 font-medium"
-                    >
-                      {d.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {rows.map((c) => (
-                  <tr key={c.dni} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                    <td className="px-2.5 py-1.5 font-mono">
-                      <Link
-                        href={`/contactos/${c.dni}`}
-                        className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
-                      >
-                        {c.dni}
-                      </Link>
-                    </td>
-                    <td className="px-2.5 py-1.5">{c.apellido ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.nombre ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.sexo ?? ""}</td>
-                    <td className="px-2.5 py-1.5 tabular-nums">{c.fecha_nac ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.barrio ?? ""}</td>
-                    <td className="px-2.5 py-1.5 tabular-nums">{c.telefono ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.email ?? ""}</td>
-                    {fieldDefs.map((d) => {
-                      const cv = (c as unknown as Record<string, unknown>)
-                        .custom as Record<string, unknown> | undefined;
-                      return (
-                        <td
-                          key={d.id}
-                          className="whitespace-nowrap px-2.5 py-1.5"
-                        >
-                          {cv?.[d.key] != null ? String(cv[d.key]) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between text-sm">
-              {cpage > 1 ? (
-                <Link
-                  href={`/contactos?cpage=${cpage - 1}`}
-                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                >
-                  ← Anterior
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span className="font-mono text-xs text-zinc-500">
-                Página {cpage} / {totalPages}
-              </span>
-              {cpage < totalPages ? (
-                <Link
-                  href={`/contactos?cpage=${cpage + 1}`}
-                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                >
-                  Siguiente →
-                </Link>
-              ) : (
-                <span />
-              )}
-            </div>
-          )}
-        </section>
-      )}
 
       {/* ── Zona de peligro: eliminar todos los contactos ─────────────────── */}
       {persistOk && count > 0 && (
