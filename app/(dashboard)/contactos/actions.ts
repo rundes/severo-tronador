@@ -9,6 +9,7 @@ import {
   assignGroupToAll,
   assignGroupToDnis,
   deleteAllPadron,
+  deleteContactosByDnis,
 } from "@/lib/db/padron";
 import { createGrupo, grupoExiste } from "@/lib/grupos";
 import {
@@ -17,7 +18,6 @@ import {
   deleteFieldDef,
   type FieldType,
 } from "@/lib/contactos/field-defs";
-import type { Contact } from "@/lib/connectors/types";
 import {
   readPadronPreview,
   readPadronMapped,
@@ -384,4 +384,48 @@ export async function eliminarCampoPadron(formData: FormData) {
   await deleteFieldDef(projectId, id);
   revalidatePath("/contactos");
   redirect("/contactos?ok=field_deleted");
+}
+
+// ── Acciones masivas sobre la selección de la tabla (devuelven datos) ───────
+export type BulkResult = { ok: true; n: number } | { ok: false; error: string };
+
+export async function asignarGrupoASeleccionados(
+  grupoId: string | null,
+  dnis: string[],
+): Promise<BulkResult> {
+  if (!dbConfigured()) return { ok: false, error: "Base de datos no configurada." };
+  if (!dnis?.length) return { ok: false, error: "No hay contactos seleccionados." };
+  try {
+    const { id: projectId } = await requireMember("editor");
+    if (grupoId && !(await grupoExiste(projectId, grupoId))) {
+      return { ok: false, error: "El grupo elegido no existe." };
+    }
+    const n = await assignGroupToDnis(projectId, grupoId || null, dnis);
+    revalidatePath("/contactos");
+    return { ok: true, n };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message.slice(0, 200) };
+  }
+}
+
+export async function eliminarContactosSeleccionados(
+  dnis: string[],
+): Promise<BulkResult> {
+  if (!dbConfigured()) return { ok: false, error: "Base de datos no configurada." };
+  if (!dnis?.length) return { ok: false, error: "No hay contactos seleccionados." };
+  try {
+    const { id: projectId } = await requireMember("editor");
+    const n = await deleteContactosByDnis(projectId, dnis);
+    const session = await auth();
+    await logAudit({
+      action: "contact.delete_all",
+      actor: session?.user?.email ?? null,
+      entity_type: "contactos",
+      details: { deleted: n, selection: true },
+    });
+    revalidatePath("/contactos");
+    return { ok: true, n };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message.slice(0, 200) };
+  }
 }
