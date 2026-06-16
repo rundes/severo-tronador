@@ -128,6 +128,30 @@ export async function assignGroupToDnis(
   return total;
 }
 
+// Borra un subconjunto de contactos por DNI (selección). Pagina en lotes.
+export async function deleteContactosByDnis(
+  projectId: string,
+  dnis: string[],
+): Promise<number> {
+  if (!dbConfigured()) throw new Error("Supabase no configurado");
+  const unique = [...new Set(dnis.map((d) => d.trim()).filter(Boolean))];
+  if (unique.length === 0) return 0;
+  const sb = getSupabase();
+  const BATCH = 200;
+  let total = 0;
+  for (let i = 0; i < unique.length; i += BATCH) {
+    const chunk = unique.slice(i, i + BATCH);
+    const { error, count } = await sb
+      .from("padron")
+      .delete({ count: "exact" })
+      .eq("project_id", projectId)
+      .in("dni", chunk);
+    if (error) throw error;
+    total += count ?? 0;
+  }
+  return total;
+}
+
 export async function readPadronFromDb(
   projectId: string,
   limit?: number,

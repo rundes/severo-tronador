@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/submit-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { GoogleSheetPicker } from "@/components/contactos/google-sheet-picker";
+import { ContactsTable } from "@/components/contactos/contacts-table";
 import {
   bestGuess,
   fieldsWithCustom,
@@ -154,105 +155,18 @@ export default async function ContactosPage({
         <FormStatus ok={okMsg} error={null} />
       )}
 
-      {/* ── Contactos cargados (tabla paginada) — el dato manda, va primero ── */}
+
+      {/* ── Contactos cargados — el dato manda, va primero ──────────────── */}
       {count > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-              Contactos cargados
-            </h2>
-            <span className="font-mono text-[11px] text-zinc-500">
-              {((cpage - 1) * PAGE_SIZE + 1).toLocaleString()}–
-              {Math.min(cpage * PAGE_SIZE, count).toLocaleString()} de{" "}
-              {count.toLocaleString()}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
-                <tr>
-                  {["DNI", "Apellido", "Nombre", "Sexo", "Nac.", "Barrio", "Teléfono", "Email"].map(
-                    (h) => (
-                      <th key={h} className="px-2.5 py-2 font-medium">
-                        {h}
-                      </th>
-                    ),
-                  )}
-                  {fieldDefs.map((d) => (
-                    <th
-                      key={d.id}
-                      className="whitespace-nowrap px-2.5 py-2 font-medium"
-                    >
-                      {d.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {rows.map((c) => (
-                  <tr key={c.dni} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                    <td className="px-2.5 py-1.5 font-mono">
-                      <Link
-                        href={`/contactos/${c.dni}`}
-                        className="text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
-                      >
-                        {c.dni}
-                      </Link>
-                    </td>
-                    <td className="px-2.5 py-1.5">{c.apellido ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.nombre ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.sexo ?? ""}</td>
-                    <td className="px-2.5 py-1.5 tabular-nums">{c.fecha_nac ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.barrio ?? ""}</td>
-                    <td className="px-2.5 py-1.5 tabular-nums">{c.telefono ?? ""}</td>
-                    <td className="px-2.5 py-1.5">{c.email ?? ""}</td>
-                    {fieldDefs.map((d) => {
-                      const cv = (c as unknown as Record<string, unknown>)
-                        .custom as Record<string, unknown> | undefined;
-                      return (
-                        <td
-                          key={d.id}
-                          className="whitespace-nowrap px-2.5 py-1.5"
-                        >
-                          {cv?.[d.key] != null ? String(cv[d.key]) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between text-sm">
-              {cpage > 1 ? (
-                <Link
-                  href={`/contactos?cpage=${cpage - 1}`}
-                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                >
-                  ← Anterior
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span className="font-mono text-xs text-zinc-500">
-                Página {cpage} / {totalPages}
-              </span>
-              {cpage < totalPages ? (
-                <Link
-                  href={`/contactos?cpage=${cpage + 1}`}
-                  className="rounded border border-zinc-300 px-3 py-1.5 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                >
-                  Siguiente →
-                </Link>
-              ) : (
-                <span />
-              )}
-            </div>
-          )}
-        </section>
+        <ContactsTable
+          rows={rows}
+          fieldDefs={fieldDefs}
+          grupos={grupos}
+          cpage={cpage}
+          pageSize={PAGE_SIZE}
+          count={count}
+          totalPages={totalPages}
+        />
       )}
 
       {persistOk && count === 0 && (
