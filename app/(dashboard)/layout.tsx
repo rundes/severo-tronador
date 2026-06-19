@@ -25,6 +25,7 @@ const NAV: NavGroup[] = [
     section: "Investigación",
     items: [
       { href: "/escucha", label: "Escucha", icon: "Ear" },
+      { href: "/competencia", label: "Competencia", icon: "Search" },
       { href: "/encuestas", label: "Encuestas", icon: "ClipboardList" },
       { href: "/respuestas", label: "Respuestas", icon: "MessageSquare" },
     ],
