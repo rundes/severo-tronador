@@ -4,15 +4,10 @@
 // encuestas miden prevalencia (ARCHITECTURE / VISION).
 import { connectors } from "@/lib/connectors/registry";
 import type { ListenItem, ListeningConnector, ListenQuery } from "@/lib/connectors/types";
-import { claudeApiConnector, type CodingOutput } from "@/lib/connectors/claude-api";
 import { getListeningConfig } from "@/lib/listening-config";
 import { cacheHasFreshItems, readCachedItems } from "@/lib/listening-cache";
-import {
-  DEFAULT_EMERGENCE,
-  detectEmerging,
-  sortByEmergence,
-  type TopicBreakdown,
-} from "@/lib/emergence";
+import { type TopicBreakdown } from "@/lib/emergence";
+import { DEFAULT_TOPIC_CONFIG, extractTopics } from "@/lib/topics";
 import {
   aggregateTagsBySentiment,
   classifySentiment,
@@ -148,20 +143,14 @@ export async function runListening(
     ).flat();
   }
 
-  const coding = (
-    await claudeApiConnector.analyze(
-      items.map((i) => i.text),
-      "coding_qualitative",
-    )
-  ).output as CodingOutput;
-
-  const topics: Topic[] = sortByEmergence(
-    detectEmerging(
-      coding.themes.map((t) => t.label),
-      items,
-      { ...DEFAULT_EMERGENCE, now: NOW },
-    ),
-  );
+  // Temas emergentes: candidatos n-grama + keyness (reciente vs previa) +
+  // dedupe de reposts + mínimo de autores. Ver lib/topics.ts. Antes esto era
+  // "top-6 unigramas por frecuencia" del conector mock, que dejaba pasar ruido
+  // ("https"/"posted") y palabras amplificadas por una sola cuenta.
+  const topics: Topic[] = extractTopics(items, {
+    ...DEFAULT_TOPIC_CONFIG,
+    now: NOW,
+  });
 
   const bySource: Record<string, number> = {};
   for (const i of items) bySource[i.source] = (bySource[i.source] ?? 0) + 1;

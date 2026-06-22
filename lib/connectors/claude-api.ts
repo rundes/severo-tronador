@@ -14,6 +14,7 @@ import type {
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
+import { tokenize } from "@/lib/text/tokenize";
 
 const ID = "claude-api";
 const TOKEN_CAP = 1_000_000; // guardarraíl de gasto mensual (tokens)
@@ -34,23 +35,9 @@ export interface SentimentOutput {
   mode: "mock" | "claude";
 }
 
-const STOPWORDS = new Set([
-  "para", "como", "pero", "porque", "tiene", "todo", "todos", "este", "esta",
-  "esto", "esos", "esas", "muy", "más", "mas", "que", "los", "las", "del",
-  "con", "una", "unos", "unas", "por", "sus", "nos", "les", "hay", "son",
-  "está", "estan", "están", "ser", "fue", "han", "hace", "cada", "donde",
-  "cuando", "tener", "barrio", "nuestro", "nuestra", "maipu", "vecinos",
-  "calles", "semana", "otra",
-]);
-
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .normalize("NFD") // separa diacríticos; el strip de abajo los elimina
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length >= 4 && !STOPWORDS.has(w));
-}
+// tokenize() vive ahora en @/lib/text/tokenize (fuente única, con strip de
+// URLs y ruido de plataforma — antes esta copia local NO los filtraba y por
+// eso colaban "https"/"posted" como temas).
 
 // Coding inductivo heurístico: términos más frecuentes como temas emergentes.
 function mockCoding(answers: string[]): CodingOutput {
