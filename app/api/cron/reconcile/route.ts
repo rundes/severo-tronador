@@ -9,6 +9,7 @@
 // cuando haya tráfico real: requiere META_WA_ACCESS_TOKEN y un endpoint
 // /v18.0/{message-id}.
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
 
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (auth !== `Bearer ${secret}`)
+    if (!constantTimeEqual(auth ?? "", `Bearer ${secret}`))
       return new Response("Forbidden", { status: 403 });
   } else if (process.env.NODE_ENV === "production") {
     return new Response("CRON_SECRET no configurado", { status: 403 });

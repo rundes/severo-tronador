@@ -38,8 +38,14 @@ conector queda inactivo (o mock en dev local); el resto sigue funcionando.
 - **Mail** `@tronador.net.ar` — Cloudflare Email Routing (recepción) + Resend
   (envío), bandeja in-app, tracking. Sin VPS.
 - **Escucha** — listening pasivo: GDELT (prensa), RSS de medios locales editables,
-  X (timelines públicos por sindicación gratis, o worker twscrape), con detección
-  de temas emergentes, sentiment y feed.
+  X (timelines públicos por sindicación gratis, o worker twscrape), Meta Content
+  Library y **radio** (grabación + transcripción Whisper), con detección de temas
+  emergentes (n-gramas + keyness), sentiment y feed.
+- **Competencia** — búsqueda en la Meta Ad Library (anuncios públicos por keyword,
+  país y rango de fecha; anunciante, gasto e impresiones).
+- **Estudio de contenido / Difusión** — generación con IA de propuestas de avisos
+  (copys por plataforma + imagen + video) a partir de briefs; publicación y
+  promoción de posts en Meta + reporte de ads.
 - **Respuestas**, **Conectores**, **Proyecto** (miembros), **Auditoría**.
 
 ## Stack

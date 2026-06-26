@@ -111,8 +111,11 @@ export const claudeApiConnector: AnalysisConnector = {
 
   async test(config?: Config): Promise<TestResult> {
     const cfg = config ?? await getConnectorConfig(ID);
+    // NOTA: aunque haya API key, analyze() todavía corre la heurística local
+    // (la llamada real a Claude no está implementada). No prometemos Claude para
+    // no confundir al operador.
     return cfg.ANTHROPIC_API_KEY
-      ? { ok: true, message: "API key presente — análisis con Claude." }
+      ? { ok: true, message: "API key presente — coding/sentiment con heurística local (Claude pendiente de implementar)." }
       : { ok: true, message: "Modo mock — heurística local (frecuencia + léxico)." };
   },
 

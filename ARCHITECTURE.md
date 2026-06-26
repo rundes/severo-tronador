@@ -61,8 +61,9 @@ Cada persona del padrón tiene una **ficha de relación**: cuándo se la contact
 export type ConnectorCategory =
   | 'data'       // fuente de contactos (Google Sheets)
   | 'outreach'   // canal saliente (Email, WhatsApp, SMS, Voice, Telegram)
-  | 'listening'  // canal entrante (GDELT, X API, Reddit, Atribus...)
-  | 'analysis'   // procesamiento (Claude API, embeddings)
+  | 'publishing' // publicación/promoción de avisos (Meta)
+  | 'listening'  // canal entrante (GDELT, X API, Reddit, RSS, Meta CL...)
+  | 'analysis'   // procesamiento (Claude API, Google AI, SiliconFlow, Meta Ad Library)
   | 'auth';      // auth (Google OAuth)
 
 export type ConnectorStatus =
@@ -167,6 +168,7 @@ import { googleSheetsConnector } from "./google-sheets";
 import { googleSheetsArchiveConnector } from "./google-sheets-archive";
 import { googleOAuthConnector } from "./google-oauth";
 import { resendConnector } from "./resend";
+import { brevoConnector } from "./brevo";
 import { metaWaCloudConnector } from "./meta-wa-cloud";
 import { telnyxSmsConnector } from "./telnyx-sms";
 import { telnyxVoiceConnector } from "./telnyx-voice";   // IVR de menú simple
@@ -177,12 +179,17 @@ import { xApiConnector } from "./x-api";
 import { redditApiConnector } from "./reddit-api";
 import { metaContentLibraryConnector } from "./meta-content-library";
 import { rssConnector } from "./rss";
+import { metaConnector } from "./meta";
+import { googleAiConnector } from "./google-ai";
+import { siliconflowConnector } from "./siliconflow";
+import { metaAdLibraryConnector } from "./meta-ad-library";
 
 export const connectors: Connector[] = [
   googleSheetsConnector,
   googleSheetsArchiveConnector,
   googleOAuthConnector,
   resendConnector,
+  brevoConnector,
   metaWaCloudConnector,
   telnyxSmsConnector,
   telnyxVoiceConnector,
@@ -193,6 +200,10 @@ export const connectors: Connector[] = [
   redditApiConnector,
   metaContentLibraryConnector,
   rssConnector,
+  metaConnector,
+  googleAiConnector,
+  siliconflowConnector,
+  metaAdLibraryConnector,
 ];
 ```
 

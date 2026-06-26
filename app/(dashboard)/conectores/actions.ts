@@ -9,6 +9,7 @@ import {
   type ConnectorConfigValues,
 } from "@/lib/connectors/config";
 import { invalidateConnectorHealth } from "@/lib/connectors/health";
+import { requireMember } from "@/lib/workspace";
 
 function valuesFromForm(connectorId: string, fd: FormData): ConnectorConfigValues {
   const schema = getConnector(connectorId)?.configSchema ?? [];
@@ -24,6 +25,7 @@ export async function guardarConfig(
   connectorId: string,
   fd: FormData,
 ): Promise<{ ok: boolean; message?: string }> {
+  await requireMember("owner"); // credenciales de conectores: sólo owners
   if (!getConnector(connectorId)) return { ok: false, message: "Conector desconocido" };
   try {
     await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
@@ -39,6 +41,7 @@ export async function probarConexion(
   connectorId: string,
   fd: FormData,
 ): Promise<{ ok: boolean; message: string }> {
+  await requireMember("owner");
   const connector = getConnector(connectorId);
   if (!connector) return { ok: false, message: "Conector desconocido" };
   try {
@@ -53,12 +56,14 @@ export async function probarConexion(
 }
 
 export async function toggleConector(connectorId: string, enabled: boolean) {
+  await requireMember("owner");
   if (!getConnector(connectorId)) return;
   await setEnabled(connectorId, enabled);
   revalidatePath("/conectores");
 }
 
 export async function borrarConfig(connectorId: string) {
+  await requireMember("owner");
   if (!getConnector(connectorId)) return;
   await deleteConnectorConfig(connectorId);
   invalidateConnectorHealth(connectorId);
