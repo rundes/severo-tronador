@@ -2,6 +2,7 @@
 // (Plan 05 F5). En Vercel Hobby la frecuencia se gestiona vía GitHub
 // Actions (cada 1h en .github/workflows/cron.yml).
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
 import { pullAllSources, type PullSummary } from "@/lib/listening-cache";
 import { listActiveProjects } from "@/lib/projects";
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (auth !== `Bearer ${secret}`) {
+    if (!constantTimeEqual(auth ?? "", `Bearer ${secret}`)) {
       return new Response("Forbidden", { status: 403 });
     }
   } else if (process.env.NODE_ENV === "production") {

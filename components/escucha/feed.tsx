@@ -1,4 +1,5 @@
 import type { FeedItem } from "@/lib/listening";
+import { safeHttpUrl } from "@/lib/url";
 
 const SOURCE_DOT: Record<string, string> = {
   "x.com": "𝕏",
@@ -126,9 +127,9 @@ function FeedRow({ item, indent }: { item: FeedItem; indent?: boolean }) {
         <p className="mt-1 line-clamp-3 text-sm text-zinc-700 dark:text-zinc-200">
           {item.text}
         </p>
-        {item.url && (
+        {safeHttpUrl(item.url) && (
           <a
-            href={item.url}
+            href={safeHttpUrl(item.url)}
             target="_blank"
             rel="noreferrer"
             className="mt-1 inline-block text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"

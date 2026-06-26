@@ -84,6 +84,37 @@ export async function createToken(
   return token;
 }
 
+// Variante bulk de createToken: genera un token por dni y los inserta en UN
+// solo round-trip (en vez de N inserts secuenciales en executeCampaign).
+// Devuelve un map dni → token.
+export async function createTokens(
+  projectId: string,
+  campaignId: string,
+  dnis: string[],
+  encuestaId?: string,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const rows = dnis.map((dni) => {
+    const token = randomUUID();
+    out.set(dni, token);
+    return {
+      token,
+      project_id: projectId,
+      campaign_id: campaignId,
+      dni,
+      encuesta_id: encuestaId ?? null,
+    };
+  });
+  if (!dbConfigured()) {
+    for (const r of rows) {
+      tokMem.set(r.token, { campaignId, dni: r.dni, projectId, encuestaId });
+    }
+    return out;
+  }
+  if (rows.length) await getSupabase().from("survey_tokens").insert(rows);
+  return out;
+}
+
 export async function resolveToken(
   token: string,
 ): Promise<TokenRef | undefined> {

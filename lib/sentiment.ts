@@ -1,6 +1,13 @@
 // Clasificador pragmático de sentimiento + extractor de tags. Heurístico
 // keyword-based en español, suficiente para una nube en /escucha. Cuando
 // haya volumen real conviene mover a Claude (lib/connectors/claude-api).
+//
+// Tokeniza con el módulo compartido @/lib/text/tokenize (mismo que usan temas
+// emergentes): quita URLs/ruido de plataforma, normaliza diacríticos (NFD) y
+// comparte stopwords. Antes este archivo tenía su propio tokenizer + STOPWORDS
+// divergentes (sin NFD, lista más chica), así que /escucha clasificaba con un
+// tokenizer inferior y desincronizado del de temas.
+import { tokenize } from "@/lib/text/tokenize";
 
 const POS = new Set([
   "bueno", "buena", "buenos", "buenas",
@@ -65,40 +72,10 @@ export function classifySentiment(text: string): SentimentScore {
 
 // ── Tag extractor ────────────────────────────────────────────────────────
 
-const STOPWORDS = new Set([
-  "el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "pero",
-  "que", "de", "del", "al", "a", "en", "por", "para", "con", "sin", "su",
-  "sus", "es", "son", "fue", "ser", "estar", "esta", "este", "estos",
-  "esas", "esos", "esa", "eso", "ese", "más", "mas", "no", "si", "sí",
-  "ya", "se", "le", "lo", "me", "te", "nos", "les", "mi", "tu", "yo",
-  "él", "el", "ella", "ellos", "ellas", "ustedes", "usted", "como", "cuando",
-  "donde", "porque", "para", "todo", "toda", "todos", "todas", "muy",
-  "hay", "haber", "habia", "había", "fue", "esto", "soy", "eres", "somos",
-  "rt", "via", "vía", "http", "https", "co", "amp",
-]);
-
-export function extractTags(
-  text: string,
-  maxTokens = 200,
-): string[] {
-  const tokens = tokenize(text).slice(0, maxTokens);
-  return tokens.filter(
-    (t) => t.length >= 4 && !STOPWORDS.has(t) && !/^\d+$/.test(t),
-  );
-}
-
-function tokenize(text: string): string[] {
-  // Lowercase, quitar puntuación + URLs + mentions/hashtags markers,
-  // partir por espacios.
-  return text
-    .toLowerCase()
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/[#@]/g, "")
-    .replace(/[.,;:!?¿¡()"'‘’“”\[\]{}]/g, " ")
-    .replace(/[\s\n\r\t]+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
+// Tags para la nube: palabras de contenido de >=4 chars (el tokenizer compartido
+// ya quita URLs, ruido de plataforma, stopwords y números).
+export function extractTags(text: string, maxTokens = 200): string[] {
+  return tokenize(text, 4).slice(0, maxTokens);
 }
 
 // ── Agregación de tags por sentimiento sobre una lista ───────────────────
@@ -109,7 +86,9 @@ export interface TagCount {
 }
 
 export function aggregateTagsBySentiment(
-  items: { text: string }[],
+  // Acepta el sentiment ya clasificado para evitar reclasificar por item (el
+  // caller en lib/listening.ts ya lo calculó). Cae a classifySentiment si falta.
+  items: { text: string; sentiment?: Sentiment }[],
 ): { positive: TagCount[]; negative: TagCount[]; neutral: TagCount[] } {
   const buckets: Record<Sentiment, Map<string, number>> = {
     positive: new Map(),
@@ -117,9 +96,9 @@ export function aggregateTagsBySentiment(
     neutral: new Map(),
   };
   for (const it of items) {
-    const score = classifySentiment(it.text);
+    const sentiment = it.sentiment ?? classifySentiment(it.text).sentiment;
     const tags = extractTags(it.text);
-    const bucket = buckets[score.sentiment];
+    const bucket = buckets[sentiment];
     for (const t of tags) {
       bucket.set(t, (bucket.get(t) ?? 0) + 1);
     }

@@ -426,3 +426,25 @@ campaña.
 
 Aparece solo en el panel `/conectores`, agrupado por categoría, con su estado y
 cuota. **No hay que tocar nada más.**
+
+---
+
+## Conectores adicionales (registrados, doc pendiente de detalle)
+
+Los siguientes conectores ya están en `lib/connectors/registry.ts` y en el panel
+`/conectores`, pero todavía no tienen sección detallada arriba:
+
+- **Brevo** (`brevo`, outreach/email) — proveedor de email alternativo a Resend.
+  Env: `BREVO_API_KEY`. Ver `lib/connectors/brevo.ts`.
+- **Google AI / Gemini** (`google-ai`, analysis) — generación de texto/imagen para
+  el Estudio de contenido. Env: `GOOGLE_AI_API_KEY`. Ver `lib/connectors/google-ai.ts`
+  y `lib/gemini.ts`.
+- **SiliconFlow** (`siliconflow`, analysis) — generación de imagen/video.
+  Env: `SILICONFLOW_API_KEY`. Ver `lib/connectors/siliconflow.ts` y `lib/media-gen.ts`.
+- **Meta Ad Library** (`meta-ad-library`, analysis) — búsqueda de anuncios públicos
+  para el módulo Competencia. Usa el token de Meta. Ver
+  `lib/connectors/meta-ad-library.ts` y `lib/meta-ad-library-search.ts`.
+
+> NOTA: el conector `claude-api` corre hoy con heurística local (frecuencia +
+> léxico) incluso con `ANTHROPIC_API_KEY` presente — la llamada real a Claude
+> está pendiente de implementar (ver `lib/connectors/claude-api.ts`).

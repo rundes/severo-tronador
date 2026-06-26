@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ListeningResult, Topic, FeedItem, Platform } from "@/lib/listening";
 import { feedKey, topicKey } from "@/lib/escucha-keys";
+import { safeHttpUrl } from "@/lib/url";
 import { TagCloud } from "@/components/escucha/tag-cloud";
 import { AuthorRankingList } from "@/components/escucha/author-ranking";
 import { VolumeChart } from "@/components/escucha/volume-chart";
@@ -355,9 +356,9 @@ export function LiveMonitor({
                         {item.text}
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                        {item.url && !item.meta?.audioObject && (
+                        {safeHttpUrl(item.url) && !item.meta?.audioObject && (
                           <a
-                            href={item.url}
+                            href={safeHttpUrl(item.url)}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"

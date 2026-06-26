@@ -167,7 +167,8 @@ export async function runListening(
   };
   for (const i of enriched) bySentiment[i.sentiment]++;
 
-  const tagBuckets = aggregateTagsBySentiment(items);
+  // Reusa el sentiment ya calculado en `enriched` (evita reclasificar por item).
+  const tagBuckets = aggregateTagsBySentiment(enriched);
 
   // Ranking de autores. Cada item con author contribuye a su score.
   const authorMap = new Map<string, { count: number; pos: number; neg: number }>();

@@ -95,10 +95,7 @@ export async function GET(
       campaign_id: campaign.id,
       msg: (err as Error).message,
     });
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "pdf_failed" }, { status: 500 });
   }
 }
 

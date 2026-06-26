@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { resolveToken } from "@/lib/survey";
 import { upsertChat, markOptOut, getChatByDni } from "@/lib/telegram-chats";
 import { optOut } from "@/lib/optout";
+import { constantTimeEqual } from "@/lib/crypto";
 import { log } from "@/lib/logger";
 
 interface TelegramUpdate {
@@ -30,15 +31,17 @@ interface TelegramUpdate {
 }
 
 export async function POST(req: Request) {
+  // Fail-closed SIEMPRE: sin secret configurado no se acepta ningún update
+  // (antes en no-prod se aceptaba sin verificar → en preview/staging un atacante
+  // podía forjar /start y /baja sobre DNIs arbitrarios). Comparación constant-time.
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   const hdr = req.headers.get("x-telegram-bot-api-secret-token");
-  if (secret) {
-    if (hdr !== secret) {
-      log.warn("webhook.telegram.bad_secret");
-      return new Response("Forbidden", { status: 403 });
-    }
-  } else if (process.env.NODE_ENV === "production") {
+  if (!secret) {
     log.warn("webhook.telegram.no_secret_configured");
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (!hdr || !constantTimeEqual(hdr, secret)) {
+    log.warn("webhook.telegram.bad_secret");
     return new Response("Forbidden", { status: 403 });
   }
 

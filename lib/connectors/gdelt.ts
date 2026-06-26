@@ -14,6 +14,7 @@ import type {
 import { mockListenItems } from "@/lib/mock/listening";
 import { demoData } from "@/lib/connectors/demo";
 import { log } from "@/lib/logger";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 const ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc";
 const MAX_RECORDS = 250;
@@ -45,7 +46,7 @@ async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
     timespan: "24h",
   });
   if (query.pais) params.set("sourcecountry", query.pais.toLowerCase());
-  const res = await fetch(`${ENDPOINT}?${params}`);
+  const res = await fetchWithTimeout(`${ENDPOINT}?${params}`);
   if (!res.ok) throw new Error(`GDELT HTTP ${res.status}`);
   const json = (await res.json()) as GdeltResp;
   return (json.articles ?? []).map((a) => ({

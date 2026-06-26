@@ -16,7 +16,7 @@ import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { renderCampaignEmailHtml, type EmailTemplateInput } from "@/lib/email-render";
-import { createToken } from "@/lib/survey";
+import { createToken, createTokens } from "@/lib/survey";
 import { trackedLink, openPixel } from "@/lib/tracking";
 import { pickVariant, type Variant } from "@/lib/ab-test";
 import { optedOutSet } from "@/lib/optout";
@@ -604,10 +604,17 @@ export async function executeCampaign(
 
   // ── DB path: encolar sendable en envio_queue. El cron
   // /api/cron/send-queue procesa async respetando rate limit por provider.
+  // Bulk-insert de tokens en 1 round-trip (antes era N inserts secuenciales).
+  const tokenByDni = await createTokens(
+    projectId,
+    campaignId,
+    sendable.map((m) => m.contact.dni),
+    input.encuestaId,
+  );
   const queueRows: (EnvioQueueRow & { variant_id?: string | null })[] = [];
   for (const m of sendable) {
     const { tpl, variantId } = resolveFor(m.contact.dni);
-    const token = await createToken(projectId, campaignId, m.contact.dni, input.encuestaId);
+    const token = tokenByDni.get(m.contact.dni)!;
     const url = `${baseUrl()}/encuesta/${token}`;
     queueRows.push({
       project_id: projectId,

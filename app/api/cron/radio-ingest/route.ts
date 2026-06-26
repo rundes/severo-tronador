@@ -2,6 +2,7 @@
 // GitHub Actions), matchea las keywords del proyecto y upserta menciones en
 // listening_items (source = estación). Seguro con CRON_SECRET.
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
 import { getListeningConfig } from "@/lib/listening-config";
 import { upsertItems } from "@/lib/listening-cache";
@@ -11,7 +12,7 @@ import { log } from "@/lib/logger";
 
 function authOk(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (secret) return req.headers.get("authorization") === `Bearer ${secret}`;
+  if (secret) return constantTimeEqual(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
   return process.env.NODE_ENV !== "production";
 }
 
