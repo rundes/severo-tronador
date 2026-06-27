@@ -10,11 +10,8 @@ import { renderCampaignEmailHtml } from "@/lib/email-render";
 import { interpolate } from "@/lib/templates";
 import { logAudit } from "@/lib/audit";
 import type { Contact } from "@/lib/connectors/types";
-import { getConnectorConfig } from "@/lib/connectors/config";
-import { generateText } from "@/lib/anthropic";
-import { generateGeminiText } from "@/lib/gemini";
+import { generateAssist } from "@/lib/ai/generate";
 import { sanitizeEmailHtml } from "@/lib/email-sanitize";
-import { incrementUsage } from "@/lib/quota";
 import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
 
 export async function nuevaPlantilla(formData: FormData) {
@@ -63,16 +60,6 @@ export async function generarHtmlConIA(
   const current = String(formData.get("current") ?? "").trim();
   if (!prompt) return { ok: false, html: "", msg: "Escribí qué querés que genere." };
 
-  const claude = await getConnectorConfig("claude-api");
-  const google = await getConnectorConfig("google-ai");
-  if (!claude.ANTHROPIC_API_KEY && !google.GOOGLE_AI_API_KEY) {
-    return {
-      ok: false,
-      html: "",
-      msg: "Configurá Claude API o Google AI en Conectores para generar con IA.",
-    };
-  }
-
   const varsList = SUPPORTED_VARS.map((v) => `{{${v.key}}} (${v.desc})`).join(", ");
   const system = [
     "Sos un asistente que genera el cuerpo HTML de emails para una plataforma",
@@ -97,31 +84,23 @@ export async function generarHtmlConIA(
     ? `HTML actual del email:\n\n${current}\n\nModificalo según esta indicación:\n${prompt}`
     : `Generá el cuerpo HTML del email según esta indicación:\n${prompt}`;
 
-  // Genera con Claude; si falla (modelo no disponible, etc.) cae a Gemini.
+  // El dispatcher elige proveedor (NVIDIA→Gemini→Claude→SiliconFlow) y cae al
+  // siguiente si uno falla. Solo lanza si no hay ninguno configurado.
   let text = "";
-  let usedClaude = false;
-  let claudeErr: string | null = null;
-  if (claude.ANTHROPIC_API_KEY) {
-    try {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, model: claude.ANTHROPIC_MODEL });
-      text = r.text;
-      usedClaude = true;
-      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
-    } catch (e) {
-      claudeErr = (e as Error).message;
-    }
-  }
-  if (!text && google.GOOGLE_AI_API_KEY) {
-    try {
-      const r = await generateGeminiText({ apiKey: google.GOOGLE_AI_API_KEY, system, prompt: userPrompt });
-      text = r.text;
-      await incrementUsage("google-ai", Math.ceil((userPrompt.length + r.text.length) / 4), projectId);
-    } catch (e) {
-      return { ok: false, html: "", msg: `Error al generar: ${(e as Error).message}` };
-    }
+  let providerMsg = "";
+  try {
+    const r = await generateAssist({ system, prompt: userPrompt, tier: "fast", projectId, maxTokens: 4096 });
+    text = r.text;
+    providerMsg = r.provider === "heuristic" ? "" : ` (${r.provider})`;
+  } catch {
+    return {
+      ok: false,
+      html: "",
+      msg: "Configurá NVIDIA, Gemini o Claude en Conectores para usar el asistente.",
+    };
   }
   if (!text) {
-    return { ok: false, html: "", msg: `Error al generar: ${claudeErr ?? "sin respuesta"}` };
+    return { ok: false, html: "", msg: "Error al generar: sin respuesta." };
   }
 
   // Quita cercos de código si el modelo igual los puso, y sanitiza al mismo
@@ -137,7 +116,7 @@ export async function generarHtmlConIA(
   return {
     ok: true,
     html,
-    msg: `Listo (${usedClaude ? "Claude" : "Gemini"}). Revisá el preview y ajustá si hace falta.`,
+    msg: `Listo${providerMsg}. Revisá el preview y ajustá si hace falta.`,
   };
 }
 
