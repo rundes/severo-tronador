@@ -16,9 +16,7 @@ import {
 } from "@/lib/segments-store";
 import { logAudit } from "@/lib/audit";
 import { requireMember } from "@/lib/workspace";
-import { getConnectorConfig } from "@/lib/connectors/config";
-import { generateText } from "@/lib/anthropic";
-import { incrementUsage } from "@/lib/quota";
+import { generateAssist } from "@/lib/ai/generate";
 import { barriosDisponibles, loadContacts, applySegment, parseManualList } from "@/lib/segments";
 
 const GuardarSegmentoSchema = z.object({
@@ -90,10 +88,6 @@ export async function crearSegmentoIA(formData: FormData) {
   if (!prompt) fail("Describí el segmento que querés.");
   const { id: projectId } = await requireMember("editor");
 
-  const cfg = await getConnectorConfig("claude-api");
-  const apiKey = cfg.ANTHROPIC_API_KEY;
-  if (!apiKey) fail("Falta la API key de Claude. Cargala en Conectores → Claude API.");
-
   const all = await loadContacts(projectId);
   const barrios = barriosDisponibles(all).slice(0, 200);
 
@@ -124,9 +118,8 @@ export async function crearSegmentoIA(formData: FormData) {
   let text: string | null = null;
   let apiErr: string | null = null;
   try {
-    const r = await generateText({ apiKey, system, prompt: `Descripción: ${prompt}`, maxTokens: 1024, model: cfg.ANTHROPIC_MODEL });
+    const r = await generateAssist({ system, prompt: `Descripción: ${prompt}`, tier: "fast", projectId, maxTokens: 1024 });
     text = r.text;
-    await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
   } catch (e) {
     apiErr = (e as Error).message;
   }
