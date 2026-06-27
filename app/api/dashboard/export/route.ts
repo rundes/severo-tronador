@@ -8,6 +8,7 @@ import JSZip from "jszip";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { toCsv } from "@/lib/csv";
 import { listAudit } from "@/lib/audit";
+import { getActiveProject } from "@/lib/workspace";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -29,6 +30,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "no_db" }, { status: 503 });
   }
 
+  // Scoping por proyecto activo: el export sólo incluye datos del proyecto del
+  // operador. Sin esto, cualquier usuario autenticado descargaba TODOS los
+  // proyectos (fuga cross-tenant). Todas estas tablas tienen project_id NOT NULL.
+  const active = await getActiveProject();
+  if (!active) {
+    return NextResponse.json({ error: "no_project" }, { status: 403 });
+  }
+
   const db = getSupabase();
   try {
     const [enviosRes, respuestasRes, campanasRes, optoutsRes, auditEntries] =
@@ -36,28 +45,32 @@ export async function GET(req: Request) {
         db
           .from("envios")
           .select("*")
+          .eq("project_id", active.id)
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(50000),
         db
           .from("respuestas")
           .select("*")
+          .eq("project_id", active.id)
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(50000),
         db
           .from("campanas")
           .select("*")
+          .eq("project_id", active.id)
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(5000),
         db
           .from("opt_outs")
           .select("*")
+          .eq("project_id", active.id)
           .gte("at", since)
           .order("at", { ascending: false })
           .limit(50000),
-        listAudit({ limit: 5000 }),
+        listAudit({ limit: 5000, projectId: active.id }),
       ]);
 
     const zip = new JSZip();
@@ -109,9 +122,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     log.error("export.bulk.failed", { msg: (err as Error).message });
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "export_failed" }, { status: 500 });
   }
 }

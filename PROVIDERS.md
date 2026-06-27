@@ -5,7 +5,9 @@
 > **Qué está implementado hoy** (este doc compara *opciones* del mercado; no todas
 > están conectadas). Conectores reales en `lib/connectors/registry.ts`: **Resend**
 > (email), **Meta WhatsApp Cloud**, **Telnyx SMS** y **Telnyx Voice (IVR)**,
-> **Telegram**, **Claude API** (análisis), y listening: **GDELT**, **RSS** de
+> **Telegram**, **NVIDIA NIM** (análisis — proveedor primario de generación de
+> texto, con fallback en cadena a Gemini/Claude/SiliconFlow vía `lib/ai/generate.ts`),
+> **Claude API** (análisis, fallback), y listening: **GDELT**, **RSS** de
 > medios, **X** (API paga *o* sindicación gratis), **Reddit**, **Meta Content
 > Library**. Mail `@tronador.net.ar` = **Cloudflare Email Routing + Resend**.
 > **Bland AI / Vapi** (voz conversacional IA) figuran como opción de catálogo pero

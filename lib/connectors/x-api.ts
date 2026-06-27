@@ -17,6 +17,7 @@ import { fetchXSyndication } from "./x-syndication";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
 import { getMappedXHandles } from "@/lib/padron-handles";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 const ID = "x-api";
 // Free tier mensual, compartido entre la búsqueda y los timelines por handle.
@@ -63,7 +64,7 @@ export async function fetchXRecentByHandle(
     expansions: "author_id",
     "user.fields": "username",
   });
-  const res = await fetch(`${ENDPOINT}?${params}`, {
+  const res = await fetchWithTimeout(`${ENDPOINT}?${params}`, {
     headers: { Authorization: `Bearer ${bearer}` },
   });
   if (!res.ok) throw new Error(`X API recent HTTP ${res.status}`);
@@ -122,7 +123,7 @@ async function fetchReal(
     expansions: "author_id",
     "user.fields": "username",
   });
-  const res = await fetch(`${ENDPOINT}?${params}`, {
+  const res = await fetchWithTimeout(`${ENDPOINT}?${params}`, {
     headers: { Authorization: `Bearer ${bearer}` },
   });
   if (!res.ok) throw new Error(`X API HTTP ${res.status}`);

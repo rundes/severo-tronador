@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getSupabase, dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -57,7 +58,8 @@ export async function POST(req: Request) {
     upsert: false,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    log.error("encuestas.upload.failed", { msg: error.message });
+    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
   }
   const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
   return NextResponse.json({ url: data.publicUrl });

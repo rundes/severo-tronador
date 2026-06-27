@@ -2,6 +2,7 @@
 // con su duración y keywords, para que el runner de GitHub Actions sepa qué
 // grabar. La lógica de franja horaria vive acá (testeable). Seguro con CRON_SECRET.
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
 import { listActiveProjects } from "@/lib/projects";
 import { getListeningConfig } from "@/lib/listening-config";
@@ -18,7 +19,7 @@ const AR_OFFSET_MIN = -180;
 
 function authOk(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (secret) return req.headers.get("authorization") === `Bearer ${secret}`;
+  if (secret) return constantTimeEqual(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
   return process.env.NODE_ENV !== "production";
 }
 

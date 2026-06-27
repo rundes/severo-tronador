@@ -9,6 +9,7 @@
 // ejecución/día. Para sub-daily usar Pro o trigger externo (GitHub Actions /
 // Upstash QStash) golpeando este endpoint con el Bearer.
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import {
   outreachConnectorById,
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (auth !== `Bearer ${secret}`)
+    if (!constantTimeEqual(auth ?? "", `Bearer ${secret}`))
       return new Response("Forbidden", { status: 403 });
   } else if (process.env.NODE_ENV === "production") {
     return new Response("CRON_SECRET no configurado", { status: 403 });
@@ -126,6 +127,16 @@ export async function GET(req: Request) {
     windowCache.set(flowId, w);
     return w;
   }
+
+  // Cache de cuota por tick: antes se leía getQuota + getOrgUsage por CADA fila
+  // (hasta 100 round-trips con BATCH=50). limit/resetAt no cambian dentro del
+  // tick; `used` arranca del valor de DB y lo incrementamos localmente por cada
+  // envío contabilizado (conservador: cuenta el intento, así nunca sobre-envía).
+  const quotaCache = new Map<
+    string,
+    { used: number; limit: number; resetAt?: string }
+  >();
+  const orgUsedCache = new Map<string, number>();
 
   for (const row of pending) {
     // Send-window del flow: si está fuera, reschedule al próximo inicio.
@@ -189,9 +200,24 @@ export async function GET(req: Request) {
 
     // Re-check quota antes de cada envío (per-project + org-wide). El límite
     // del free tier es compartido entre proyectos (key org-global), así que
-    // chequeamos ambos: la cuota del proyecto y la suma org-wide.
-    const quota = await connector.getQuota(row.project_id);
-    const orgUsed = await getOrgUsage(row.connector_id);
+    // chequeamos ambos: la cuota del proyecto y la suma org-wide. Leído una vez
+    // por (connector, proyecto) / por connector y mantenido en memoria.
+    const qKey = `${row.connector_id}|${row.project_id}`;
+    let quota = quotaCache.get(qKey);
+    if (!quota) {
+      const fetched = await connector.getQuota(row.project_id);
+      quota = {
+        used: fetched.used,
+        limit: fetched.limit,
+        resetAt: fetched.resetAt ?? undefined,
+      };
+      quotaCache.set(qKey, quota);
+    }
+    let orgUsed = orgUsedCache.get(row.connector_id);
+    if (orgUsed === undefined) {
+      orgUsed = await getOrgUsage(row.connector_id);
+      orgUsedCache.set(row.connector_id, orgUsed);
+    }
     if (quota.used >= quota.limit || orgUsed >= quota.limit) {
       // Reprogramar al reset de la cuota (diaria→mañana, mensual→mes que viene)
       // si es futuro; si no, reintento corto. Evita reintentar cada minuto un
@@ -207,6 +233,10 @@ export async function GET(req: Request) {
       rescheduled++;
       continue;
     }
+    // Contabilizamos el envío localmente (cuenta el intento) para no releer la
+    // cuota en la próxima fila del mismo connector/proyecto.
+    quota.used++;
+    orgUsedCache.set(row.connector_id, orgUsed + 1);
 
     try {
       const result = await connector.send(

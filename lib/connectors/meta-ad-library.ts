@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 // Token propio del conector; si falta, cae al del conector Meta (publicación).
 async function resolveToken(config?: Config): Promise<string | undefined> {
@@ -107,7 +108,7 @@ export const metaAdLibraryConnector: ListeningConnector = {
         access_token: token,
       });
       try {
-        const res = await fetch(`${GRAPH}/ads_archive?${params}`);
+        const res = await fetchWithTimeout(`${GRAPH}/ads_archive?${params}`);
         const json = (await res.json()) as { data?: ArchiveAd[]; error?: { message?: string } };
         if (!res.ok || json.error) {
           throw new Error(json.error?.message ?? `HTTP ${res.status}`);

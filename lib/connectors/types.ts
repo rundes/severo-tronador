@@ -43,7 +43,7 @@ export interface Capability {
 }
 
 // Descriptor de un campo del formulario de configuración (modal del conector).
-export type ConfigFieldType = "text" | "secret" | "email" | "url" | "textarea";
+export type ConfigFieldType = "text" | "secret" | "email" | "url" | "textarea" | "select";
 
 export interface ConfigField {
   key: string;
@@ -52,6 +52,9 @@ export interface ConfigField {
   required: boolean;
   placeholder?: string;
   help?: string;
+  // Opciones para type:"select". Pueden venir estáticas o inyectarse en runtime
+  // (ej. modelos NVIDIA traídos de /v1/models en la página de Conectores).
+  options?: { value: string; label: string }[];
 }
 
 export type ConfigSchema = ConfigField[];

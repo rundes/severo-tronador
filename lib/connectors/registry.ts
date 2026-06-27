@@ -20,6 +20,7 @@ import { rssConnector } from "./rss";
 import { metaConnector } from "./meta";
 import { googleAiConnector } from "./google-ai";
 import { siliconflowConnector } from "./siliconflow";
+import { nvidiaConnector } from "./nvidia";
 import { metaAdLibraryConnector } from "./meta-ad-library";
 
 export const connectors: Connector[] = [
@@ -41,6 +42,7 @@ export const connectors: Connector[] = [
   metaConnector,
   googleAiConnector,
   siliconflowConnector,
+  nvidiaConnector,
   metaAdLibraryConnector,
 ];
 

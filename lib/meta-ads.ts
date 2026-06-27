@@ -2,6 +2,7 @@
 // Mock-first: sin META_ACCESS_TOKEN/META_AD_ACCOUNT_ID devuelve datos
 // determinísticos (mismo patrón que lib/meta.ts) para correr sin credenciales.
 import { getMetaConfig, type Metric } from "@/lib/meta";
+import { log } from "@/lib/logger";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -269,7 +270,8 @@ export async function listMyAds(opts: { datePreset?: DatePreset; status?: AdStat
       });
     }
     return out;
-  } catch {
+  } catch (e) {
+    log.warn("meta.ads.list_failed", { msg: (e as Error).message });
     return mockAds(status);
   }
 }
@@ -325,7 +327,8 @@ export async function listCampaigns(): Promise<NamedRef[]> {
       access_token: token,
     });
     return ((data.data as NamedRef[] | undefined) ?? []).map((c) => ({ id: c.id, name: c.name }));
-  } catch {
+  } catch (e) {
+    log.warn("meta.ads.list_campaigns_failed", { msg: (e as Error).message });
     return [];
   }
 }
@@ -340,7 +343,8 @@ export async function listAdsets(campaignId: string): Promise<NamedRef[]> {
       access_token: token,
     });
     return ((data.data as NamedRef[] | undefined) ?? []).map((a) => ({ id: a.id, name: a.name }));
-  } catch {
+  } catch (e) {
+    log.warn("meta.ads.list_adsets_failed", { msg: (e as Error).message });
     return [];
   }
 }

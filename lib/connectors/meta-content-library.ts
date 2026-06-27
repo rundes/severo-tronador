@@ -19,6 +19,7 @@ import { META_MOCK_PARENTS, mockMetaItems } from "@/lib/mock/listening-meta";
 import { demoData } from "@/lib/connectors/demo";
 import { getConnectorConfig } from "./config";
 import { log } from "@/lib/logger";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 const ENDPOINT = "https://content-library.meta.com/v1/search";
 
@@ -138,7 +139,7 @@ async function fetchReal(
   if (query.keywords.length) {
     url.searchParams.set("q", query.keywords.join(" OR "));
   }
-  const res = await fetch(url.toString());
+  const res = await fetchWithTimeout(url.toString());
   if (!res.ok) throw new Error(`Meta CL HTTP ${res.status}`);
   const json = (await res.json()) as MetaApiResponse;
   return (json.results ?? [])

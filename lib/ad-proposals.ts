@@ -1,11 +1,13 @@
 // Generación de propuestas de avisos para redes con MÚLTIPLES modelos de IA.
 // Un mismo prompt se manda a todos los proveedores/modelos configurados
-// (SiliconFlow + Gemini + Claude) y cada uno devuelve una propuesta con
-// contenido para cada plataforma elegida. Server-only.
+// (NVIDIA + SiliconFlow + Gemini + Claude) y cada uno devuelve una propuesta
+// con contenido para cada plataforma elegida. Server-only.
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
 import { generateGeminiText, analyzeImagesGemini } from "@/lib/gemini";
 import { siliconflowChat, siliconflowModels } from "@/lib/siliconflow";
+import { nvidiaChat } from "@/lib/nvidia";
+import { NVIDIA_DEFAULT_FAST, NVIDIA_DEFAULT_DEEP } from "@/lib/connectors/nvidia";
 
 export type Platform =
   | "instagram"
@@ -116,6 +118,16 @@ export async function availableModels(): Promise<Omit<ModelRef, "key">[]> {
 
 async function modelRefs(): Promise<ModelRef[]> {
   const out: ModelRef[] = [];
+  const nv = await getConnectorConfig("nvidia");
+  if (nv.NVIDIA_API_KEY) {
+    const models = [
+      nv.NVIDIA_MODEL_FAST || NVIDIA_DEFAULT_FAST,
+      nv.NVIDIA_MODEL_DEEP || NVIDIA_DEFAULT_DEEP,
+    ].filter((m, i, a) => a.indexOf(m) === i); // dedupe si fast === deep
+    for (const m of models) {
+      out.push({ provider: "nvidia", modelName: m, label: m.split("/").pop() ?? m, key: nv.NVIDIA_API_KEY });
+    }
+  }
   const sf = await getConnectorConfig("siliconflow");
   if (sf.SILICONFLOW_API_KEY) {
     for (const m of siliconflowModels(sf.SILICONFLOW_MODELS)) {
@@ -134,6 +146,9 @@ async function modelRefs(): Promise<ModelRef[]> {
 }
 
 async function callModel(ref: ModelRef, system: string, prompt: string): Promise<string> {
+  if (ref.provider === "nvidia") {
+    return (await nvidiaChat({ apiKey: ref.key, model: ref.modelName, system, prompt, maxTokens: 2048 })).text;
+  }
   if (ref.provider === "claude") {
     return (await generateText({ apiKey: ref.key, system, prompt, maxTokens: 2048, model: ref.modelName })).text;
   }

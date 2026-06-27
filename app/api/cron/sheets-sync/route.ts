@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { appendRow, canExportSheets } from "@/lib/sheets-export";
 
@@ -8,7 +9,7 @@ export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (auth !== `Bearer ${secret}`) return new Response("Forbidden", { status: 403 });
+    if (!constantTimeEqual(auth ?? "", `Bearer ${secret}`)) return new Response("Forbidden", { status: 403 });
   } else if (process.env.NODE_ENV === "production") {
     // En producción nunca dejamos el endpoint abierto sin secret.
     return new Response("CRON_SECRET no configurado", { status: 403 });

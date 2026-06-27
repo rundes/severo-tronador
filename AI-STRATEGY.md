@@ -108,10 +108,12 @@ Toda capacidad nueva de IA se agrega como **conector `analysis`** (no como depen
 
 | Proveedor | Rol | Notas |
 |---|---|---|
-| **Claude API (Haiku)** | Default para texto: redacción, NL→query, NL→segmento, coding, resumen | Barato; `TOKEN_CAP` mensual como guardarraíl |
-| **Claude API (Sonnet/Opus)** | Opt-in para tareas que lo justifiquen (resumen narrativo grande) | Solo si el proyecto lo habilita; mayor costo de tokens |
+| **NVIDIA NIM** | **Proveedor primario** de texto (redacción, NL→query, NL→segmento, coding, resumen). OpenAI-compatible, 121 modelos. Tiers `fast`/`deep` configurables | Default `fast` `meta/llama-3.3-70b-instruct`, `deep` `nvidia/llama-3.1-nemotron-ultra-253b-v1`. `NVIDIA_TOKEN_CAP` mensual como guardarraíl |
+| **Gemini / Claude / SiliconFlow** | Fallback en cadena del dispatcher (`lib/ai/generate.ts`) si NVIDIA no tiene key o falla | Orden: NVIDIA → Gemini → Claude → SiliconFlow → heurística |
 | **Embeddings** | Clustering de listening, dedupe fuzzy, sugerencia de audiencias | Puede correr local (sin key) o vía API |
-| **Heurística local** | Fallback universal sin `ANTHROPIC_API_KEY` | Ya implementado para coding/sentiment; el producto nunca se rompe |
+| **Heurística local** | Fallback universal sin ninguna key de proveedor | Ya implementado para coding/sentiment; el producto nunca se rompe |
+
+> El dispatcher central `generateAssist` (`lib/ai/generate.ts`) resuelve proveedor + modelo y trackea tokens por proyecto. NVIDIA es un tercero: la regla de privacidad de §4 (anonimización antes de salir) aplica igual que con cualquier API externa.
 
 ### Tracking de costo
 

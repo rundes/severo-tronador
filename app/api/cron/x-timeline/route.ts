@@ -3,6 +3,7 @@
 // En Vercel Hobby la frecuencia se gestiona vía GitHub Actions
 // (.github/workflows/x-timeline.yml). Respeta el free tier de X.
 import { NextResponse } from "next/server";
+import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
 import { processXHandleQueue, type XTimelineSummary } from "@/lib/x-timeline";
 import { listActiveProjects } from "@/lib/projects";
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (auth !== `Bearer ${secret}`) {
+    if (!constantTimeEqual(auth ?? "", `Bearer ${secret}`)) {
       return new Response("Forbidden", { status: 403 });
     }
   } else if (process.env.NODE_ENV === "production") {
