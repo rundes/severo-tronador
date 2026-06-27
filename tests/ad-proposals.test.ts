@@ -9,6 +9,9 @@ beforeAll(() => {
   delete process.env.SILICONFLOW_API_KEY;
   delete process.env.GOOGLE_AI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.NVIDIA_API_KEY;
+  delete process.env.NVIDIA_MODEL_FAST;
+  delete process.env.NVIDIA_MODEL_DEEP;
 });
 
 describe("siliconflowModels", () => {
@@ -27,5 +30,19 @@ describe("ad-proposals", () => {
     await expect(generateProposals("brief", ["facebook"])).rejects.toThrow(
       /No hay proveedores/,
     );
+  });
+});
+
+describe("ad-proposals + NVIDIA", () => {
+  it("incluye los modelos NVIDIA configurados en el fan-out", async () => {
+    process.env.NVIDIA_API_KEY = "nk";
+    process.env.NVIDIA_MODEL_FAST = "meta/llama-3.3-70b-instruct";
+    process.env.NVIDIA_MODEL_DEEP = "nvidia/llama-3.1-nemotron-ultra-253b-v1";
+    const { availableModels } = await import("@/lib/ad-proposals");
+    const labels = await availableModels();
+    expect(labels.some((l) => /llama-3.3-70b|nemotron-ultra/.test(JSON.stringify(l)))).toBe(true);
+    delete process.env.NVIDIA_API_KEY;
+    delete process.env.NVIDIA_MODEL_FAST;
+    delete process.env.NVIDIA_MODEL_DEEP;
   });
 });
