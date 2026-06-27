@@ -30,12 +30,12 @@ export const nvidiaConnector: AnalysisConnector = {
   configSchema: [
     { key: "NVIDIA_API_KEY", label: "API Key", type: "secret", required: true, placeholder: "nvapi-…" },
     {
-      key: "NVIDIA_MODEL_FAST", label: "Modelo rápido", type: "text", required: false,
+      key: "NVIDIA_MODEL_FAST", label: "Modelo rápido", type: "select", required: false,
       placeholder: NVIDIA_DEFAULT_FAST,
       help: "Modelo barato para redacción/segmento. Default: " + NVIDIA_DEFAULT_FAST,
     },
     {
-      key: "NVIDIA_MODEL_DEEP", label: "Modelo profundo", type: "text", required: false,
+      key: "NVIDIA_MODEL_DEEP", label: "Modelo profundo", type: "select", required: false,
       placeholder: NVIDIA_DEFAULT_DEEP,
       help: "Modelo grande para resúmenes/análisis. Default: " + NVIDIA_DEFAULT_DEEP,
     },

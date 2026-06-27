@@ -113,6 +113,7 @@ export async function isEnabled(connectorId: string): Promise<boolean> {
 export interface FieldStatus {
   key: string; label: string; type: string; help?: string;
   required: boolean; placeholder?: string; hasValue: boolean; source: "ui" | "env" | "none";
+  options?: { value: string; label: string }[];
 }
 
 export async function configFieldStatus(connectorId: string): Promise<FieldStatus[]> {
@@ -123,7 +124,7 @@ export async function configFieldStatus(connectorId: string): Promise<FieldStatu
     const inEnv = env[f.key] != null;
     return {
       key: f.key, label: f.label, type: f.type, help: f.help,
-      required: f.required, placeholder: f.placeholder,
+      required: f.required, placeholder: f.placeholder, options: f.options,
       hasValue: inUi || inEnv, source: inUi ? "ui" : inEnv ? "env" : "none",
     };
   });

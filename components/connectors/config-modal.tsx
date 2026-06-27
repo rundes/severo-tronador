@@ -61,16 +61,29 @@ export function ConfigModal(p: Props) {
           {p.fields.map((f) => (
             <label key={f.key} className="block text-xs text-zinc-500">
               {f.label} {f.required && <span className="text-red-500">*</span>}
-              <input
-                name={f.key}
-                type={f.type === "secret" ? "password" : "text"}
-                placeholder={
-                  f.hasValue && f.type === "secret"
-                    ? "configurado ••••"
-                    : (f.placeholder ?? "")
-                }
-                className={input}
-              />
+              {f.type === "select" && f.options && f.options.length > 0 ? (
+                <select name={f.key} defaultValue="" className={input}>
+                  <option value="">
+                    {f.hasValue ? "(configurado — sin cambios)" : "— elegí un modelo —"}
+                  </option>
+                  {f.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  name={f.key}
+                  type={f.type === "secret" ? "password" : "text"}
+                  placeholder={
+                    f.hasValue && f.type === "secret"
+                      ? "configurado ••••"
+                      : (f.placeholder ?? "")
+                  }
+                  className={input}
+                />
+              )}
               {f.help && (
                 <span className="mt-0.5 block text-[11px] text-zinc-400">{f.help}</span>
               )}

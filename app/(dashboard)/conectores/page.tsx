@@ -5,7 +5,8 @@ import {
   connectors,
 } from "@/lib/connectors/registry";
 import type { Connector } from "@/lib/connectors/types";
-import { configFieldStatus, isEnabled } from "@/lib/connectors/config";
+import { configFieldStatus, getConnectorConfig, isEnabled } from "@/lib/connectors/config";
+import { curatedModels } from "@/lib/ai/nvidia-models";
 import { setupLink } from "@/lib/connectors/setup-links";
 import {
   guardarConfig,
@@ -27,6 +28,21 @@ async function resolve(connector: Connector) {
     configFieldStatus(connector.id),
     isEnabled(connector.id),
   ]);
+  // NVIDIA: poblar el selector de modelos (rápido/profundo) desde /v1/models.
+  if (connector.id === "nvidia") {
+    const cfg = await getConnectorConfig("nvidia");
+    if (cfg.NVIDIA_API_KEY) {
+      try {
+        const models = await curatedModels(cfg.NVIDIA_API_KEY);
+        const opts = models.map((m) => ({ value: m.id, label: `${m.label} (${m.capability})` }));
+        for (const f of fields) {
+          if (f.key === "NVIDIA_MODEL_FAST" || f.key === "NVIDIA_MODEL_DEEP") f.options = opts;
+        }
+      } catch {
+        // sin red / key inválida → el modal cae a input de texto
+      }
+    }
+  }
   return { connector, status, quota, health, fields, enabled };
 }
 
