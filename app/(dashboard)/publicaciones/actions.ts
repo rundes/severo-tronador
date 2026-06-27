@@ -30,8 +30,8 @@ import {
   type PreviewFrame,
 } from "@/lib/meta-ads";
 import { getConnectorConfig } from "@/lib/connectors/config";
-import { generateGeminiText, generateGeminiImage } from "@/lib/gemini";
-import { generateText } from "@/lib/anthropic";
+import { generateGeminiImage } from "@/lib/gemini";
+import { generateAssist } from "@/lib/ai/generate";
 import { incrementUsage } from "@/lib/quota";
 import { getSupabase, dbConfigured } from "@/lib/db/supabase";
 import { randomUUID } from "crypto";
@@ -95,33 +95,11 @@ export async function generarContenidoPostIA(
     ? `Texto actual:\n${current}\n\nAjustá el texto según esta indicación (manteniendo lo bueno):\n${prompt}`
     : `Generá el texto del posteo según esta indicación:\n${prompt}`;
 
-  const google = await getConnectorConfig("google-ai");
-  const claude = await getConnectorConfig("claude-api");
-
   try {
-    let text = "";
-    if (google.GOOGLE_AI_API_KEY) {
-      const r = await generateGeminiText({
-        apiKey: google.GOOGLE_AI_API_KEY,
-        system,
-        prompt: userPrompt,
-      });
-      text = r.text;
-      await incrementUsage("google-ai", Math.ceil((userPrompt.length + text.length) / 4), projectId);
-    } else if (claude.ANTHROPIC_API_KEY) {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1024, model: claude.ANTHROPIC_MODEL });
-      text = r.text;
-      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
-    } else {
-      return {
-        ok: false,
-        text: "",
-        msg: "Configurá Google AI Studio (Conectores → Google AI) o Claude API para generar contenido.",
-      };
-    }
-    const clean = text.replace(/^["“']|["”']$/g, "").trim();
+    const r = await generateAssist({ system, prompt: userPrompt, tier: "fast", projectId, maxTokens: 1024 });
+    const clean = r.text.replace(/^["“']|["”']$/g, "").trim();
     if (!clean) return { ok: false, text: "", msg: "No se obtuvo texto. Probá reformular." };
-    return { ok: true, text: clean, msg: google.GOOGLE_AI_API_KEY ? "Generado con Gemini." : "Generado con Claude (configurá Google AI para usar Gemini)." };
+    return { ok: true, text: clean, msg: r.provider === "heuristic" ? "" : `Generado con ${r.provider}.` };
   } catch (e) {
     return { ok: false, text: "", msg: `Error al generar: ${(e as Error).message}` };
   }
@@ -162,23 +140,12 @@ export async function sugerirMejorasAviso(
   ].join("\n");
   const userPrompt = `Aviso actual:\n${texto}`;
 
-  const google = await getConnectorConfig("google-ai");
-  const claude = await getConnectorConfig("claude-api");
   let raw = "";
   try {
-    if (google.GOOGLE_AI_API_KEY) {
-      const r = await generateGeminiText({ apiKey: google.GOOGLE_AI_API_KEY, system, prompt: userPrompt });
-      raw = r.text;
-      await incrementUsage("google-ai", Math.ceil((userPrompt.length + raw.length) / 4), projectId);
-    } else if (claude.ANTHROPIC_API_KEY) {
-      const r = await generateText({ apiKey: claude.ANTHROPIC_API_KEY, system, prompt: userPrompt, maxTokens: 1200, model: claude.ANTHROPIC_MODEL });
-      raw = r.text;
-      await incrementUsage("claude-api", r.inputTokens + r.outputTokens, projectId);
-    } else {
-      return { ok: false, suggestions: [], improved: "", msg: "Configurá Google AI o Claude API en Conectores." };
-    }
+    const r = await generateAssist({ system, prompt: userPrompt, tier: "fast", projectId, maxTokens: 1200 });
+    raw = r.text;
   } catch (e) {
-    return { ok: false, suggestions: [], improved: "", msg: `Error: ${(e as Error).message}` };
+    return { ok: false, suggestions: [], improved: "", msg: `Error al mejorar: ${(e as Error).message}` };
   }
 
   const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
