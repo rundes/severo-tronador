@@ -17,3 +17,15 @@ export function normalizePhone(
   if (digits.startsWith(AR_CC) && digits.length >= 11) return digits;
   return AR_CC + digits;
 }
+
+// Keywords de baja (opt-out). Match EXACTO sobre el mensaje trim+upper para no
+// confundir "no me des de baja" con una baja. Configurable acá.
+const OPT_OUT_KEYWORDS = ["BAJA TOTAL", "BAJA", "STOP", "CANCELAR"] as const;
+
+export function detectOptOut(body: string): string | null {
+  const norm = (body ?? "").trim().toUpperCase();
+  for (const kw of OPT_OUT_KEYWORDS) {
+    if (norm === kw) return kw;
+  }
+  return null;
+}
