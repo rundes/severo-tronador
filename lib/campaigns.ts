@@ -360,6 +360,34 @@ export async function updateEnvioStatus(
   return Boolean(data && data.length > 0);
 }
 
+// Token de la encuesta activa más reciente para un contacto, mirando `envios`.
+// Lo usa el resolver de entrantes (lib/inbound.ts) para asociar un reply al
+// contexto correcto. `envios` no guarda canal → tomamos el último con token
+// dentro de la ventana, sin discriminar canal (tradeoff MVP, ver plan Task 4).
+export async function latestSurveyTokenForDni(
+  projectId: string,
+  dni: string,
+  sinceIso: string,
+): Promise<{ token: string; campaignId: string } | null> {
+  if (!dbConfigured()) return null;
+  const { data } = await getSupabase()
+    .from("envios")
+    .select("token, campaign_id, created_at")
+    .eq("project_id", projectId)
+    .eq("dni", dni)
+    .eq("estado", "sent")
+    .not("token", "is", null)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data || !(data as { token?: string }).token) return null;
+  return {
+    token: (data as { token: string }).token,
+    campaignId: (data as { campaign_id: string }).campaign_id,
+  };
+}
+
 // Mapeo canal → conector. Cada canal nuevo suma su conector acá.
 const CONNECTOR_BY_CHANNEL: Partial<Record<Channel, OutreachConnector>> = {
   email: resendConnector,
