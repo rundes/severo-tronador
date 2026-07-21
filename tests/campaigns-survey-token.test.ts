@@ -38,4 +38,20 @@ describe("latestSurveyTokenForDni", () => {
     const r = await latestSurveyTokenForDni("proj-1", "30111222", "2026-06-01T00:00:00Z");
     expect(r).toBeNull();
   });
+
+  it("propaga el error de DB en lugar de devolver null silenciosamente", async () => {
+    const qb: Record<string, unknown> = {};
+    for (const m of ["from", "select", "eq", "not", "gte", "order", "limit"]) {
+      qb[m] = vi.fn(() => qb);
+    }
+    qb.maybeSingle = vi.fn(async () => ({ data: null, error: { message: "boom" } }));
+    vi.doMock("@/lib/db/supabase", () => ({
+      dbConfigured: () => true,
+      getSupabase: () => qb,
+    }));
+    const { latestSurveyTokenForDni } = await import("@/lib/campaigns");
+    await expect(
+      latestSurveyTokenForDni("proj-1", "30111222", "2026-06-01T00:00:00Z"),
+    ).rejects.toMatchObject({ message: "boom" });
+  });
 });

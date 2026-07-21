@@ -370,7 +370,7 @@ export async function latestSurveyTokenForDni(
   sinceIso: string,
 ): Promise<{ token: string; campaignId: string } | null> {
   if (!dbConfigured()) return null;
-  const { data } = await getSupabase()
+  const { data, error } = await getSupabase()
     .from("envios")
     .select("token, campaign_id, created_at")
     .eq("project_id", projectId)
@@ -381,6 +381,7 @@ export async function latestSurveyTokenForDni(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) throw error;
   if (!data || !(data as { token?: string }).token) return null;
   return {
     token: (data as { token: string }).token,

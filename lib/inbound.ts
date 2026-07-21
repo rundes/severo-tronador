@@ -16,12 +16,28 @@ export function normalizePhone(
   raw: string | null | undefined,
 ): string | null {
   if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
+  let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
+  // Número local con 0 inicial (ej. 011...) → se quita el 0 antes de anteponer
+  // el código de país, si no, quedaría 54011... en vez de 5411...
+  // NOTA: no se resuelve el prefijo "15" (celular local sin código de área)
+  // porque requiere conocer el código de área — fuera de alcance del MVP.
+  if (!digits.startsWith(AR_CC) && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
   // Si ya trae el código de país AR, se respeta. Si es un número local
   // (sin 54), se antepone. No intenta resolver otros países (MVP AR).
-  if (digits.startsWith(AR_CC) && digits.length >= 11) return digits;
-  return AR_CC + digits;
+  if (!(digits.startsWith(AR_CC) && digits.length >= 11)) {
+    digits = AR_CC + digits;
+  }
+  // Forma canónica: WhatsApp reporta móviles AR como 549XXXXXXXXXX (con el
+  // "9" de móvil tras el código de país) pero el padrón suele tener
+  // 54XXXXXXXXXX (sin el 9) o números locales sin 9. Se quita el 9 de móvil
+  // para que ambos lados comparen igual.
+  if (digits.startsWith(AR_CC + "9") && digits.length === AR_CC.length + 1 + 10) {
+    digits = AR_CC + digits.slice(AR_CC.length + 1);
+  }
+  return digits;
 }
 
 // Keywords de baja (opt-out). Match EXACTO sobre el mensaje trim+upper para no
@@ -98,10 +114,12 @@ export async function ingestInbound(
     optedOut = true;
   }
 
-  // Contexto + respuesta derivada.
+  // Contexto + respuesta derivada. Un body vacío (blank SMS, etc.) no debe
+  // consumir el único slot de respuesta por token (addResponse dedupea 1 por
+  // token) — si no, la respuesta real del contacto queda bloqueada.
   let responseToken: string | null = null;
   let campaignId: string | null = null;
-  if (dni && !optedOut) {
+  if (dni && !optedOut && body.length > 0) {
     const since = new Date(Date.now() - WINDOW_HOURS * 3600_000).toISOString();
     const ref = await latestSurveyTokenForDni(projectId, dni, since);
     if (ref) {

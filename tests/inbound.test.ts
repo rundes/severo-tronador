@@ -102,6 +102,21 @@ describe("ingestInbound", () => {
     ]);
   });
 
+  it("body vacío (solo espacios): no consume el slot de respuesta aunque haya token activo", async () => {
+    const { addResponse } = mockDeps({
+      contacts: [{ dni: "30111222", telefono: "5491122223333" }],
+      token: { token: "tok-1", campaignId: "camp-1" },
+    });
+    const { ingestInbound } = await import("@/lib/inbound");
+    const res = await ingestInbound({
+      channel: "sms", senderExternalId: "5491122223333", body: "   ",
+      providerMessageId: "tx-empty",
+    });
+    expect(res.stored).toBe(true);
+    expect(res.responseToken).toBeNull();
+    expect(addResponse).not.toHaveBeenCalled();
+  });
+
   it("idempotencia: mismo provider_message_id no duplica ni reprocesa", async () => {
     const { addResponse } = mockDeps({
       contacts: [{ dni: "30111222", telefono: "5491122223333" }],

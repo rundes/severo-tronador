@@ -103,7 +103,10 @@ export async function POST(req: Request) {
     channel: "telegram",
     senderExternalId: String(chatId),
     body: text,
-    providerMessageId: String(msg.message_id),
+    // message_id de Telegram es único POR CHAT, no global → sin el chatId
+    // como prefijo dos chats distintos podían colisionar en la misma key de
+    // idempotencia y el segundo mensaje se descartaba silenciosamente.
+    providerMessageId: `${chatId}:${msg.message_id}`,
     dni: chat.dni,
     projectId: chat.project_id,
     raw: msg,

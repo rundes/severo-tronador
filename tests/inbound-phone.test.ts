@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { normalizePhone } from "@/lib/inbound";
 
 describe("normalizePhone", () => {
-  it("ya en E.164 con +54", () => {
-    expect(normalizePhone("+5491122223333")).toBe("5491122223333");
+  it("ya en E.164 con +54 9 (móvil AR) → forma canónica sin el 9", () => {
+    expect(normalizePhone("+5491122223333")).toBe("541122223333");
   });
   it("limpia espacios y guiones", () => {
-    expect(normalizePhone("+54 911 2222-3333")).toBe("5491122223333");
+    expect(normalizePhone("+54 911 2222-3333")).toBe("541122223333");
   });
   it("agrega prefijo país AR si falta (número local de 10)", () => {
     expect(normalizePhone("1122223333")).toBe("541122223333");
@@ -18,5 +18,20 @@ describe("normalizePhone", () => {
     expect(normalizePhone("---")).toBeNull();
     expect(normalizePhone(null)).toBeNull();
     expect(normalizePhone(undefined)).toBeNull();
+  });
+
+  describe("matriz de equivalencia AR móvil (9) y local (0)", () => {
+    const variants = [
+      "+5491122223333",
+      "5491122223333",
+      "+541122223333",
+      "01122223333",
+      "1122223333",
+    ];
+    for (const v of variants) {
+      it(`"${v}" → "541122223333"`, () => {
+        expect(normalizePhone(v)).toBe("541122223333");
+      });
+    }
   });
 });
