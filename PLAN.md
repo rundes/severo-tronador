@@ -30,7 +30,7 @@ módulos de `lib/connectors/` que la fase puso en producción.
 | **F1** | Scaffold Next.js + App Router, NextAuth (Google OAuth + allowlist), infraestructura de conectores, panel `/conectores`, lectura del padrón. | `google-oauth`, `google-sheets` |
 | **F2** | Segmentos (filtros sobre el padrón), ficha de relación por contacto, health score, cooldowns. | — (lógica de negocio sobre el padrón) |
 | **F3** | Email real con tracking de apertura/clicks y gestión de cuota del free tier. | `resend` |
-| **F4** | WhatsApp service-initiated con webhooks (recepción de respuestas y estados). | `meta-wa-cloud` |
+| **F4** | WhatsApp service-initiated con webhooks (estados de entrega). La recepción de respuestas entrantes (WhatsApp/SMS/Telegram) se cierra con la columna de ingesta `inbound_messages` (ver docs/superpowers/specs/2026-06-27-inbound-2vias-design.md). | `meta-wa-cloud` |
 | **F5** | SMS y voz/IVR salientes con topes mensuales como guardarraíl. | `telnyx-sms`, `telnyx-voice` |
 | **F6** | Encuestas/intercambios tokenizados, builder tipado, opt-out cross-channel, A/B testing de mensajes. | — (encuestas + `lib/ab-test.ts`) |
 | **F7** | Análisis cualitativo asistido (coding inductivo/deductivo, sentiment, clustering) + dashboard de cierre. | `claude-api` |
