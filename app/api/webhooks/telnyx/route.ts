@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { updateEnvioStatus, type Envio } from "@/lib/campaigns";
 import { verifyTelnyxSignature } from "@/lib/crypto";
 import { log } from "@/lib/logger";
+import { ingestInbound } from "@/lib/inbound";
 
 // Estados de entrega de Telnyx → estado interno. `sent`/`queued`/`sending` se
 // ignoran (estados intermedios sin equivalente). SMS no tiene "read".
@@ -24,7 +25,9 @@ interface TelnyxWebhookBody {
     event_type?: string;
     payload?: {
       id?: string;
-      to?: { status?: string }[];
+      to?: { status?: string; phone_number?: string }[];
+      from?: { phone_number?: string };
+      text?: string;
     };
   };
 }
@@ -59,6 +62,15 @@ export async function POST(req: Request) {
       const mapped = dest.status ? STATUS_MAP[dest.status] : undefined;
       if (mapped && (await updateEnvioStatus(payload.id, mapped))) updated++;
     }
+  }
+  if (body.data?.event_type === "message.received" && payload?.from?.phone_number) {
+    await ingestInbound({
+      channel: "sms",
+      senderExternalId: payload.from.phone_number,
+      body: payload.text ?? "",
+      providerMessageId: payload.id,
+      raw: payload,
+    });
   }
   log.info("webhook.telnyx.processed", {
     event: body.data?.event_type,
