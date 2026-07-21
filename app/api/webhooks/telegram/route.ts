@@ -14,6 +14,7 @@ import { upsertChat, markOptOut, getChatByDni } from "@/lib/telegram-chats";
 import { optOut } from "@/lib/optout";
 import { constantTimeEqual } from "@/lib/crypto";
 import { log } from "@/lib/logger";
+import { ingestInbound } from "@/lib/inbound";
 
 interface TelegramUpdate {
   message?: {
@@ -93,20 +94,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, action: "opted_out" });
   }
 
-  // Texto libre → guardar como respuesta si hay survey activa.
+  // Texto libre → resolver vía la columna de ingesta. El chat ya trae dni+proyecto.
   const chat = await findChatByChatId(chatId);
   if (!chat) {
     return NextResponse.json({ ok: true, action: "ignored_no_chat" });
   }
-  // Buscamos token de survey activa para este dni (usamos el último).
-  // Simplificación MVP: solo persistimos como respuesta abierta sin asociar
-  // a campaña. Una iteración futura puede mantener un mapping de
-  // last_active_survey por dni.
-  log.info("webhook.telegram.message_received", {
+  const result = await ingestInbound({
+    channel: "telegram",
+    senderExternalId: String(chatId),
+    body: text,
+    providerMessageId: String(msg.message_id),
     dni: chat.dni,
-    text_len: text.length,
+    projectId: chat.project_id,
+    raw: msg,
   });
-  return NextResponse.json({ ok: true, action: "message_logged" });
+  log.info("webhook.telegram.message_ingested", {
+    dni: chat.dni,
+    stored: result.stored,
+    response: Boolean(result.responseToken),
+  });
+  return NextResponse.json({ ok: true, action: "message_ingested" });
 }
 
 async function findChatByChatId(
