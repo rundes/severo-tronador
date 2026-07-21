@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { updateEnvioStatus, type Envio } from "@/lib/campaigns";
 import { constantTimeEqual, verifyHmacSha256 } from "@/lib/crypto";
 import { log } from "@/lib/logger";
+import { ingestInbound } from "@/lib/inbound";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -35,7 +36,14 @@ interface MetaWebhookBody {
   entry?: {
     changes?: {
       value?: {
+        metadata?: { phone_number_id?: string };
         statuses?: { id?: string; status?: string }[];
+        messages?: {
+          id?: string;
+          from?: string;
+          type?: string;
+          text?: { body?: string };
+        }[];
       };
     }[];
   }[];
@@ -68,6 +76,16 @@ export async function POST(req: Request) {
       for (const s of change.value?.statuses ?? []) {
         const mapped = s.status ? STATUS_MAP[s.status] : undefined;
         if (s.id && mapped && (await updateEnvioStatus(s.id, mapped))) updated++;
+      }
+      for (const m of change.value?.messages ?? []) {
+        if (m.type !== "text" || !m.from || !m.text?.body) continue;
+        await ingestInbound({
+          channel: "whatsapp",
+          senderExternalId: m.from,
+          body: m.text.body,
+          providerMessageId: m.id,
+          raw: m,
+        });
       }
     }
   }
