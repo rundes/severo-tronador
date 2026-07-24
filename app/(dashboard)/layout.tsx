@@ -19,6 +19,7 @@ const NAV: NavGroup[] = [
       { href: "/segmentos", label: "Segmentos", icon: "PieChart" },
       { href: "/campanas", label: "Campañas", icon: "Megaphone" },
       { href: "/campanas/flows", label: "Flows", icon: "Workflow" },
+      { href: "/entrantes", label: "Entrantes", icon: "Inbox" },
     ],
   },
   {

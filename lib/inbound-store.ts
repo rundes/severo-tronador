@@ -16,6 +16,7 @@ export interface InboundRow {
   respuesta_token: string | null;
   is_opt_out: boolean;
   raw: unknown | null;
+  received_at?: string;
 }
 
 const mem = () => memoryRepo<InboundRow & { id?: string }>("inbound_messages");
@@ -49,7 +50,7 @@ export async function recordInbound(
     }
   }
   if (!dbConfigured()) {
-    await mem().upsert({ ...row, id: undefined });
+    await mem().upsert({ ...row, id: undefined, received_at: new Date().toISOString() });
     return { inserted: true };
   }
   const { error } = await getSupabase()
@@ -61,4 +62,44 @@ export async function recordInbound(
     throw error;
   }
   return { inserted: true };
+}
+
+export interface InboundListFilter {
+  projectId: string;
+  channel?: string;
+  onlyOrphans?: boolean; // sin match de dni contra el padrón
+  limit?: number;
+}
+
+// Lectura para la bandeja de entrantes: recientes primero.
+export async function listInbound({
+  projectId,
+  channel,
+  onlyOrphans,
+  limit = 200,
+}: InboundListFilter): Promise<InboundRow[]> {
+  if (!dbConfigured()) {
+    return (await mem().list())
+      .filter(
+        (r) =>
+          r.project_id === projectId &&
+          (!channel || r.channel === channel) &&
+          (!onlyOrphans || r.dni === null),
+      )
+      .sort((a, b) => +new Date(b.received_at ?? 0) - +new Date(a.received_at ?? 0))
+      .slice(0, limit);
+  }
+  let q = getSupabase()
+    .from("inbound_messages")
+    .select(
+      "id, project_id, channel, sender_external_id, dni, body, provider_message_id, campaign_id, respuesta_token, is_opt_out, received_at",
+    )
+    .eq("project_id", projectId);
+  if (channel) q = q.eq("channel", channel);
+  if (onlyOrphans) q = q.is("dni", null);
+  const { data, error } = await q
+    .order("received_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as InboundRow[];
 }
