@@ -21,7 +21,9 @@ interface StepDraft {
   condition_kind: "always" | "if_no_response_to_prev" | "if_response_to_prev";
 }
 
-const CHANNEL_OPTS: StepDraft["channel"][] = ["email", "whatsapp", "sms", "voice"];
+// sms/voice retirados (Telnyx descartado); los flows existentes con esos
+// pasos se siguen mostrando, pero no se pueden crear pasos nuevos con ellos.
+const CHANNEL_OPTS: StepDraft["channel"][] = ["email", "whatsapp"];
 const CONDITIONS: { value: StepDraft["condition_kind"]; label: string }[] = [
   { value: "always", label: "siempre" },
   { value: "if_no_response_to_prev", label: "si no respondió antes" },

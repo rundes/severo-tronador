@@ -211,7 +211,7 @@ describe("loadDashboard (Plan 03 F1)", () => {
     expect(b.responseRate).toBe(0);
   });
 
-  it("costo SMS > 0, email = 0 (free tier)", async () => {
+  it("campaña SMS histórica no estima costo (canal retirado)", async () => {
     const now = new Date().toISOString();
     fixtures.envios.push(
       { campaign_id: "c1", estado: "sent", token: null, created_at: now },
@@ -225,8 +225,9 @@ describe("loadDashboard (Plan 03 F1)", () => {
     });
     const { loadDashboard } = await import("@/lib/analytics");
     const d = await loadDashboard("p1",30);
-    expect(d.kpis.estCostUsd).toBeGreaterThan(0);
-    expect(d.kpis.estCostUsd).toBeCloseTo(2 * 0.04, 5);
+    // sms retirado de OUTREACH_CHANNELS → sin estimación de costo para el
+    // histórico de ese canal (los envíos siguen contando en métricas).
+    expect(d.kpis.estCostUsd).toBe(0);
   });
 
   it("time-series llena días vacíos con 0", async () => {

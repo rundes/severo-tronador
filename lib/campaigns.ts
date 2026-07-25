@@ -390,11 +390,12 @@ export async function latestSurveyTokenForDni(
 }
 
 // Mapeo canal → conector. Cada canal nuevo suma su conector acá.
+// SMS y Voz retirados (2026-07-24): Telnyx descartado por mal servicio. Para
+// reactivarlos, cablear el conector del gateway nuevo en este mapa (la UI de
+// campañas/encuestas/flows deriva sus opciones de acá vía OUTREACH_CHANNELS).
 const CONNECTOR_BY_CHANNEL: Partial<Record<Channel, OutreachConnector>> = {
   email: resendConnector,
   whatsapp: metaWaCloudConnector,
-  sms: telnyxSmsConnector,
-  voice: telnyxVoiceConnector,
   telegram: telegramBotConnector,
 };
 
@@ -447,8 +448,9 @@ function resolveOutreachConnector(
 export const OUTREACH_CHANNELS = Object.keys(CONNECTOR_BY_CHANNEL) as Channel[];
 
 // Canales por los que tiene sentido mandar el link de una encuesta (texto +
-// URL). Voz queda afuera: no se puede enviar un link hablado.
-export const SURVEY_SEND_CHANNELS: Channel[] = ["email", "sms", "whatsapp", "telegram"];
+// URL). Voz queda afuera: no se puede enviar un link hablado. SMS retirado
+// junto con Telnyx (ver CONNECTOR_BY_CHANNEL).
+export const SURVEY_SEND_CHANNELS: Channel[] = ["email", "whatsapp", "telegram"];
 
 export type ExecuteInput = {
   nombre: string;

@@ -2,16 +2,10 @@ import { describe, it, expect } from "vitest";
 import { estimateAllChannels } from "@/lib/segments-cost";
 
 describe("estimateAllChannels (Plan 02 F1.6)", () => {
-  it("devuelve todos los canales con shape esperado", async () => {
+  it("devuelve los canales activos con shape esperado (sms/voice retirados)", async () => {
     const costs = await estimateAllChannels(100);
     const channels = costs.map((c) => c.channel).sort();
-    expect(channels).toEqual([
-      "email",
-      "sms",
-      "telegram",
-      "voice",
-      "whatsapp",
-    ]);
+    expect(channels).toEqual(["email", "telegram", "whatsapp"]);
     for (const c of costs) {
       expect(c.count).toBe(100);
       expect(c.unit).toBeTypeOf("string");
@@ -27,18 +21,9 @@ describe("estimateAllChannels (Plan 02 F1.6)", () => {
     expect(email.estUsd).toBe(0);
   });
 
-  it("SMS sin free tier → estUsd > 0", async () => {
+  it("sms y voice no se estiman (canales retirados con Telnyx)", async () => {
     const costs = await estimateAllChannels(100);
-    const sms = costs.find((c) => c.channel === "sms")!;
-    expect(sms.estUsd).toBeGreaterThan(0);
-    expect(sms.costPerUnit).toBe(0.04);
-    expect(sms.estUsd).toBeCloseTo(100 * 0.04, 5);
-  });
-
-  it("Voz estima 2 min/llamada", async () => {
-    const costs = await estimateAllChannels(50);
-    const voice = costs.find((c) => c.channel === "voice")!;
-    expect(voice.paidUnits).toBeGreaterThanOrEqual(50 * 2);
-    expect(voice.estUsd).toBeCloseTo(50 * 2 * 0.004, 5);
+    expect(costs.find((c) => c.channel === "sms")).toBeUndefined();
+    expect(costs.find((c) => c.channel === "voice")).toBeUndefined();
   });
 });

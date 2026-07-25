@@ -29,11 +29,11 @@ type TestAction = (
   formData: FormData,
 ) => Promise<PruebaState>;
 
+// sms/voice retirados (Telnyx descartado); las plantillas existentes de esos
+// canales se conservan pero no se crean nuevas.
 const CHANNEL_OPTS = [
   { value: "email", label: "📧 Email" },
   { value: "whatsapp", label: "💬 WhatsApp" },
-  { value: "sms", label: "📱 SMS" },
-  { value: "voice", label: "☎️ Voz (guion IVR)" },
 ];
 
 const inputCls =
