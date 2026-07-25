@@ -20,6 +20,7 @@ const NAV: NavGroup[] = [
       { href: "/campanas", label: "Campañas", icon: "Megaphone" },
       { href: "/campanas/flows", label: "Flows", icon: "Workflow" },
       { href: "/entrantes", label: "Entrantes", icon: "Inbox" },
+      { href: "/bajas", label: "Bajas", icon: "UserX" },
     ],
   },
   {

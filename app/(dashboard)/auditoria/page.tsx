@@ -36,6 +36,8 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   "ad.create": "Anuncio creado",
   "campaign.meta_ad.create": "Campaña Meta creada",
   "campaign.meta_ad.audience": "Audiencia Meta creada",
+  "optout.create": "Baja manual",
+  "optout.revoke": "Baja revocada",
 };
 
 const ACTION_TONE: Record<AuditAction, string> = {
@@ -69,6 +71,8 @@ const ACTION_TONE: Record<AuditAction, string> = {
   "ad.create": "bg-fuchsia-500",
   "campaign.meta_ad.create": "bg-fuchsia-500",
   "campaign.meta_ad.audience": "bg-fuchsia-500",
+  "optout.create": "bg-red-500",
+  "optout.revoke": "bg-emerald-500",
 };
 
 function ago(iso: string): string {

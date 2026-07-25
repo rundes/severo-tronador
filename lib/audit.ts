@@ -34,7 +34,9 @@ export type AuditAction =
   | "ad.status"
   | "ad.create"
   | "campaign.meta_ad.create"
-  | "campaign.meta_ad.audience";
+  | "campaign.meta_ad.audience"
+  | "optout.create"
+  | "optout.revoke";
 
 export interface AuditEntry {
   id: string;

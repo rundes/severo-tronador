@@ -59,6 +59,30 @@ export async function optOut(
   });
 }
 
+// Revoca una baja (alta manual desde el panel). La regla "para siempre" aplica
+// al opt-out automático; la revocación es una decisión explícita del operador
+// y queda en el audit log. El espejo a Sheets es de preservación (append):
+// conserva la baja histórica, no se espeja la revocación.
+export async function revokeOptOut(
+  projectId: string,
+  dni: string,
+): Promise<{ revoked: boolean }> {
+  if (dbConfigured()) {
+    const { data, error } = await getSupabase()
+      .from("opt_outs")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("dni", dni)
+      .select("dni");
+    if (error) throw error;
+    return { revoked: (data ?? []).length > 0 };
+  }
+  const existing = await mem().get(memId(projectId, dni));
+  if (!existing) return { revoked: false };
+  await mem().remove(memId(projectId, dni));
+  return { revoked: true };
+}
+
 export async function isOptedOut(
   projectId: string,
   dni: string,
