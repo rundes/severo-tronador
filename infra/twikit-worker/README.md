@@ -10,7 +10,20 @@ lo evitan. twikit quedó descartado ("Couldn't get KEY_BYTE indices").
 
 > ⚠️ **ToS / riesgo.** Scraping con cuenta logueada viola los Términos de X; la
 > cuenta puede ser **suspendida**. Usá una cuenta **quemable**. No corre en
-> Vercel (Python + sesión persistente + IP residencial): va en tu PC / VPS.
+> Vercel (Python + sesión persistente): va en GitHub Actions, tu PC o un VPS.
+
+## Correr en GitHub Actions (recomendado, sin PC prendida)
+
+El workflow `.github/workflows/x-worker.yml` corre el worker 2×/día en runners
+de GitHub. Para activarlo, cargar estos secrets del repo (Settings → Secrets
+and variables → Actions): `X_WORKER_USERNAME`, `X_WORKER_EMAIL`,
+`X_WORKER_AUTH_TOKEN`, `X_WORKER_CT0` (los `SUPABASE_*` ya existen). Sin
+`X_WORKER_AUTH_TOKEN` el job termina sin hacer nada, así que es seguro dejarlo.
+La sesión de twscrape (`accounts.db`) persiste entre corridas vía actions/cache.
+
+Trade-off: los runners tienen **IP de datacenter** — X puede limitar/bloquear
+más agresivo que con IP residencial. Si la cuenta empieza a fallar en Actions,
+el modo local (`run.cmd`) sigue disponible sin cambios.
 
 ## Setup
 ```powershell

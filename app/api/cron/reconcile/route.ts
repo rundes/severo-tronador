@@ -5,12 +5,14 @@
 // tanto y mide la divergencia: envíos sent > 1h ago con provider_message_id
 // pero sin delivery. Si pasa el umbral (>2%) emite warning.
 //
-// Hoy solo reporta. Pull de Meta Graph API (para reasignar delivery) suma
-// cuando haya tráfico real: requiere META_WA_ACCESS_TOKEN y un endpoint
-// /v18.0/{message-id}.
+// Además de medir, corrige activamente lo que se puede: email vía pull a la
+// API de Resend (GET /emails/{id} → last_event). WhatsApp Cloud es
+// webhook-only (no hay endpoint de consulta por wamid), para ese canal la
+// divergencia solo se reporta.
 import { NextResponse } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { reconcileResendDeliveries } from "@/lib/reconcile";
 import { log } from "@/lib/logger";
 
 // Solo emitimos warn si la divergencia supera este ratio.
@@ -28,6 +30,9 @@ export async function GET(req: Request) {
     return new Response("CRON_SECRET no configurado", { status: 403 });
   }
   if (!dbConfigured()) return NextResponse.json({ skipped: "no db" });
+
+  // Pull activo primero: corrige lo corregible antes de medir divergencia.
+  const resend = await reconcileResendDeliveries();
 
   const db = getSupabase();
   const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
@@ -61,6 +66,8 @@ export async function GET(req: Request) {
     ratio: Math.round(ratio * 10000) / 100,
     stale_ms: STALE_MS,
     threshold: WARN_RATIO,
+    resend_checked: resend.checked,
+    resend_corrected: resend.corrected,
   };
   if (alert) log.warn(event, payload);
   else log.info(event, payload);
