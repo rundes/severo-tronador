@@ -254,11 +254,26 @@ async function fetchBody(url: string): Promise<{ body: string; finalUrl: string 
   throw new Error("demasiados redirects");
 }
 
+// Un feed configurado con path que murió (ej /feed/ que ahora da 404) se
+// reintenta desde la raíz del sitio: autodiscovery/scrape resuelven solos.
+async function fetchFeed(url: string): Promise<ListenItem[]> {
+  try {
+    return await fetchFeedInner(url);
+  } catch (e) {
+    const u = new URL(url);
+    if (u.pathname !== "/" || u.search) {
+      log.info("listening.rss.retry_from_root", { feed: url });
+      return fetchFeedInner(`${u.origin}/`);
+    }
+    throw e;
+  }
+}
+
 // Acepta tanto URLs de feed como URLs de sitio: si el body es HTML intenta
 // autodiscovery (<link rel=alternate>), después rutas comunes (/feed — la
 // enorme mayoría de los medios locales son WordPress y lo exponen aunque no
 // lo publiquen), y como último recurso deriva items scrapeando el home.
-async function fetchFeed(url: string): Promise<ListenItem[]> {
+async function fetchFeedInner(url: string): Promise<ListenItem[]> {
   const { body, finalUrl } = await fetchBody(url);
   if (looksLikeFeed(body)) return parseFeed(body, finalUrl);
 
