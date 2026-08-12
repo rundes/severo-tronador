@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buttonClass } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { crearCampana } from "./actions";
 import { outreachConnectorFor, OUTREACH_CHANNELS, EMAIL_PROVIDERS } from "@/lib/campaigns";
 import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
@@ -318,13 +318,13 @@ export default async function NuevaCampanaPage({
             </span>
           </label>
 
-          <button
-            type="submit"
+          <SubmitButton
+            variant="accent"
             disabled={sendable.length === 0}
-            className={buttonClass("accent")}
+            pendingLabel="Lanzando campaña…"
           >
             Ejecutar envío a {sendable.length} →
-          </button>
+          </SubmitButton>
           <p className="text-xs text-zinc-400">
             Sin credenciales del canal, el envío se simula (modo mock) y consume
             cuota igual, para probar el flujo completo.

@@ -80,7 +80,7 @@ export default async function ContactoPage({
   const historial = [...(raw?.events ?? [])].sort(
     (a, b) => +new Date(b.contactedAt) - +new Date(a.contactedAt),
   );
-  const llamadas = await listCallsFor(dni);
+  const llamadas = projectId ? await listCallsFor(projectId, dni) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

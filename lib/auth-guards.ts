@@ -24,15 +24,16 @@ export function assertAuthConfiguredInProd(): void {
   );
 }
 
-// En producción, allowlist vacía permite cualquier cuenta Google. No aborta,
-// solo loguea warning en stderr.
+// Fail-closed: en producción una allowlist vacía significaría que cualquier
+// cuenta Google entra a una plataforma con PII del padrón. Aborta el boot
+// igual que assertAuthConfiguredInProd — antes solo logueaba un warning.
 export function assertAllowlistConfiguredInProd(): void {
   if (process.env.NODE_ENV !== "production") return;
   if (!authConfigured) return;
   if (allowedEmails.length === 0) {
-    console.warn(
-      "[auth] ALLOWED_EMAILS vacío en producción: cualquier cuenta Google " +
-        "podrá ingresar.",
+    throw new Error(
+      "ALLOWLIST_NOT_CONFIGURED: NODE_ENV=production requiere ALLOWED_EMAILS " +
+        "no vacío (allowlist de acceso).",
     );
   }
 }

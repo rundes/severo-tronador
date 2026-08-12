@@ -49,10 +49,13 @@ export async function reconcileResendDeliveries(
   if (!apiKey) return { checked: 0, corrected: 0 };
 
   const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
+  // Sin filtro por conector: envios no tiene columna connector_id (el filtro
+  // original tiraba 42703 y el cron daba 500 en cada tick). Los ids de otros
+  // providers devuelven 404 en la API de Resend y se saltean; agregar la
+  // columna vía migración queda como follow-up (plan F1).
   const { data, error } = await getSupabase()
     .from("envios")
     .select("provider_message_id")
-    .eq("connector_id", "resend")
     .eq("estado", "sent")
     .not("provider_message_id", "is", null)
     .is("delivery", null)

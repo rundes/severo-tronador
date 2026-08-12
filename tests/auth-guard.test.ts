@@ -61,54 +61,44 @@ describe("assertAuthConfiguredInProd", () => {
 });
 
 describe("assertAllowlistConfiguredInProd", () => {
-  it("warning en prod si allowlist vacío", async () => {
+  it("throw fail-closed en prod si allowlist vacío", async () => {
     setProdAuth();
     vi.stubEnv("ALLOWED_EMAILS", "");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { assertAllowlistConfiguredInProd } = await import(
       "@/lib/auth-guards"
     );
-    assertAllowlistConfiguredInProd();
-    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/ALLOWED_EMAILS/));
-    warn.mockRestore();
+    expect(() => assertAllowlistConfiguredInProd()).toThrow(
+      /ALLOWLIST_NOT_CONFIGURED/,
+    );
   });
 
-  it("sin warning en prod si allowlist tiene emails", async () => {
+  it("no tira en prod si allowlist tiene emails", async () => {
     setProdAuth();
     vi.stubEnv("ALLOWED_EMAILS", "user@example.com,admin@example.com");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { assertAllowlistConfiguredInProd } = await import(
       "@/lib/auth-guards"
     );
-    assertAllowlistConfiguredInProd();
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+    expect(() => assertAllowlistConfiguredInProd()).not.toThrow();
   });
 
-  it("sin warning en dev aunque allowlist esté vacío", async () => {
+  it("no tira en dev aunque allowlist esté vacío", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("ALLOWED_EMAILS", "");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { assertAllowlistConfiguredInProd } = await import(
       "@/lib/auth-guards"
     );
-    assertAllowlistConfiguredInProd();
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+    expect(() => assertAllowlistConfiguredInProd()).not.toThrow();
   });
 
-  it("sin warning si auth no está configurada (no aplica gate de allowlist)", async () => {
+  it("no tira si auth no está configurada (no aplica gate de allowlist)", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "");
     vi.stubEnv("NEXTAUTH_SECRET", "");
     vi.stubEnv("AUTH_SECRET", "");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { assertAllowlistConfiguredInProd } = await import(
       "@/lib/auth-guards"
     );
-    assertAllowlistConfiguredInProd();
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+    expect(() => assertAllowlistConfiguredInProd()).not.toThrow();
   });
 });

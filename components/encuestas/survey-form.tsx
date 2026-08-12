@@ -3,6 +3,7 @@
 // celular): papel cálido, tinta azulada, un acento índigo para selección/acción.
 // Mobile-first, escala a desktop con la tarjeta centrada del Shell.
 import { scaleBounds, type Question } from "@/lib/encuestas/types";
+import { SurveySubmit } from "@/components/encuestas/survey-submit";
 
 // Paleta (oklch). Acento índigo confiable; selección = borde+tinte; tinta cálida.
 const INPUT =
@@ -155,12 +156,7 @@ export function SurveyForm({
       {questions.map((q, i) => (
         <FieldBlock key={q.id} q={q} index={i} />
       ))}
-      <button
-        type="submit"
-        className="sticky bottom-3 w-full rounded-xl bg-[oklch(52%_0.13_255)] px-4 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[oklch(47%_0.13_255)] active:scale-[0.99]"
-      >
-        Enviar respuesta
-      </button>
+      <SurveySubmit />
     </form>
   );
 }
