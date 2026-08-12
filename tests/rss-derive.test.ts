@@ -4,6 +4,7 @@ import {
   discoverFeedUrl,
   scrapeHomeLinks,
   googleNewsFeeds,
+  extractArticleMeta,
 } from "@/lib/connectors/rss";
 
 describe("looksLikeFeed", () => {
@@ -52,6 +53,27 @@ describe("scrapeHomeLinks", () => {
     expect(items[0].url).toContain("/nota/2026/08/");
     expect(items[0].text).toContain("cloacas");
     expect(items[0].source).toBe("diario.example.com");
+  });
+});
+
+describe("extractArticleMeta", () => {
+  it("saca og:description, og:title y fecha con atributos en cualquier orden", () => {
+    const html = `<head>
+      <meta content="El intendente confirmó el cronograma de obras para 2026" property="og:description">
+      <meta property="og:title" content="Obras confirmadas en Ibicuy" />
+      <meta property="article:published_time" content="2026-08-12T10:00:00-03:00">
+    </head>`;
+    const m = extractArticleMeta(html);
+    expect(m.description).toContain("cronograma de obras");
+    expect(m.title).toBe("Obras confirmadas en Ibicuy");
+    expect(m.publishedAt).toBe("2026-08-12T10:00:00-03:00");
+  });
+  it("cae a meta description y devuelve undefined sin metadata", () => {
+    expect(
+      extractArticleMeta('<meta name="description" content="Resumen de la nota larga">')
+        .description,
+    ).toBe("Resumen de la nota larga");
+    expect(extractArticleMeta("<p>sin meta</p>").description).toBeUndefined();
   });
 });
 

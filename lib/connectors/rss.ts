@@ -16,6 +16,9 @@ import { log } from "@/lib/logger";
 const PER_FEED_MAX = 40;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
+// Notas a enriquecer por tick en el fallback de scraping (fetch de cada nota
+// para sacar descripción y fecha). Cap para no multiplicar fetches por sitio.
+const ENRICH_MAX = 10;
 
 // Anti-SSRF: rechaza IPs privadas/loopback/link-local/metadata. Los feeds son
 // URLs que carga el usuario → sin esto podrían apuntar a servicios internos.
@@ -284,7 +287,57 @@ async function fetchFeed(url: string): Promise<ListenItem[]> {
 
   const scraped = scrapeHomeLinks(body, finalUrl);
   log.info("listening.rss.home_scraped", { site: url, items: scraped.length });
-  return scraped;
+  return enrichScraped(scraped);
+}
+
+// Metadata de una nota: og:description / description, og:title y fecha de
+// publicación. Los sitios sin RSS igual llevan Open Graph casi siempre.
+export function extractArticleMeta(html: string): {
+  description?: string;
+  title?: string;
+  publishedAt?: string;
+} {
+  const head = html.slice(0, 20000);
+  const meta = (names: string[]): string | undefined => {
+    for (const n of names) {
+      const tag = head.match(
+        new RegExp(`<meta\\b[^>]*(?:property|name)=["']${n}["'][^>]*>`, "i"),
+      )?.[0];
+      const c = tag?.match(/content=["']([^"']+)["']/i);
+      if (c?.[1]) return decodeEntities(c[1]);
+    }
+    return undefined;
+  };
+  return {
+    description: meta(["og:description", "twitter:description", "description"]),
+    title: meta(["og:title"]),
+    publishedAt: meta(["article:published_time", "og:article:published_time"]),
+  };
+}
+
+// Visita cada nota scrapeada (hasta ENRICH_MAX) y completa el item con
+// "título — descripción" + publishedAt, en el mismo formato que el path RSS.
+// Un fetch fallido deja el item como estaba; el resto pasa sin enriquecer.
+async function enrichScraped(items: ListenItem[]): Promise<ListenItem[]> {
+  const targets = items.slice(0, ENRICH_MAX);
+  const rest = items.slice(ENRICH_MAX);
+  const results = await Promise.allSettled(
+    targets.map(async (it) => {
+      if (!it.url) return it;
+      const { body } = await fetchBody(it.url);
+      const m = extractArticleMeta(body);
+      const title = m.title && m.title.length >= 15 ? m.title : it.text;
+      const text =
+        m.description && m.description.length > 40
+          ? `${title} — ${m.description}`.slice(0, 400)
+          : title.slice(0, 400);
+      return { ...it, text, publishedAt: m.publishedAt ?? it.publishedAt };
+    }),
+  );
+  const enriched = results.map((r, i) =>
+    r.status === "fulfilled" ? r.value : targets[i],
+  );
+  return [...enriched, ...rest];
 }
 
 export const rssConnector: ListeningConnector = {
