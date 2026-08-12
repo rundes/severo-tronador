@@ -15,8 +15,12 @@ import {
   type TagCount,
 } from "@/lib/sentiment";
 
-// Anclado al dataset mock (2026-05-26). El real usaría Date.now().
-const NOW = Date.UTC(2026, 4, 26);
+// El mock ancla su dataset en 2026-05-26; con datos reales el "ahora" tiene
+// que ser el reloj real — congelado, todo item cae en "recent" y la detección
+// de emergentes degenera (prior siempre 0). Función y no const de módulo:
+// una lambda caliente mantendría el valor del cold start.
+import { demoData } from "@/lib/connectors/demo";
+const now = () => (demoData() ? Date.UTC(2026, 4, 26) : Date.now());
 
 // Tope de items en el feed. Antes era 50; ahora mandamos un archivo navegable
 // porque el filtro por fuente y la búsqueda se resuelven en el cliente.
@@ -149,7 +153,7 @@ export async function runListening(
   // ("https"/"posted") y palabras amplificadas por una sola cuenta.
   const topics: Topic[] = extractTopics(items, {
     ...DEFAULT_TOPIC_CONFIG,
-    now: NOW,
+    now: now(),
   });
 
   const bySource: Record<string, number> = {};

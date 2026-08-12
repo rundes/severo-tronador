@@ -32,9 +32,6 @@ jobs:
   pull:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    defaults:
-      run:
-        working-directory: infra/twikit-worker
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -77,10 +74,12 @@ jobs:
 
       - name: Instalar dependencias
         if: steps.gate.outputs.run == 'true'
+        working-directory: infra/twikit-worker
         run: pip install -r requirements.txt
 
       - name: Correr worker
         if: steps.gate.outputs.run == 'true'
+        working-directory: infra/twikit-worker
         run: python -u worker.py
 
       - name: Guardar sesión twscrape

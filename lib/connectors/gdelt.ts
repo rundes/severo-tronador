@@ -39,8 +39,20 @@ function matches(item: ListenItem, q: ListenQuery): boolean {
 }
 
 async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
+  // GDELT exige términos concretos ("*" no es válido) y frases multi-palabra
+  // entre comillas; sin eso devuelve una página HTML de error con status 200.
+  const terms = query.keywords.length
+    ? query.keywords
+    : query.zona
+      ? [query.zona]
+      : [];
+  if (terms.length === 0) return [];
+  const joined = terms
+    .map((t) => (/\s/.test(t.trim()) ? `"${t.trim()}"` : t.trim()))
+    .join(" OR ");
+  const q = terms.length > 1 ? `(${joined})` : joined;
   const params = new URLSearchParams({
-    query: query.keywords.length ? query.keywords.join(" OR ") : "*",
+    query: query.pais?.toLowerCase() === "ar" ? `${q} sourcelang:spa` : q,
     format: "json",
     maxrecords: String(MAX_RECORDS),
     timespan: "24h",
@@ -48,6 +60,13 @@ async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
   if (query.pais) params.set("sourcecountry", query.pais.toLowerCase());
   const res = await fetchWithTimeout(`${ENDPOINT}?${params}`);
   if (!res.ok) throw new Error(`GDELT HTTP ${res.status}`);
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("json")) {
+    // Errores de query llegan como HTML con 200; sin este guard el .json()
+    // tira y el fallback silencioso deja el conector mudo sin diagnóstico.
+    const body = (await res.text()).slice(0, 200);
+    throw new Error(`GDELT respuesta no-JSON (${ct}): ${body}`);
+  }
   const json = (await res.json()) as GdeltResp;
   return (json.articles ?? []).map((a) => ({
     source: a.domain ?? "gdelt",
@@ -80,9 +99,11 @@ export const gdeltConnector: ListeningConnector = {
   },
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
     try {
+      // Sin re-filtro local: la query de GDELT ya restringe por keyword, y el
+      // match por substring pierde items por acentos ("Maipú" vs "Maipu").
       const real = await fetchReal(query);
       log.debug("listening.gdelt.fetch", { count: real.length });
-      return real.filter((i) => matches(i, query));
+      return real;
     } catch (e) {
       log.warn("listening.gdelt.fetch_failed", {
         error: (e as Error).message,

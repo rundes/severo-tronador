@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { saveListeningConfig } from "@/lib/listening-config";
 import { normalizeHandle } from "@/lib/padron-handles";
+import { enqueueXHandles } from "@/lib/x-timeline";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireMember } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
@@ -64,6 +65,11 @@ export async function guardarEscucha(formData: FormData) {
   if (!parsed.success) redirect("/escucha?error=validacion");
 
   await saveListeningConfig(projectId, parsed.data);
+  // Encola la watchlist ya mismo (refresh inmediato): sin esto los handles
+  // recién cargados esperaban al próximo tick del cron para entrar a la cola.
+  if (parsed.data.xHandles.length > 0) {
+    await enqueueXHandles(projectId, parsed.data.xHandles);
+  }
   revalidatePath("/escucha");
   redirect("/escucha?guardado=1");
 }

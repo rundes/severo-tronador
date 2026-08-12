@@ -10,6 +10,7 @@
 // corrida/mes.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { getConnectorConfig } from "@/lib/connectors/config";
+import { getListeningConfig } from "@/lib/listening-config";
 import { getUsage, incrementUsage } from "@/lib/quota";
 import { upsertItems } from "@/lib/listening-cache";
 import { normalizeHandle } from "@/lib/padron-handles";
@@ -29,6 +30,7 @@ const DEFAULT_BATCH = 50;
 export async function enqueueXHandles(
   projectId: string,
   raw: (string | null | undefined)[],
+  opts: { refreshOlderThanHours?: number } = {},
 ): Promise<number> {
   if (!dbConfigured()) return 0;
   const handles = Array.from(
@@ -48,14 +50,24 @@ export async function enqueueXHandles(
     log.warn("x_timeline.enqueue.insert_failed", { error: insErr.message });
   }
 
-  // Re-encola los existentes que ya estaban procesados/errados.
+  // Re-encola los existentes que ya estaban procesados/errados. Con
+  // refreshOlderThanHours solo re-encola los "viejos" — así el cron puede
+  // registrar la watchlist en cada tick sin re-fetchear handles frescos
+  // (cuidando el free tier de 1.500 tweets/mes).
   const nowIso = new Date().toISOString();
-  const { error: updErr } = await sb
+  let upd = sb
     .from("x_handle_queue")
     .update({ status: "pending", enqueued_at: nowIso, updated_at: nowIso })
     .eq("project_id", projectId)
     .in("handle", handles)
     .neq("status", "pending");
+  if (opts.refreshOlderThanHours) {
+    const cutoff = new Date(
+      Date.now() - opts.refreshOlderThanHours * 3600_000,
+    ).toISOString();
+    upd = upd.lt("updated_at", cutoff);
+  }
+  const { error: updErr } = await upd;
   if (updErr) {
     log.warn("x_timeline.enqueue.update_failed", { error: updErr.message });
   }
@@ -90,6 +102,14 @@ export async function processXHandleQueue(
   const cfg = await getConnectorConfig(X_ID);
   const bearer = cfg.X_API_BEARER_TOKEN;
   if (!bearer) return { ...EMPTY, skipped: "no token" };
+
+  // La watchlist de /escucha (listening_config.x_handles) se registra acá en
+  // cada tick: sin esto la cola solo se alimentaba del import de contactos y
+  // los handles configurados a mano nunca se fetcheaban. Refresh diario.
+  const watchlist = (await getListeningConfig(projectId)).xHandles;
+  if (watchlist.length > 0) {
+    await enqueueXHandles(projectId, watchlist, { refreshOlderThanHours: 20 });
+  }
 
   const sb = getSupabase();
   const { count: pendingCount } = await sb

@@ -139,10 +139,92 @@ function matches(item: ListenItem, q: ListenQuery): boolean {
   return q.keywords.some((k) => t.includes(k.toLowerCase()));
 }
 
+// Feeds de Google News RSS generados desde la config de escucha: uno por la
+// zona sola y uno por cada keyword acotada a la zona (máx 6 feeds). Formato:
+// https://news.google.com/rss/search?q=...&hl=es-419&gl=AR&ceid=AR:es-419
+export function googleNewsFeeds(q: ListenQuery): string[] {
+  const zona = q.zona?.trim();
+  const keywords = q.keywords.map((k) => k.trim()).filter(Boolean);
+  const queries: string[] = [];
+  if (zona) queries.push(`"${zona}"`);
+  for (const k of keywords.slice(0, 5)) {
+    queries.push(zona ? `"${zona}" ${k}` : k);
+  }
+  const gl = (q.pais ?? "AR").toUpperCase();
+  return queries.map(
+    (s) =>
+      `https://news.google.com/rss/search?q=${encodeURIComponent(
+        `${s} when:2d`,
+      )}&hl=es-419&gl=${gl}&ceid=${gl}:es-419`,
+  );
+}
+
+// ¿El body parece un feed RSS/Atom/RDF (y no una página HTML)?
+export function looksLikeFeed(body: string): boolean {
+  const head = body.slice(0, 2000);
+  return /<(rss|feed|rdf:RDF)[\s>]/i.test(head) && !/<html[\s>]/i.test(head);
+}
+
+// Autodiscovery de feed: busca <link rel="alternate" type="application/rss+xml">
+// (o atom) en el <head> del HTML. Orden de atributos libre.
+export function discoverFeedUrl(html: string, baseUrl: string): string | null {
+  const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
+  for (const l of links) {
+    if (!/rel=["']?alternate["']?/i.test(l)) continue;
+    if (!/type=["']?application\/(rss|atom)\+xml/i.test(l)) continue;
+    const href = l.match(/href=["']([^"']+)["']/i);
+    if (href) {
+      try {
+        return new URL(href[1], baseUrl).toString();
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+// Último recurso para sitios sin RSS: deriva items del HTML del home.
+// Heurística: links same-host con texto largo (títulos de nota) y path
+// profundo, excluyendo navegación/secciones. Sin fecha — el dedupe por
+// (project_id, url) del cache evita repetidos entre ticks.
+const SCRAPE_EXCLUDE =
+  /\/(tag|tags|categoria|category|autor|author|seccion|login|suscri|contacto|publicidad|quienes|terminos|privacidad)\b/i;
+
+export function scrapeHomeLinks(html: string, baseUrl: string): ListenItem[] {
+  const host = hostOf(baseUrl);
+  const clean = html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, "");
+  const seen = new Set<string>();
+  const out: ListenItem[] = [];
+  for (const m of clean.matchAll(
+    /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  )) {
+    const title = decodeEntities(m[2]);
+    if (title.length < 30) continue; // navegación / botones
+    let abs: URL;
+    try {
+      abs = new URL(m[1], baseUrl);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(abs.protocol)) continue;
+    if (hostOf(abs.toString()) !== host) continue;
+    if (abs.pathname.length < 10 || SCRAPE_EXCLUDE.test(abs.pathname)) continue;
+    const url = abs.toString();
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push({ source: host, text: title.slice(0, 400), url, author: host });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
 // Fetch con anti-SSRF: valida el host en cada hop y sigue redirects a mano
 // (redirect:"manual") re-validando el Location, para que un 302 no salte a una
-// IP interna.
-async function fetchFeed(url: string): Promise<ListenItem[]> {
+// IP interna. Devuelve el body y la URL final.
+async function fetchBody(url: string): Promise<{ body: string; finalUrl: string }> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     await assertPublicHost(current);
@@ -161,12 +243,48 @@ async function fetchFeed(url: string): Promise<ListenItem[]> {
         continue;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return parseFeed(await res.text(), current);
+      return { body: await res.text(), finalUrl: current };
     } finally {
       clearTimeout(timer);
     }
   }
   throw new Error("demasiados redirects");
+}
+
+// Acepta tanto URLs de feed como URLs de sitio: si el body es HTML intenta
+// autodiscovery (<link rel=alternate>), después rutas comunes (/feed — la
+// enorme mayoría de los medios locales son WordPress y lo exponen aunque no
+// lo publiquen), y como último recurso deriva items scrapeando el home.
+async function fetchFeed(url: string): Promise<ListenItem[]> {
+  const { body, finalUrl } = await fetchBody(url);
+  if (looksLikeFeed(body)) return parseFeed(body, finalUrl);
+
+  const candidates: string[] = [];
+  const discovered = discoverFeedUrl(body, finalUrl);
+  if (discovered) candidates.push(discovered);
+  for (const p of ["/feed", "/rss.xml"]) {
+    try {
+      const c = new URL(p, finalUrl).toString();
+      if (!candidates.includes(c)) candidates.push(c);
+    } catch {
+      // URL base inválida: seguimos con lo que haya
+    }
+  }
+  for (const c of candidates) {
+    try {
+      const r = await fetchBody(c);
+      if (looksLikeFeed(r.body)) {
+        log.info("listening.rss.feed_derived", { site: url, feed: c });
+        return parseFeed(r.body, r.finalUrl);
+      }
+    } catch {
+      // candidato muerto: probar el siguiente
+    }
+  }
+
+  const scraped = scrapeHomeLinks(body, finalUrl);
+  log.info("listening.rss.home_scraped", { site: url, items: scraped.length });
+  return scraped;
 }
 
 export const rssConnector: ListeningConnector = {
@@ -187,10 +305,16 @@ export const rssConnector: ListeningConnector = {
     return "enabled";
   },
   async fetch(query: ListenQuery): Promise<ListenItem[]> {
-    const feeds = (query.rssFeeds ?? [])
+    const configured = (query.rssFeeds ?? [])
       .map((u) => u.trim())
       .filter((u) => /^https?:\/\//i.test(u))
       .slice(0, 40);
+    // Sin feeds configurados: fallback a Google News RSS armado desde
+    // zona + keywords. Cubre prensa local sin depender de que cada medio
+    // mantenga su feed. Los items ya vienen filtrados por la búsqueda,
+    // así que no se re-filtra por keyword (evita perder por acentos).
+    const auto = configured.length === 0;
+    const feeds = auto ? googleNewsFeeds(query) : configured;
     if (feeds.length === 0) return [];
     const results = await Promise.allSettled(feeds.map(fetchFeed));
     const items: ListenItem[] = [];
@@ -198,6 +322,13 @@ export const rssConnector: ListeningConnector = {
       if (r.status === "fulfilled") items.push(...r.value);
       else log.warn("listening.rss.feed_failed", { feed: feeds[i], error: String(r.reason) });
     });
+    if (auto) {
+      log.info("listening.rss.google_news_fallback", {
+        feeds: feeds.length,
+        items: items.length,
+      });
+      return items;
+    }
     return items.filter((i) => matches(i, query));
   },
 };
