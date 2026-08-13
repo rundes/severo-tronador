@@ -31,11 +31,13 @@ interface ConfigFormProps {
   lastXUpdate: string | null;
   summary: PullSummary | null;
   counts: SourceCounts;
+  // Reloj del server render (react-hooks/purity prohíbe Date.now() acá).
+  now: number;
 }
 
-function timeAgo(iso: string | null | undefined): string {
+function timeAgo(iso: string | null | undefined, now: number): string {
   if (!iso) return "nunca";
-  const ms = Date.now() - +new Date(iso);
+  const ms = now - +new Date(iso);
   if (Number.isNaN(ms)) return "?";
   const min = Math.round(ms / 60_000);
   if (min < 1) return "recién";
@@ -73,11 +75,13 @@ function SourceRows({
   counts,
   summary,
   emptyNote,
+  now,
 }: {
   urls: string[];
   counts: SourceCounts;
   summary: PullSummary | null;
   emptyNote?: string;
+  now: number;
 }) {
   if (urls.length === 0) return null;
   const errorFor = (url: string) =>
@@ -102,7 +106,7 @@ function SourceRows({
             ) : stat ? (
               <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">
                 {stat.count} menciones 7d
-                <span className="text-zinc-500"> · última {timeAgo(stat.last)}</span>
+                <span className="text-zinc-500"> · última {timeAgo(stat.last, now)}</span>
               </span>
             ) : (
               <span className="text-amber-600 dark:text-amber-400">
@@ -122,11 +126,13 @@ function AutoRow({
   detail,
   stat,
   error,
+  now,
 }: {
   label: string;
   detail: string;
   stat?: { count: number; last: string | null };
   error?: string;
+  now: number;
 }) {
   const count = stat?.count ?? 0;
   const last = stat?.last ?? null;
@@ -142,7 +148,7 @@ function AutoRow({
       ) : count > 0 ? (
         <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">
           {count} menciones 7d
-          <span className="text-zinc-500"> · última {timeAgo(last ?? null)}</span>
+          <span className="text-zinc-500"> · última {timeAgo(last ?? null, now)}</span>
         </span>
       ) : (
         <span className="text-zinc-500">sin menciones en 7d</span>
@@ -159,11 +165,12 @@ export function ConfigForm({
   lastXUpdate,
   summary,
   counts,
+  now,
 }: ConfigFormProps) {
   const parts = partitionFeeds(cfg.rssFeeds);
   const justSaved = params.guardado === "1";
   const pullPending =
-    justSaved && (!summary?.at || Date.now() - +new Date(summary.at) > 10 * 60_000);
+    justSaved && (!summary?.at || now - +new Date(summary.at) > 10 * 60_000);
 
   return (
     <div className="space-y-6">
@@ -176,7 +183,7 @@ export function ConfigForm({
       >
         <span className="text-sm text-zinc-700 dark:text-zinc-200">
           Última carga:{" "}
-          <span className="font-mono tabular-nums">{timeAgo(summary?.at)}</span>
+          <span className="font-mono tabular-nums">{timeAgo(summary?.at, now)}</span>
           {summary && (
             <>
               {" · "}
@@ -270,7 +277,7 @@ export function ConfigForm({
                 className={`${inputCls} font-mono`}
               />
             </Field>
-            <SourceRows urls={parts.medios} counts={counts} summary={summary} />
+            <SourceRows urls={parts.medios} counts={counts} summary={summary} now={now} />
           </div>
 
           <div className="space-y-2">
@@ -298,6 +305,7 @@ export function ConfigForm({
               counts={counts}
               summary={summary}
               emptyNote="sin datos aún · corre 2×/día"
+              now={now}
             />
           </div>
 
@@ -320,7 +328,7 @@ export function ConfigForm({
                 className={`${inputCls} font-mono`}
               />
             </Field>
-            <SourceRows urls={parts.telegram} counts={counts} summary={summary} />
+            <SourceRows urls={parts.telegram} counts={counts} summary={summary} now={now} />
           </div>
 
           <div className="space-y-2">
@@ -364,23 +372,27 @@ export function ConfigForm({
               label="Google News"
               detail="prensa por búsqueda de zona y keywords"
               stat={counts.bySource["news.google.com"]}
+              now={now}
             />
             <AutoRow
               label="GDELT"
               detail="prensa mundial geo-codificada"
               stat={counts.byConnector["gdelt"]}
               error={summary?.bySource["gdelt"]?.error}
+              now={now}
             />
             <AutoRow
               label="X"
               detail="posts de los handles monitoreados"
               stat={counts.byConnector["x-api"]}
               error={summary?.bySource["x-api"]?.error}
+              now={now}
             />
             <AutoRow
               label="Radio"
               detail="menciones transcriptas"
               stat={counts.byConnector["radio"]}
+              now={now}
             />
           </ul>
           <fieldset className="pt-1">

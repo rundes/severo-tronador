@@ -13,6 +13,7 @@ import { requireProject } from "@/lib/workspace";
 import { listMarcas } from "@/lib/escucha-marcas";
 import { listDescartes } from "@/lib/escucha-descartes";
 import { PageHeader } from "@/components/ui/page-header";
+import { renderNow } from "@/lib/escucha-fuentes";
 import { ConfigForm } from "@/components/escucha/config-form";
 import { RadioAgenda } from "@/components/escucha/radio-agenda";
 import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
@@ -125,6 +126,7 @@ export default async function EscuchaPage({
             lastXUpdate={lastXUpdate}
             summary={summary}
             counts={counts}
+            now={renderNow()}
           />
           <RadioAgenda
             upcoming={agendaUpcoming(cfg.radioStreams)}

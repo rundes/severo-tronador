@@ -57,6 +57,13 @@ export function normalizeTgChannel(raw: string): string | null {
   return `https://t.me/${name}`;
 }
 
+// Reloj para server components: react-hooks/purity prohíbe Date.now() dentro
+// del render aunque sea server-only (los tiempos relativos "hace N min" lo
+// necesitan). Un render por request → estable dentro del render.
+export function renderNow(): number {
+  return Date.now();
+}
+
 // Clave de stats con la que ese feed aparece en listening_items.source.
 export function statsKeyFor(url: string): string {
   const h = hostOf(url);
