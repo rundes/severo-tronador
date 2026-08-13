@@ -269,11 +269,52 @@ async function fetchFeed(url: string): Promise<ListenItem[]> {
   }
 }
 
+// Canal público de Telegram: t.me/s/<canal> es la vista web sin auth.
+// Parsea los bloques de mensaje (texto + link + fecha). Para comunidades
+// chicas que publican por canal de Telegram en vez de sitio de noticias.
+export function parseTelegramChannel(html: string, channel: string): ListenItem[] {
+  const out: ListenItem[] = [];
+  for (const m of html.matchAll(
+    /<div class="tgme_widget_message_bubble">([\s\S]*?)(?=<div class="tgme_widget_message_bubble">|$)/g,
+  )) {
+    const block = m[1];
+    const textM = block.match(
+      /<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/,
+    );
+    if (!textM) continue;
+    const text = decodeEntities(textM[1]);
+    if (text.length < 15) continue;
+    const linkM = block.match(
+      /<a class="tgme_widget_message_date" href="([^"]+)"/,
+    );
+    const timeM = block.match(/<time[^>]*datetime="([^"]+)"/);
+    out.push({
+      source: `t.me/${channel}`,
+      text: text.slice(0, 400),
+      url: linkM?.[1],
+      publishedAt: timeM?.[1],
+      author: channel,
+    });
+    if (out.length >= PER_FEED_MAX) break;
+  }
+  return out;
+}
+
 // Acepta tanto URLs de feed como URLs de sitio: si el body es HTML intenta
 // autodiscovery (<link rel=alternate>), después rutas comunes (/feed — la
 // enorme mayoría de los medios locales son WordPress y lo exponen aunque no
 // lo publiquen), y como último recurso deriva items scrapeando el home.
+// URLs t.me/<canal> van a la vista pública del canal.
 async function fetchFeedInner(url: string): Promise<ListenItem[]> {
+  const u0 = new URL(url);
+  if (/^(www\.)?t\.me$/i.test(u0.hostname)) {
+    const channel = u0.pathname.replace(/^\/(s\/)?/, "").split("/")[0];
+    if (!channel) return [];
+    const { body: tgHtml } = await fetchBody(`https://t.me/s/${channel}`);
+    const items = parseTelegramChannel(tgHtml, channel);
+    log.info("listening.rss.telegram_channel", { channel, items: items.length });
+    return items;
+  }
   const { body, finalUrl } = await fetchBody(url);
   if (looksLikeFeed(body)) return parseFeed(body, finalUrl);
 
@@ -376,6 +417,10 @@ export const rssConnector: ListeningConnector = {
     const configured = (query.rssFeeds ?? [])
       .map((u) => u.trim())
       .filter((u) => /^https?:\/\//i.test(u))
+      // Facebook/Instagram no son fetcheables anónimos (login wall): esas
+      // URLs las procesa infra/fb-worker; acá se saltean para no meter
+      // basura de la página de login al feed.
+      .filter((u) => !/(^|\.)((facebook|instagram)\.com)/i.test(hostOf(u)))
       .slice(0, 40);
     // Sin feeds configurados: fallback a Google News RSS armado desde
     // zona + keywords. Cubre prensa local sin depender de que cada medio

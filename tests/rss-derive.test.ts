@@ -5,6 +5,7 @@ import {
   scrapeHomeLinks,
   googleNewsFeeds,
   extractArticleMeta,
+  parseTelegramChannel,
 } from "@/lib/connectors/rss";
 
 describe("looksLikeFeed", () => {
@@ -74,6 +75,25 @@ describe("extractArticleMeta", () => {
         .description,
     ).toBe("Resumen de la nota larga");
     expect(extractArticleMeta("<p>sin meta</p>").description).toBeUndefined();
+  });
+});
+
+describe("parseTelegramChannel", () => {
+  it("extrae texto, link y fecha de la vista pública t.me/s", () => {
+    const html = `
+      <div class="tgme_widget_message_bubble">
+        <div class="tgme_widget_message_text js-message_text" dir="auto">Corte de agua programado para mañana en el barrio norte</div>
+        <a class="tgme_widget_message_date" href="https://t.me/municipio/123"><time datetime="2026-08-13T09:00:00+00:00"></time></a>
+      </div>
+      <div class="tgme_widget_message_bubble">
+        <div class="tgme_widget_message_text">ok</div>
+      </div>`;
+    const items = parseTelegramChannel(html, "municipio");
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toContain("Corte de agua");
+    expect(items[0].url).toBe("https://t.me/municipio/123");
+    expect(items[0].publishedAt).toBe("2026-08-13T09:00:00+00:00");
+    expect(items[0].source).toBe("t.me/municipio");
   });
 });
 

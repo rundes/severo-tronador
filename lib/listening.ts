@@ -73,6 +73,7 @@ export function platformOf(connectorId: string | null | undefined): Platform {
       return "reddit";
     case "meta-ad-library":
     case "meta-content-library":
+    case "fb-pages": // infra/fb-worker: páginas/grupos públicos de Facebook
       return "meta";
     default:
       return "otros";

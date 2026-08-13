@@ -1,0 +1,26 @@
+name: Mantenimiento (manual)
+
+# Tareas de mantenimiento one-off contra la DB de producción, corridas a mano
+# (workflow_dispatch) con los secrets de Supabase del repo. Hoy: limpieza de
+# feeds de servicios pagos en listening_config.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-paid-feeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Limpiar feeds pagos de listening_config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/maintenance/clean-paid-feeds.mjs

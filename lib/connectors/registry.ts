@@ -14,7 +14,6 @@ import { telegramBotConnector } from "./telegram-bot";
 import { claudeApiConnector } from "./claude-api";
 import { gdeltConnector } from "./gdelt";
 import { xApiConnector } from "./x-api";
-import { redditApiConnector } from "./reddit-api";
 import { metaContentLibraryConnector } from "./meta-content-library";
 import { rssConnector } from "./rss";
 import { metaConnector } from "./meta";
@@ -36,7 +35,8 @@ export const connectors: Connector[] = [
   claudeApiConnector,
   gdeltConnector,
   xApiConnector,
-  redditApiConnector,
+  // reddit-api retirado del registry: stub que pedía credenciales y devolvía
+  // siempre vacío (se reincorpora si se implementa contra la API JSON gratis).
   metaContentLibraryConnector,
   rssConnector,
   metaConnector,
