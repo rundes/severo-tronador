@@ -1,2 +1,4 @@
 facebook-scraper>=0.2.59
+# lxml>=5 separó html.clean; facebook-scraper lo necesita y no lo declara.
+lxml_html_clean
 httpx>=0.27
