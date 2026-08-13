@@ -20,8 +20,11 @@ import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
 import { Monitor } from "@/components/escucha/monitor";
 import type { SourceStatus } from "@/components/escucha/config-form";
 
-// Revalida cada 60s para el "tiempo real" sin sobrecargar las APIs externas.
-export const revalidate = 60;
+// Página autenticada con fetch vivo de fuentes externas (tab monitor): el
+// prerender de build pagaba todas esas llamadas (y con el enriquecimiento de
+// scraping puede superar el límite de 60s del export). Siempre dinámica; el
+// "tiempo real" barato lo da el cache de listening_items.
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Escucha · Tronador" };
 

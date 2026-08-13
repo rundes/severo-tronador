@@ -19,6 +19,11 @@ import { getConnectorHealth } from "@/lib/connectors/health";
 
 export const metadata = { title: "Conectores · Severo Tronador" };
 
+// Página autenticada con estado vivo (DB + cuotas por conector): prerenderarla
+// en build son ~40 round-trips a Supabase que hoy exceden el límite de 60s del
+// export estático y tiran el deploy. Siempre dinámica.
+export const dynamic = "force-dynamic";
+
 // Resuelve estado + cuota + salud real + config de cada conector (server-side).
 async function resolve(connector: Connector) {
   const [status, quota, health, fields, enabled] = await Promise.all([
