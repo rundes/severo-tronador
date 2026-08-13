@@ -177,6 +177,10 @@ export interface ListenQuery {
   rssFeeds?: string[];
   // Handles públicos de X a monitorear (override de los handles del padrón).
   xHandles?: string[];
+  // Sink opcional de diagnósticos por fuente: los conectores que manejan
+  // varias sub-fuentes (RSS: un feed por URL) empujan acá los fallos
+  // individuales para que la UI de config los muestre.
+  diagnostics?: { source: string; detail: string }[];
 }
 
 export interface ListenItem {

@@ -2,7 +2,12 @@ import Link from "next/link";
 import { runListening } from "@/lib/listening";
 import { TERRITORY } from "@/lib/config";
 import { getListeningConfig } from "@/lib/listening-config";
-import { lastListeningUpdate } from "@/lib/listening-cache";
+import {
+  lastListeningUpdate,
+  readPullSummary,
+  countsBySource,
+  type SourceCounts,
+} from "@/lib/listening-cache";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { listMarcas } from "@/lib/escucha-marcas";
@@ -34,15 +39,7 @@ function sourceStatuses(rssCount = 0): SourceStatus[] {
       id: "x-api",
       label: "X",
       real: true,
-      reason: xToken ? "API paga" : "sindicación (gratis, timelines de handles)",
-    },
-    {
-      // El connector de Reddit no tiene fetch real (devuelve []); no inventa
-      // datos. Reflejamos eso sin importar si hay creds, para no confundir.
-      id: "reddit-api",
-      label: "Reddit",
-      real: false,
-      reason: "no implementado",
+      reason: xToken ? "API oficial (free tier)" : "sin token",
     },
     {
       id: "meta-content-library",
@@ -65,13 +62,20 @@ export default async function EscuchaPage({
   const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
 
-  const [result, cfg, lastXUpdate, marcas, descartados] = await Promise.all([
-    runListening(projectId),
-    getListeningConfig(projectId),
-    lastListeningUpdate(projectId, "x-api"),
-    persistOk ? listMarcas(projectId) : Promise.resolve([]),
-    persistOk ? listDescartes(projectId) : Promise.resolve([]),
-  ]);
+  // El fetch de fuentes vivas (runListening) solo corre en el tab monitor;
+  // el tab config lee stats del cache (baratas) en vez de pegarle a las APIs.
+  const [result, cfg, lastXUpdate, marcas, descartados, summary, counts] =
+    await Promise.all([
+      tab === "monitor" ? runListening(projectId) : Promise.resolve(null),
+      getListeningConfig(projectId),
+      lastListeningUpdate(projectId, "x-api"),
+      persistOk ? listMarcas(projectId) : Promise.resolve([]),
+      persistOk ? listDescartes(projectId) : Promise.resolve([]),
+      tab === "config" ? readPullSummary(projectId) : Promise.resolve(null),
+      tab === "config"
+        ? countsBySource(projectId)
+        : Promise.resolve<SourceCounts>({ byConnector: {}, bySource: {} }),
+    ]);
 
   const sources = sourceStatuses(cfg.rssFeeds.length);
 
@@ -109,7 +113,7 @@ export default async function EscuchaPage({
       </nav>
 
       {/* Tab content */}
-      {tab === "monitor" ? (
+      {tab === "monitor" && result ? (
         <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
       ) : (
         <div className="space-y-6">
@@ -117,9 +121,10 @@ export default async function EscuchaPage({
             cfg={cfg}
             sources={sources}
             persistOk={persistOk}
-            bySource={result.bySource}
             params={params}
             lastXUpdate={lastXUpdate}
+            summary={summary}
+            counts={counts}
           />
           <RadioAgenda
             upcoming={agendaUpcoming(cfg.radioStreams)}

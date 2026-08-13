@@ -422,26 +422,35 @@ export const rssConnector: ListeningConnector = {
       // basura de la página de login al feed.
       .filter((u) => !/(^|\.)((facebook|instagram)\.com)/i.test(hostOf(u)))
       .slice(0, 40);
-    // Sin feeds configurados: fallback a Google News RSS armado desde
-    // zona + keywords. Cubre prensa local sin depender de que cada medio
-    // mantenga su feed. Los items ya vienen filtrados por la búsqueda,
-    // así que no se re-filtra por keyword (evita perder por acentos).
-    const auto = configured.length === 0;
-    const feeds = auto ? googleNewsFeeds(query) : configured;
-    if (feeds.length === 0) return [];
-    const results = await Promise.allSettled(feeds.map(fetchFeed));
-    const items: ListenItem[] = [];
-    results.forEach((r, i) => {
-      if (r.status === "fulfilled") items.push(...r.value);
-      else log.warn("listening.rss.feed_failed", { feed: feeds[i], error: String(r.reason) });
+    // Google News RSS (armado desde zona + keywords) corre SIEMPRE además de
+    // los feeds configurados: cubre prensa que ningún feed local levanta.
+    // Sus items ya vienen filtrados por la búsqueda, así que no se re-filtran
+    // por keyword (evita perder por acentos); el dedupe por URL del cache
+    // absorbe solapamientos con los feeds propios.
+    const auto = googleNewsFeeds(query);
+    if (configured.length === 0 && auto.length === 0) return [];
+
+    const fetchOne = async (feed: string): Promise<ListenItem[]> => {
+      try {
+        return await fetchFeed(feed);
+      } catch (e) {
+        log.warn("listening.rss.feed_failed", { feed, error: String(e) });
+        query.diagnostics?.push({ source: feed, detail: (e as Error).message });
+        return [];
+      }
+    };
+
+    const [own, news] = await Promise.all([
+      Promise.all(configured.map(fetchOne)),
+      Promise.all(auto.map(fetchOne)),
+    ]);
+    const items = own.flat().filter((i) => matches(i, query));
+    const newsItems = news.flat();
+    log.info("listening.rss.fetch", {
+      configured: configured.length,
+      googleNews: auto.length,
+      items: items.length + newsItems.length,
     });
-    if (auto) {
-      log.info("listening.rss.google_news_fallback", {
-        feeds: feeds.length,
-        items: items.length,
-      });
-      return items;
-    }
-    return items.filter((i) => matches(i, query));
+    return [...items, ...newsItems];
   },
 };

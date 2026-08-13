@@ -1,14 +1,19 @@
-// Formulario de configuración de escucha extraído de escucha/page.tsx.
-// Mismo markup, misma acción guardarEscucha, mismo bloque Estado + fuentes.
+// Configuración de escucha: dónde escuchar, qué buscar y qué fuentes.
+// Cada tipo de fuente tiene su propio campo con instrucciones de qué pegar y,
+// al lado de cada fuente cargada, sus números reales (menciones 7d, última,
+// error del último pull). Al guardar corre una carga inicial en background.
 import { guardarEscucha } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { MapPicker } from "@/components/escucha/map-picker";
 import { MonitorHelp } from "@/components/escucha/monitor-help";
 import { RadioConfig } from "@/components/escucha/radio-config";
+import { RefreshOnSave } from "@/components/escucha/refresh-on-save";
+import { partitionFeeds, statsKeyFor } from "@/lib/escucha-fuentes";
 import type { ListeningConfig } from "@/lib/listening-config";
+import type { PullSummary, SourceCounts } from "@/lib/listening-cache";
 
 const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100";
+  "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus-visible:border-[oklch(52%_0.13_255)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 export interface SourceStatus {
   id: string;
@@ -22,28 +27,127 @@ interface ConfigFormProps {
   cfg: ListeningConfig;
   sources: SourceStatus[];
   persistOk: boolean;
-  bySource: Record<string, number>;
   params: Record<string, string | undefined>;
   lastXUpdate: string | null;
+  summary: PullSummary | null;
+  counts: SourceCounts;
 }
 
-function countFor(s: SourceStatus, bySource: Record<string, number>): number {
-  const ids = s.countIds ?? [s.id];
-  return ids.reduce((sum, id) => sum + (bySource[id] ?? 0), 0);
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return "nunca";
+  const ms = Date.now() - +new Date(iso);
+  if (Number.isNaN(ms)) return "?";
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `hace ${h} h`;
+  return `hace ${Math.round(h / 24)} d`;
 }
 
 function Field({
   label,
   children,
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
+  hint?: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
-      {label}
-      {children}
-    </label>
+    <div className="space-y-1">
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-500">
+          {label}
+        </span>
+        {children}
+      </label>
+      {hint && <p className="max-w-[70ch] text-xs text-zinc-500">{hint}</p>}
+    </div>
+  );
+}
+
+// Estado por fuente cargada: menciones 7d + última + error del último pull.
+function SourceRows({
+  urls,
+  counts,
+  summary,
+  emptyNote,
+}: {
+  urls: string[];
+  counts: SourceCounts;
+  summary: PullSummary | null;
+  emptyNote?: string;
+}) {
+  if (urls.length === 0) return null;
+  const errorFor = (url: string) =>
+    summary?.errors.find((e) => e.source === url)?.detail;
+  return (
+    <ul className="divide-y divide-zinc-100 rounded-md border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      {urls.map((url) => {
+        const stat = counts.bySource[statsKeyFor(url)];
+        const err = errorFor(url);
+        return (
+          <li
+            key={url}
+            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-1.5 text-xs"
+          >
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-600 dark:text-zinc-300">
+              {url.replace(/^https?:\/\/(www\.)?/, "")}
+            </span>
+            {err ? (
+              <span className="text-red-600 dark:text-red-400">
+                falla: {err.slice(0, 60)}
+              </span>
+            ) : stat ? (
+              <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">
+                {stat.count} menciones 7d
+                <span className="text-zinc-500"> · última {timeAgo(stat.last)}</span>
+              </span>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">
+                {emptyNote ?? "sin datos aún"}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// Fuentes automáticas (sin URL que cargar): estado por conector.
+function AutoRow({
+  label,
+  detail,
+  stat,
+  error,
+}: {
+  label: string;
+  detail: string;
+  stat?: { count: number; last: string | null };
+  error?: string;
+}) {
+  const count = stat?.count ?? 0;
+  const last = stat?.last ?? null;
+  const err = error;
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-1.5 text-xs">
+      <span className="min-w-0 flex-1 text-zinc-700 dark:text-zinc-200">
+        {label}
+        <span className="text-zinc-500"> · {detail}</span>
+      </span>
+      {err ? (
+        <span className="text-red-600 dark:text-red-400">falla: {err.slice(0, 60)}</span>
+      ) : count > 0 ? (
+        <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">
+          {count} menciones 7d
+          <span className="text-zinc-500"> · última {timeAgo(last ?? null)}</span>
+        </span>
+      ) : (
+        <span className="text-zinc-500">sin menciones en 7d</span>
+      )}
+    </li>
   );
 }
 
@@ -51,116 +155,67 @@ export function ConfigForm({
   cfg,
   sources,
   persistOk,
-  bySource,
   params,
   lastXUpdate,
+  summary,
+  counts,
 }: ConfigFormProps) {
-  const realCount = sources.filter((s) => s.real).length;
+  const parts = partitionFeeds(cfg.rssFeeds);
+  const justSaved = params.guardado === "1";
+  const pullPending =
+    justSaved && (!summary?.at || Date.now() - +new Date(summary.at) > 10 * 60_000);
 
   return (
     <div className="space-y-6">
-      {/* Bloque de estado */}
-      <section
-        aria-labelledby="estado-titulo"
-        className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-      >
-        <div className="flex items-center justify-between">
-          <h2
-            id="estado-titulo"
-            className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500"
-          >
-            Estado
-          </h2>
-          <span className="font-mono text-[11px] text-zinc-400">
-            {realCount}/{sources.length} fuentes reales · persistencia{" "}
-            {persistOk ? "ok" : "off"}
-          </span>
-        </div>
+      <RefreshOnSave active={pullPending} />
 
-        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[auto_1fr]">
-          {sources.map((s) => (
-            <div key={s.id} className="contents">
-              <dt className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-                <span
-                  aria-hidden
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${
-                    s.real
-                      ? "bg-emerald-500"
-                      : "bg-zinc-300 dark:bg-zinc-700"
-                  }`}
-                />
-                {s.label}
-              </dt>
-              <dd className="flex items-center justify-between gap-2 text-xs">
-                <span
-                  className={
-                    s.real
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : "text-zinc-500"
-                  }
-                >
-                  {s.real ? "real" : "sin conectar"} · {s.reason}
+      {/* Resumen del último pull */}
+      <section
+        aria-label="Última carga"
+        className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40"
+      >
+        <span className="text-sm text-zinc-700 dark:text-zinc-200">
+          Última carga:{" "}
+          <span className="font-mono tabular-nums">{timeAgo(summary?.at)}</span>
+          {summary && (
+            <>
+              {" · "}
+              <span className="font-mono tabular-nums">{summary.total}</span> items
+              {summary.errors.length > 0 && (
+                <span className="text-red-600 dark:text-red-400">
+                  {" · "}
+                  {summary.errors.length} fuente(s) con error
                 </span>
-                <span className="font-mono text-zinc-400">
-                  {countFor(s, bySource)} menciones
-                </span>
-              </dd>
-            </div>
-          ))}
-          <div className="contents">
-            <dt className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-              <span
-                aria-hidden
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  persistOk ? "bg-emerald-500" : "bg-amber-500"
-                }`}
-              />
-              Supabase
-            </dt>
-            <dd className="text-xs text-zinc-500">
-              {persistOk ? (
-                "configurado · guardar persiste y la escucha usa tu config"
-              ) : (
-                <>
-                  no configurado · guardar no funciona y la escucha corre con
-                  defaults
-                </>
               )}
-            </dd>
-          </div>
-        </dl>
+            </>
+          )}
+        </span>
+        <span className="text-xs text-zinc-500">
+          Corre sola cada hora; también al guardar esta configuración.
+        </span>
       </section>
 
-      {/* MonitorHelp — guía operativa del worker X */}
       <MonitorHelp lastUpdate={lastXUpdate} />
 
-      {/* Formulario */}
       <form
         action={guardarEscucha}
-        className="space-y-4 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800"
+        className="space-y-8 rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800"
       >
-        <div className="flex items-center justify-between">
+        {/* 1 · Dónde y qué */}
+        <section className="space-y-4">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            Configurar escucha
+            1 · Dónde y qué escuchar
           </h2>
-          {!persistOk && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-              solo preview
-            </span>
-          )}
-        </div>
-
-        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Zona">
               <input
                 name="zona"
                 defaultValue={cfg.zona}
-                placeholder="ej: La Plata"
+                placeholder="ej: Ibicuy, Entre Ríos"
                 className={inputCls}
               />
             </Field>
-            <Field label="País">
+            <Field label="País (código de 2 letras)">
               <input
                 name="pais"
                 defaultValue={cfg.pais}
@@ -169,120 +224,216 @@ export function ConfigForm({
               />
             </Field>
           </div>
+          <Field
+            label="Keywords (una por línea)"
+            hint="Temas a rastrear en todas las fuentes. La zona + estas keywords arman también las búsquedas automáticas de Google News y GDELT."
+          >
+            <textarea
+              name="keywords"
+              rows={3}
+              defaultValue={cfg.keywords.join("\n")}
+              placeholder={"obras\nseguridad\nsalud"}
+              className={`${inputCls} font-mono`}
+            />
+          </Field>
           <MapPicker
             defaultLat={cfg.lat}
             defaultLng={cfg.lng}
             defaultRadio={cfg.radioKm}
           />
-          <p className="text-xs text-zinc-500">
-            Click en el mapa o usá el buscador para fijar lat/lng. X API
-            usa esas coordenadas con el radio como filtro{" "}
-            <code>point_radius</code>; GDELT usa <code>sourcecountry</code>;
-            Reddit ignora geo.
-          </p>
-        </div>
+        </section>
 
-        <Field label="Keywords (una por línea)">
-          <textarea
-            name="keywords"
-            rows={3}
-            defaultValue={cfg.keywords.join("\n")}
-            placeholder={"transporte\nseguridad\nsalud"}
-            className={`${inputCls} font-mono`}
-          />
-        </Field>
+        {/* 2 · Fuentes con carga manual */}
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            2 · Fuentes
+          </h2>
 
-        <Field label="Handles públicos de X a monitorear (uno por línea)">
-          <textarea
-            name="xHandles"
-            rows={3}
-            defaultValue={cfg.xHandles.join("\n")}
-            placeholder={"@intendenteMaipu\n@diariolocal\n@concejalX"}
-            className={`${inputCls} font-mono`}
-          />
-        </Field>
-        <p className="text-xs text-zinc-500">
-          La fuente X (gratis, por sindicación) trae los últimos posts de estos
-          handles. Funciona con <strong>cuentas públicas activas</strong>
-          (intendente, medios, concejales); las cuentas chicas de vecinos no
-          devuelven datos por esta vía. Si lo dejás vacío, usa los handles del
-          padrón.
-        </p>
-
-        <Field label="Feeds RSS de medios locales (una URL por línea)">
-          <textarea
-            name="rssFeeds"
-            rows={4}
-            defaultValue={cfg.rssFeeds.join("\n")}
-            placeholder={"https://medio-local.com/feed\nhttps://otro-diario.com.ar/rss"}
-            className={`${inputCls} font-mono`}
-          />
-        </Field>
-        <p className="text-xs text-zinc-500">
-          Fuente gratuita sin API key. Pegá las URLs de RSS/Atom de diarios y
-          portales locales; la escucha trae sus últimas notas y las filtra por
-          tus keywords. (Buscá &quot;RSS&quot; en el sitio del medio.)
-        </p>
-
-        <Field label="Radios (programas a grabar y transcribir)">
-          <RadioConfig initial={cfg.radioStreams} />
-        </Field>
-        <p className="text-xs text-zinc-500">
-          Cada programa se graba en su franja, se transcribe con IA (Gemini) y se
-          filtra por tus keywords. La ingesta corre por GitHub Actions; las
-          menciones aparecen poco después de que termina el programa.
-        </p>
-
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Fuentes
-          </legend>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-            {sources.map((s) => (
-              <label
-                key={s.id}
-                className="flex items-center gap-2 text-zinc-700 dark:text-zinc-200"
-              >
-                <input
-                  type="checkbox"
-                  name="fuentes"
-                  value={s.id}
-                  defaultChecked={
-                    cfg.fuentes.length === 0 || cfg.fuentes.includes(s.id)
-                  }
-                  className="h-3.5 w-3.5"
-                />
-                {s.label}
-                <span
-                  className={`text-[10px] uppercase tracking-wider ${
-                    s.real
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-zinc-400"
-                  }`}
-                >
-                  {s.real ? "real" : "sin conectar"}
-                </span>
-              </label>
-            ))}
+          <div className="space-y-2">
+            <Field
+              label="Medios y sitios de noticias"
+              hint={
+                <>
+                  Una URL por línea. Sirve el <strong>feed RSS</strong>, la{" "}
+                  <strong>portada del sitio a secas</strong> (si no tiene RSS se
+                  deriva o se leen los títulos y descripciones de las notas) o un{" "}
+                  <strong>canal de YouTube</strong> (
+                  <code>youtube.com/feeds/videos.xml?channel_id=…</code>).
+                </>
+              }
+            >
+              <textarea
+                name="rssFeeds"
+                rows={4}
+                defaultValue={parts.medios.join("\n")}
+                placeholder={"https://eldiariodelapaz.com.ar\nhttps://analisisdigital.com.ar"}
+                className={`${inputCls} font-mono`}
+              />
+            </Field>
+            <SourceRows urls={parts.medios} counts={counts} summary={summary} />
           </div>
-        </fieldset>
 
-        <div className="space-y-2 pt-1">
-          <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Field
+              label="Facebook · páginas y grupos públicos"
+              hint={
+                <>
+                  Una URL por línea: <code>facebook.com/&lt;página&gt;</code> o{" "}
+                  <code>facebook.com/groups/&lt;grupo&gt;</code>. Solo contenido{" "}
+                  <strong>público</strong>; se trae 2 veces por día (no en cada
+                  carga). En comunidades chicas suele ser la fuente principal.
+                </>
+              }
+            >
+              <textarea
+                name="fbUrls"
+                rows={3}
+                defaultValue={parts.facebook.join("\n")}
+                placeholder={"https://www.facebook.com/MunicipioIbicuy\nhttps://www.facebook.com/groups/vecinosibicuy"}
+                className={`${inputCls} font-mono`}
+              />
+            </Field>
+            <SourceRows
+              urls={parts.facebook}
+              counts={counts}
+              summary={summary}
+              emptyNote="sin datos aún · corre 2×/día"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Field
+              label="Telegram · canales públicos"
+              hint={
+                <>
+                  Uno por línea: <code>@canal</code>, <code>canal</code> o{" "}
+                  <code>t.me/canal</code>. Solo canales públicos (lo que se ve
+                  sin cuenta).
+                </>
+              }
+            >
+              <textarea
+                name="tgChannels"
+                rows={2}
+                defaultValue={parts.telegram.join("\n")}
+                placeholder={"@municipioibicuy\nt.me/noticiasentrerios"}
+                className={`${inputCls} font-mono`}
+              />
+            </Field>
+            <SourceRows urls={parts.telegram} counts={counts} summary={summary} />
+          </div>
+
+          <div className="space-y-2">
+            <Field
+              label="X · handles públicos"
+              hint={
+                <>
+                  Uno por línea, con o sin <code>@</code>. Funciona con cuentas
+                  públicas activas (municipio, medios, referentes). Si queda
+                  vacío se usan los handles cargados en el padrón.
+                </>
+              }
+            >
+              <textarea
+                name="xHandles"
+                rows={3}
+                defaultValue={cfg.xHandles.join("\n")}
+                placeholder={"@municipioibicuy\n@mediolocal"}
+                className={`${inputCls} font-mono`}
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-2">
+            <Field
+              label="Radios (programas a grabar y transcribir)"
+              hint="Cada programa se graba en su franja, se transcribe con IA y se filtra por tus keywords. Las menciones aparecen al terminar el programa."
+            >
+              <RadioConfig initial={cfg.radioStreams} />
+            </Field>
+          </div>
+        </section>
+
+        {/* 3 · Fuentes automáticas: no requieren carga */}
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            3 · Automáticas (sin carga: usan zona + keywords)
+          </h2>
+          <ul className="divide-y divide-zinc-100 rounded-md border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            <AutoRow
+              label="Google News"
+              detail="prensa por búsqueda de zona y keywords"
+              stat={counts.bySource["news.google.com"]}
+            />
+            <AutoRow
+              label="GDELT"
+              detail="prensa mundial geo-codificada"
+              stat={counts.byConnector["gdelt"]}
+              error={summary?.bySource["gdelt"]?.error}
+            />
+            <AutoRow
+              label="X"
+              detail="posts de los handles monitoreados"
+              stat={counts.byConnector["x-api"]}
+              error={summary?.bySource["x-api"]?.error}
+            />
+            <AutoRow
+              label="Radio"
+              detail="menciones transcriptas"
+              stat={counts.byConnector["radio"]}
+            />
+          </ul>
+          <fieldset className="pt-1">
+            <legend className="sr-only">Activar o desactivar conectores</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+              {sources.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex items-center gap-2 text-zinc-700 dark:text-zinc-200"
+                >
+                  <input
+                    type="checkbox"
+                    name="fuentes"
+                    value={s.id}
+                    defaultChecked={
+                      cfg.fuentes.length === 0 || cfg.fuentes.includes(s.id)
+                    }
+                    className="h-3.5 w-3.5"
+                  />
+                  {s.label}
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+                    {s.reason}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </section>
+
+        {/* Guardar */}
+        <div className="space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+          <div className="flex items-center justify-between gap-3">
             <SubmitButton
+              variant="accent"
               disabled={!persistOk}
               pendingLabel="Guardando…"
             >
-              {persistOk ? "Guardar escucha" : "Guardar (deshabilitado)"}
+              Guardar y traer datos
             </SubmitButton>
-            {!persistOk && (
-              <span className="text-xs text-zinc-400">
-                SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY en env
-              </span>
-            )}
+            <span className="text-xs text-zinc-500">
+              {persistOk
+                ? "Al guardar corre una carga inicial (~1 min); los números de arriba se actualizan solos."
+                : "Supabase no configurado: no se puede guardar."}
+            </span>
           </div>
           <FormStatus
-            ok={params.guardado === "1" ? "Configuración guardada. La próxima escucha usa estos parámetros." : null}
+            ok={
+              justSaved
+                ? pullPending
+                  ? "Configuración guardada. Carga inicial corriendo, los resultados aparecen acá en un minuto…"
+                  : "Configuración guardada y carga inicial completa."
+                : null
+            }
             error={
               params.error === "no_db"
                 ? "Supabase no configurado. Los cambios no se guardaron."

@@ -1,6 +1,10 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { pullAllSources, savePullSummary } from "@/lib/listening-cache";
+import { normalizeFbUrl, normalizeTgChannel } from "@/lib/escucha-fuentes";
+import { log } from "@/lib/logger";
 import { saveListeningConfig } from "@/lib/listening-config";
 import { normalizeHandle } from "@/lib/padron-handles";
 import { enqueueXHandles } from "@/lib/x-timeline";
@@ -30,10 +34,21 @@ export async function guardarEscucha(formData: FormData) {
     .map((k) => k.trim())
     .filter(Boolean);
   const fuentes = formData.getAll("fuentes").map(String);
-  const rssFeeds = String(formData.get("rssFeeds") ?? "")
+  // La UI separa medios / Facebook / Telegram en tres campos; el storage
+  // sigue siendo la lista única rss_feeds (se re-particiona al renderizar).
+  const medios = String(formData.get("rssFeeds") ?? "")
     .split("\n")
     .map((u) => u.trim())
     .filter(Boolean);
+  const fbUrls = String(formData.get("fbUrls") ?? "")
+    .split("\n")
+    .map((u) => normalizeFbUrl(u))
+    .filter((u): u is string => Boolean(u));
+  const tgChannels = String(formData.get("tgChannels") ?? "")
+    .split(/[\n,]/)
+    .map((u) => normalizeTgChannel(u))
+    .filter((u): u is string => Boolean(u));
+  const rssFeeds = [...new Set([...medios, ...fbUrls, ...tgChannels])];
   const xHandles = Array.from(
     new Set(
       String(formData.get("xHandles") ?? "")
@@ -70,8 +85,23 @@ export async function guardarEscucha(formData: FormData) {
   if (parsed.data.xHandles.length > 0) {
     await enqueueXHandles(projectId, parsed.data.xHandles);
   }
+  // Carga inicial: corre después de responder (after → no bloquea el submit).
+  // El resumen queda persistido y la pestaña de config lo muestra por fuente.
+  after(async () => {
+    try {
+      const summary = await pullAllSources(projectId);
+      await savePullSummary(projectId, summary);
+      log.info("listening.initial_pull.done", {
+        projectId,
+        total: summary.total,
+        errors: summary.errors.length,
+      });
+    } catch (e) {
+      log.error("listening.initial_pull.failed", { error: (e as Error).message });
+    }
+  });
   revalidatePath("/escucha");
-  redirect("/escucha?guardado=1");
+  redirect("/escucha?tab=config&guardado=1");
 }
 
 export async function marcarToggle(input: {

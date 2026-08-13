@@ -172,8 +172,79 @@ export async function upsertItems(
 // Pull desde todos los listening connectors con la config actual.
 // Usado por el cron y por backfill manual.
 export interface PullSummary {
-  bySource: Record<string, { fetched: number; upserted: number }>;
+  bySource: Record<string, { fetched: number; upserted: number; error?: string }>;
+  // Fallos por sub-fuente (feed RSS individual, canal, etc).
+  errors: { source: string; detail: string }[];
   total: number;
+  at?: string;
+}
+
+// El resumen del último pull se guarda como fila sintética de conector_config
+// (clave listening-pull:<projectId>): la UI de config lo muestra sin sumar
+// tablas nuevas. Ningún conector consulta ese connector_id.
+const pullSummaryKey = (projectId: string) => `listening-pull:${projectId}`;
+
+export async function savePullSummary(
+  projectId: string,
+  summary: PullSummary,
+): Promise<void> {
+  if (!dbConfigured()) return;
+  const { error } = await getSupabase().from("conector_config").upsert(
+    {
+      connector_id: pullSummaryKey(projectId),
+      config: { ...summary, at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "connector_id" },
+  );
+  if (error) log.warn("listening.pull_summary.save_failed", { error: error.message });
+}
+
+export async function readPullSummary(
+  projectId: string,
+): Promise<PullSummary | null> {
+  if (!dbConfigured()) return null;
+  const { data } = await getSupabase()
+    .from("conector_config")
+    .select("config")
+    .eq("connector_id", pullSummaryKey(projectId))
+    .maybeSingle();
+  return (data?.config as PullSummary | undefined) ?? null;
+}
+
+// Conteos de menciones por conector y por sub-fuente (listening_items.source)
+// en la ventana dada. Para la UI de config: "qué trajo cada fuente".
+export interface SourceCounts {
+  byConnector: Record<string, { count: number; last: string | null }>;
+  bySource: Record<string, { count: number; last: string | null }>;
+}
+
+export async function countsBySource(
+  projectId: string,
+  days = 7,
+): Promise<SourceCounts> {
+  const out: SourceCounts = { byConnector: {}, bySource: {} };
+  if (!dbConfigured()) return out;
+  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const { data } = await getSupabase()
+    .from("listening_items")
+    .select("connector_id, source, published_at, created_at")
+    .eq("project_id", projectId)
+    .gte("created_at", since)
+    .limit(3000);
+  for (const row of data ?? []) {
+    const when = (row.published_at ?? row.created_at) as string | null;
+    for (const [dict, key] of [
+      [out.byConnector, (row.connector_id as string) ?? "otros"],
+      [out.bySource, (row.source as string) ?? "?"],
+    ] as const) {
+      const cur = dict[key] ?? { count: 0, last: null };
+      cur.count++;
+      if (when && (!cur.last || when > cur.last)) cur.last = when;
+      dict[key] = cur;
+    }
+  }
+  return out;
 }
 
 // Última vez que se actualizó el cache de listening (opcional por source).
@@ -200,10 +271,11 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
     (c) => c.category === "listening",
   ) as ListeningConnector[];
 
-  const summary: PullSummary = { bySource: {}, total: 0 };
+  const summary: PullSummary = { bySource: {}, errors: [], total: 0 };
 
   for (const l of listeners) {
     if (cfg.fuentes.length > 0 && !cfg.fuentes.includes(l.id)) continue;
+    const diagnostics: { source: string; detail: string }[] = [];
     try {
       const items = await l.fetch({
         keywords: cfg.keywords,
@@ -214,6 +286,7 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
         lng: cfg.lng,
         rssFeeds: cfg.rssFeeds,
         xHandles: cfg.xHandles,
+        diagnostics,
       });
       const { inserted } = await upsertItems(projectId, l.id, items);
       summary.bySource[l.id] = {
@@ -226,8 +299,13 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
         source: l.id,
         error: (e as Error).message,
       });
-      summary.bySource[l.id] = { fetched: 0, upserted: 0 };
+      summary.bySource[l.id] = {
+        fetched: 0,
+        upserted: 0,
+        error: (e as Error).message,
+      };
     }
+    summary.errors.push(...diagnostics);
   }
 
   return summary;

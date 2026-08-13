@@ -13,6 +13,7 @@ vi.mock("@/lib/projects", () => ({
 }));
 vi.mock("@/lib/listening-cache", () => ({
   pullAllSources: (pid: string) => pullAllSources(pid),
+  savePullSummary: vi.fn(),
 }));
 vi.mock("@/lib/x-timeline", () => ({
   processXHandleQueue: (pid: string) => processXHandleQueue(pid),

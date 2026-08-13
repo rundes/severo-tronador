@@ -4,7 +4,11 @@
 import { NextResponse } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
-import { pullAllSources, type PullSummary } from "@/lib/listening-cache";
+import {
+  pullAllSources,
+  savePullSummary,
+  type PullSummary,
+} from "@/lib/listening-cache";
 import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
 
@@ -30,6 +34,7 @@ export async function GET(req: Request) {
     let total = 0;
     for (const p of projects) {
       const summary = await pullAllSources(p.id);
+      await savePullSummary(p.id, summary);
       byProject[p.id] = summary;
       total += summary.total;
     }
