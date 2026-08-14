@@ -31,6 +31,7 @@ jobs:
       FB_COOKIES: ${{ secrets.FB_WORKER_COOKIES }}
       POSTS_PAGES: "2"
       DELAY_SECONDS: "60"
+      COMMENTS_PER_POST: "20"
     steps:
       - name: Verificar secrets
         id: gate

@@ -68,8 +68,14 @@ export function renderNow(): number {
 export function statsKeyFor(url: string): string {
   const h = hostOf(url);
   if (h.endsWith("facebook.com") || h.endsWith("instagram.com")) {
-    const parts = new URL(url).pathname.split("/").filter(Boolean);
-    const ident = parts[0] === "groups" ? parts[1] : parts[0];
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const ident =
+      parts[0] === "groups"
+        ? parts[1]
+        : parts[0] === "profile.php"
+          ? u.searchParams.get("id")
+          : parts[0];
     return `facebook/${ident ?? ""}`;
   }
   if (h === "t.me") {

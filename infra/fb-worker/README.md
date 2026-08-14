@@ -12,10 +12,17 @@ feeds normales; la app las saltea en el conector RSS y este worker las toma:
 ```
 https://www.facebook.com/MunicipalidadDeIbicuy
 https://www.facebook.com/groups/vecinosdeibicuy
+https://www.facebook.com/perfil.publico
+https://www.facebook.com/profile.php?id=100012345678901
 ```
 
-Solo páginas públicas y grupos públicos. Grupos privados no salen ni con
-cookies de un miembro (y no deberían: expectativa de privacidad).
+Solo contenido **público**: páginas, grupos públicos y perfiles públicos de
+figuras institucionales/públicas. Grupos privados y perfiles privados no
+salen ni con cookies (y no deberían: expectativa de privacidad).
+
+Además de los posts trae hasta `COMMENTS_PER_POST` (default 20) comentarios
+públicos por post; entran al feed como `kind=comment` agrupados bajo su post.
+Los comentarios casi siempre requieren cookies.
 
 ## Correr
 
