@@ -235,6 +235,21 @@ def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> lis
         page.wait_for_timeout(1500)
 
     posts = extract_feed_posts(page, POSTS_PER_SOURCE)
+    if not posts:
+        # Diagnóstico: qué renderizó realmente la página (para iterar selectores).
+        n_art = page.locator('div[role="article"]').count()
+        n_feed = page.locator('div[role="feed"]').count()
+        body = clean_text(page.locator("body").inner_text(timeout=5000))[:400]
+        print(
+            f"  debug {ident}: url={page.url[:90]} title={page.title()[:60]!r} "
+            f"articles={n_art} feeds={n_feed}",
+            file=sys.stderr,
+        )
+        print(f"  debug body: {body}", file=sys.stderr)
+        try:
+            page.screenshot(path=f"debug-{ident}.png")
+        except Exception:
+            pass
     rows = [
         {
             "project_id": project_id,

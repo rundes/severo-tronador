@@ -65,3 +65,12 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         working-directory: infra/fb-worker
         run: python -u worker.py
+
+      - name: Subir screenshots de debug
+        if: always() && steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fb-debug
+          path: infra/fb-worker/debug-*.png
+          if-no-files-found: ignore
+          retention-days: 3
