@@ -125,12 +125,43 @@ def clean_text(s: str) -> str:
     return re.sub(r"\s+", " ", s or "").strip()[:2000]
 
 
+def session_check(ck_path: str | None) -> None:
+    """Diagnóstico: ¿la cookie sigue logueada o FB manda a login/checkpoint?"""
+    if not ck_path:
+        print("sesión: sin cookies (modo anónimo)")
+        return
+    try:
+        from http.cookiejar import MozillaCookieJar
+
+        jar = MozillaCookieJar(ck_path)
+        jar.load(ignore_discard=True, ignore_expires=True)
+        cookies = {c.name: c.value for c in jar if "facebook" in (c.domain or "")}
+        if "c_user" not in cookies or "xs" not in cookies:
+            print("sesión: cookies SIN c_user/xs — export incompleto", file=sys.stderr)
+            return
+        r = httpx.get(
+            "https://mbasic.facebook.com/me",
+            cookies=cookies,
+            follow_redirects=False,
+            timeout=15,
+            headers={"user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0"},
+        )
+        loc = r.headers.get("location", "")
+        if r.status_code in (301, 302) and ("login" in loc or "checkpoint" in loc):
+            print(f"sesión: RECHAZADA (redirect a {loc[:60]}) — re-exportar cookies o cuenta bloqueada", file=sys.stderr)
+        else:
+            print(f"sesión: activa (HTTP {r.status_code})")
+    except Exception as e:
+        print(f"sesión: probe falló ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 def main() -> None:
     sources = load_sources()
     print(f"{len(sources)} fuentes de Facebook configuradas")
     if not sources:
         return
     ck = cookies_file()
+    session_check(ck)
     ok = 0
     for i, (project_id, kind, ident) in enumerate(sources, 1):
         label = f"{kind}:{ident}"

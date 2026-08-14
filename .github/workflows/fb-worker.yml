@@ -29,7 +29,8 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       FB_COOKIES: ${{ secrets.FB_WORKER_COOKIES }}
-      POSTS_PAGES: "2"
+      # facebook-scraper: con <=2 páginas los grupos suelen devolver vacío.
+      POSTS_PAGES: "4"
       DELAY_SECONDS: "60"
       COMMENTS_PER_POST: "20"
     steps:
