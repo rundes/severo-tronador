@@ -1,50 +1,54 @@
 """
-Worker de páginas/grupos públicos de Facebook → Supabase listening_items.
+Worker de páginas/grupos/perfiles públicos de Facebook → listening_items.
 
-Usa facebook-scraper (sin API oficial: Meta no ofrece lectura de páginas o
-grupos de terceros en el Graph API). Para comunidades chicas el pueblo entero
-publica en 2-3 páginas/grupos de FB; esto los trae al feed de /escucha.
+v2: Playwright (Chromium headless) con la sesión de una cuenta QUEMABLE.
+facebook-scraper quedó obsoleto (el layout 2026 le devuelve vacío hasta en
+páginas grandes); un navegador real con sesión es la única vía robusta sin
+API. Meta no ofrece lectura de contenido de terceros por Graph API.
 
-Las fuentes se toman de listening_config.rss_feeds: toda URL de facebook.com
-en esa lista se interpreta acá (la app las saltea en el conector RSS). Formas
-aceptadas:
+Fuentes: URLs de facebook.com en listening_config.rss_feeds (la app las
+saltea en el conector RSS):
   https://www.facebook.com/<pagina-o-perfil-publico>
   https://www.facebook.com/groups/<id-o-slug>   (solo grupos públicos)
   https://www.facebook.com/profile.php?id=<id>  (perfil público)
 
-Además de los posts trae los COMENTARIOS públicos de cada post
-(COMMENTS_PER_POST, default 20; 0 desactiva): cada comentario entra como
-item kind="comment" con parent_url al post, y la UI de escucha los agrupa.
+Por cada fuente: abre la URL, scrollea, toma los posts visibles del feed y
+abre los primeros COMMENTS_POSTS permalinks para levantar comentarios
+públicos (kind="comment" con parent_url al post; la UI agrupa el thread).
 
-Modo anónimo funciona a veces; con cookies de una sesión (cuenta QUEMABLE,
-formato Netscape cookies.txt en FB_COOKIES) llega más lejos.
-
-⚠️ Scraping viola los ToS de Facebook; la cuenta puede ser suspendida y las
-IPs de datacenter (GitHub Actions) pueden ser bloqueadas. Mismo trade-off
-documentado que el worker de X. Si falla acá, correr local (run.cmd).
+⚠️ Scraping viola ToS de Facebook: cuenta quemable, nunca personal. IPs de
+datacenter pueden ser bloqueadas; si falla en Actions, correr local.
 
 Env:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-  FB_COOKIES        (opcional: contenido de cookies.txt)
-  POSTS_PAGES       (páginas de scroll por fuente, default 2)
-  DELAY_SECONDS     (default 60)
+  FB_COOKIES        (cookies.txt Netscape de la sesión; REQUERIDO en v2)
+  POSTS_PER_SOURCE  (default 10)
+  COMMENTS_POSTS    (posts por fuente a abrir para comentarios, default 5)
+  COMMENTS_PER_POST (default 20)
+  SCROLLS           (default 4)
 """
 import json
 import os
 import re
 import sys
-import tempfile
-import time
+from http.cookiejar import MozillaCookieJar
 from urllib.parse import parse_qs, urlparse
 
 import httpx
-from facebook_scraper import get_posts
+from playwright.sync_api import TimeoutError as PWTimeout
+from playwright.sync_api import sync_playwright
 
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-POSTS_PAGES = int(os.environ.get("POSTS_PAGES", "2"))
-DELAY_SECONDS = float(os.environ.get("DELAY_SECONDS", "60"))
+POSTS_PER_SOURCE = int(os.environ.get("POSTS_PER_SOURCE", "10"))
+COMMENTS_POSTS = int(os.environ.get("COMMENTS_POSTS", "5"))
 COMMENTS_PER_POST = int(os.environ.get("COMMENTS_PER_POST", "20"))
+SCROLLS = int(os.environ.get("SCROLLS", "4"))
+
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
 
 
 def rest(method: str, path: str, **kw) -> httpx.Response:
@@ -60,11 +64,7 @@ def rest(method: str, path: str, **kw) -> httpx.Response:
 
 
 def parse_fb_source(url: str) -> tuple[str, str] | None:
-    """Devuelve ("group"|"page"|"profile", identificador) o None si no es FB útil.
-
-    "page" cubre páginas y perfiles públicos con username (facebook.com/<name>):
-    no se distinguen por URL; el fetch intenta como página y cae a perfil.
-    """
+    """("group"|"page"|"profile", identificador) o None si no es FB útil."""
     try:
         u = urlparse(url)
     except ValueError:
@@ -85,16 +85,16 @@ def parse_fb_source(url: str) -> tuple[str, str] | None:
     return ("page", parts[0])
 
 
-def load_sources() -> list[tuple[str, str, str]]:
-    """[(project_id, kind, ident)] desde listening_config de todos los proyectos."""
-    out: list[tuple[str, str, str]] = []
+def load_sources() -> list[tuple[str, str, str, str]]:
+    """[(project_id, kind, ident, url)] de listening_config de todos los proyectos."""
+    out = []
     r = rest("GET", "listening_config?select=project_id,rss_feeds")
     r.raise_for_status()
     for row in r.json():
         for url in row.get("rss_feeds") or []:
             src = parse_fb_source(url)
             if src:
-                out.append((row["project_id"], src[0], src[1]))
+                out.append((row["project_id"], src[0], src[1], url))
     return out
 
 
@@ -111,48 +111,166 @@ def upsert_items(rows: list[dict]) -> None:
         print(f"  upsert error {r.status_code}: {r.text[:200]}", file=sys.stderr)
 
 
-def cookies_file() -> str | None:
+def load_cookies() -> list[dict]:
     raw = os.environ.get("FB_COOKIES", "").strip()
     if not raw:
-        return None
+        sys.exit("FB_COOKIES es requerido (cookies.txt de cuenta quemable)")
+    import tempfile
+
     f = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8")
     f.write(raw)
     f.close()
-    return f.name
+    jar = MozillaCookieJar(f.name)
+    jar.load(ignore_discard=True, ignore_expires=True)
+    cookies = []
+    for c in jar:
+        if "facebook" not in (c.domain or ""):
+            continue
+        cookies.append(
+            {
+                "name": c.name,
+                "value": c.value,
+                "domain": c.domain,
+                "path": c.path or "/",
+                "secure": bool(c.secure),
+            }
+        )
+    if not any(c["name"] == "c_user" for c in cookies):
+        sys.exit("FB_COOKIES sin c_user: export incompleto")
+    return cookies
 
 
 def clean_text(s: str) -> str:
-    return re.sub(r"\s+", " ", s or "").strip()[:2000]
+    s = re.sub(r"\s+", " ", s or "").strip()
+    # El innerText de un article arrastra chrome de UI; corta sufijos típicos.
+    for marker in ("Me gusta Comentar", "Like Comment", "Todas las reacciones"):
+        i = s.find(marker)
+        if i > 40:
+            s = s[:i]
+    return s.strip()
 
 
-def session_check(ck_path: str | None) -> None:
-    """Diagnóstico: ¿la cookie sigue logueada o FB manda a login/checkpoint?"""
-    if not ck_path:
-        print("sesión: sin cookies (modo anónimo)")
-        return
-    try:
-        from http.cookiejar import MozillaCookieJar
+PERMALINK_PAT = re.compile(r"/(posts|permalink|videos|reel)/|pfbid|story_fbid|comment_id")
 
-        jar = MozillaCookieJar(ck_path)
-        jar.load(ignore_discard=True, ignore_expires=True)
-        cookies = {c.name: c.value for c in jar if "facebook" in (c.domain or "")}
-        if "c_user" not in cookies or "xs" not in cookies:
-            print("sesión: cookies SIN c_user/xs — export incompleto", file=sys.stderr)
-            return
-        r = httpx.get(
-            "https://mbasic.facebook.com/me",
-            cookies=cookies,
-            follow_redirects=False,
-            timeout=15,
-            headers={"user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0"},
-        )
-        loc = r.headers.get("location", "")
-        if r.status_code in (301, 302) and ("login" in loc or "checkpoint" in loc):
-            print(f"sesión: RECHAZADA (redirect a {loc[:60]}) — re-exportar cookies o cuenta bloqueada", file=sys.stderr)
-        else:
-            print(f"sesión: activa (HTTP {r.status_code})")
-    except Exception as e:
-        print(f"sesión: probe falló ({type(e).__name__}: {e})", file=sys.stderr)
+
+def canonical_permalink(href: str) -> str | None:
+    if not href:
+        return None
+    if not PERMALINK_PAT.search(href):
+        return None
+    u = urlparse(href if href.startswith("http") else f"https://www.facebook.com{href}")
+    keep = {k: v for k, v in parse_qs(u.query).items() if k in ("story_fbid", "id", "comment_id")}
+    q = "&".join(f"{k}={v[0]}" for k, v in sorted(keep.items()))
+    return f"https://www.facebook.com{u.path}" + (f"?{q}" if q else "")
+
+
+def extract_feed_posts(page, limit: int) -> list[dict]:
+    """Posts visibles: [{text, url}] desde div[role=article] del feed."""
+    out, seen = [], set()
+    for art in page.locator('div[role="article"]').all()[: limit * 3]:
+        try:
+            text = clean_text(art.inner_text(timeout=2000))
+            if len(text) < 30:
+                continue
+            href = None
+            for a in art.locator("a[href]").all()[:25]:
+                cand = canonical_permalink(a.get_attribute("href") or "")
+                if cand and "comment_id" not in cand:
+                    href = cand
+                    break
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            out.append({"text": text[:400], "url": href})
+            if len(out) >= limit:
+                break
+        except PWTimeout:
+            continue
+    return out
+
+
+def extract_comments(page, limit: int) -> list[dict]:
+    """Comentarios en la vista de un post: articles con aria-label de comentario."""
+    out, seen = [], set()
+    sel = (
+        'div[role="article"][aria-label*="omentario"], '
+        'div[role="article"][aria-label*="omment"]'
+    )
+    for c in page.locator(sel).all()[: limit * 2]:
+        try:
+            label = c.get_attribute("aria-label") or ""
+            # aria-label: 'Comentario de <autor> hace N h' / 'Comment by <name>'
+            m = re.search(r"(?:de|by)\s+(.+?)(?:\s+hace|\s+\d|$)", label)
+            author = (m.group(1).strip() if m else "")[:80]
+            text = clean_text(c.inner_text(timeout=2000))
+            if author and text.startswith(author):
+                text = text[len(author):].strip()
+            if len(text) < 5:
+                continue
+            href = None
+            for a in c.locator("a[href*='comment_id']").all()[:5]:
+                href = canonical_permalink(a.get_attribute("href") or "")
+                if href:
+                    break
+            key = href or f"{author}:{text[:60]}"
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"text": text[:400], "url": href, "author": author or None})
+            if len(out) >= limit:
+                break
+        except PWTimeout:
+            continue
+    return out
+
+
+def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> list[dict]:
+    target = url if kind != "group" else f"https://www.facebook.com/groups/{ident}?sorting_setting=CHRONOLOGICAL"
+    page.goto(target, wait_until="domcontentloaded", timeout=45000)
+    page.wait_for_timeout(4000)
+    if "login" in page.url or "checkpoint" in page.url:
+        raise RuntimeError(f"sesión rechazada en {page.url[:80]}")
+    for _ in range(SCROLLS):
+        page.mouse.wheel(0, 2500)
+        page.wait_for_timeout(1500)
+
+    posts = extract_feed_posts(page, POSTS_PER_SOURCE)
+    rows = [
+        {
+            "project_id": project_id,
+            "connector_id": "fb-pages",
+            "source": f"facebook/{ident}",
+            "text": p["text"],
+            "url": p["url"],
+            "published_at": None,
+            "author": ident,
+            "kind": "post",
+            "parent_url": None,
+        }
+        for p in posts
+    ]
+
+    for p in posts[:COMMENTS_POSTS]:
+        try:
+            page.goto(p["url"], wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(3500)
+            for c in extract_comments(page, COMMENTS_PER_POST):
+                rows.append(
+                    {
+                        "project_id": project_id,
+                        "connector_id": "fb-pages",
+                        "source": f"facebook/{ident}",
+                        "text": c["text"],
+                        "url": c["url"] or f"{p['url']}#c-{abs(hash(c['text'])) % 10**10}",
+                        "published_at": None,
+                        "author": c["author"],
+                        "kind": "comment",
+                        "parent_url": p["url"],
+                    }
+                )
+        except Exception as e:
+            print(f"  comentarios de {p['url'][:60]}: skip ({type(e).__name__})", file=sys.stderr)
+    return rows
 
 
 def main() -> None:
@@ -160,88 +278,33 @@ def main() -> None:
     print(f"{len(sources)} fuentes de Facebook configuradas")
     if not sources:
         return
-    ck = cookies_file()
-    session_check(ck)
+    cookies = load_cookies()
     ok = 0
-    for i, (project_id, kind, ident) in enumerate(sources, 1):
-        label = f"{kind}:{ident}"
-        try:
-            rows = fetch_source(kind, ident, project_id, ck)
-            upsert_items(rows)
-            ok += 1
-            n_com = sum(1 for r in rows if r["kind"] == "comment")
-            print(f"[{i}/{len(sources)}] {label}: {len(rows) - n_com} posts + {n_com} comentarios")
-        except Exception as e:
-            print(
-                f"[{i}/{len(sources)}] {label}: skip ({type(e).__name__}: {e})",
-                file=sys.stderr,
-            )
-        time.sleep(DELAY_SECONDS)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        ctx = browser.new_context(user_agent=UA, viewport={"width": 1366, "height": 900}, locale="es-AR")
+        ctx.add_cookies(cookies)
+        page = ctx.new_page()
+        # Probe de sesión
+        page.goto("https://www.facebook.com/", wait_until="domcontentloaded", timeout=45000)
+        page.wait_for_timeout(3000)
+        if "login" in page.url or "checkpoint" in page.url:
+            sys.exit(f"sesión RECHAZADA ({page.url[:80]}) — re-exportar cookies")
+        print("sesión: activa")
+
+        for i, (project_id, kind, ident, url) in enumerate(sources, 1):
+            label = f"{kind}:{ident}"
+            try:
+                rows = scrape_source(page, kind, ident, url, project_id)
+                upsert_items(rows)
+                ok += 1
+                n_com = sum(1 for r in rows if r["kind"] == "comment")
+                print(f"[{i}/{len(sources)}] {label}: {len(rows) - n_com} posts + {n_com} comentarios")
+            except Exception as e:
+                print(f"[{i}/{len(sources)}] {label}: skip ({type(e).__name__}: {e})", file=sys.stderr)
+            page.wait_for_timeout(5000)
+        browser.close()
     print(f"listo: {ok}/{len(sources)} fuentes con datos")
-
-
-def post_rows(kind: str, ident: str, project_id: str, posts) -> list[dict]:
-    rows: list[dict] = []
-    for p in posts:
-        text = clean_text(p.get("text") or "")
-        url = p.get("post_url")
-        if not text or not url:
-            continue
-        rows.append(
-            {
-                "project_id": project_id,
-                "connector_id": "fb-pages",
-                "source": f"facebook/{ident}",
-                "text": text[:400],
-                "url": url,
-                "published_at": p["time"].isoformat() if p.get("time") else None,
-                "author": p.get("username") or ident,
-                "kind": "post",
-                "parent_url": None,
-            }
-        )
-        # Comentarios públicos del post → items kind="comment" con parent_url;
-        # la UI de escucha los agrupa bajo el post (threading ya existente).
-        for c in (p.get("comments_full") or [])[:COMMENTS_PER_POST]:
-            ctext = clean_text(c.get("comment_text") or "")
-            curl = c.get("comment_url")
-            if not ctext or not curl:
-                continue
-            ctime = c.get("comment_time")
-            rows.append(
-                {
-                    "project_id": project_id,
-                    "connector_id": "fb-pages",
-                    "source": f"facebook/{ident}",
-                    "text": ctext[:400],
-                    "url": curl,
-                    "published_at": ctime.isoformat() if ctime else None,
-                    "author": clean_text(c.get("commenter_name") or "")[:80] or None,
-                    "kind": "comment",
-                    "parent_url": url,
-                }
-            )
-    return rows
-
-
-def fetch_source(kind: str, ident: str, project_id: str, ck: str | None) -> list[dict]:
-    opts = {"progress": False}
-    if COMMENTS_PER_POST > 0:
-        opts["comments"] = COMMENTS_PER_POST
-    kwargs = {"pages": POSTS_PAGES, "cookies": ck, "options": opts}
-    if kind == "group":
-        return post_rows(kind, ident, project_id, get_posts(group=ident, **kwargs))
-    if kind == "profile":
-        return post_rows(kind, ident, project_id, get_posts(account=ident, **kwargs))
-    # "page": puede ser página o perfil público con username; se intenta como
-    # página y, si no devuelve nada o falla, como perfil (account=).
-    try:
-        rows = post_rows(kind, ident, project_id, get_posts(ident, **kwargs))
-        if rows:
-            return rows
-    except Exception as e:
-        print(f"  {ident}: como página falló ({type(e).__name__}), pruebo perfil", file=sys.stderr)
-    return post_rows(kind, ident, project_id, get_posts(account=ident, **kwargs))
 
 
 if __name__ == "__main__":

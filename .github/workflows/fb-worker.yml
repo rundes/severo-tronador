@@ -29,10 +29,10 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       FB_COOKIES: ${{ secrets.FB_WORKER_COOKIES }}
-      # facebook-scraper: con <=2 páginas los grupos suelen devolver vacío.
-      POSTS_PAGES: "4"
-      DELAY_SECONDS: "60"
+      POSTS_PER_SOURCE: "10"
+      COMMENTS_POSTS: "5"
       COMMENTS_PER_POST: "20"
+      SCROLLS: "4"
     steps:
       - name: Verificar secrets
         id: gate
@@ -57,7 +57,9 @@ jobs:
       - name: Instalar dependencias
         if: steps.gate.outputs.run == 'true'
         working-directory: infra/fb-worker
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
 
       - name: Correr worker
         if: steps.gate.outputs.run == 'true'
