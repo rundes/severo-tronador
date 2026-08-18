@@ -191,6 +191,13 @@ const supabaseStub = {
         error: null,
       });
     }
+    if (fn === "sum_quota_used") {
+      // getOrgUsage: suma de `cuotas` para la clave del conector.
+      const sum = tables.cuotas.rows
+        .filter((r) => r.connector_id === params.p_connector_id)
+        .reduce((acc, r) => acc + ((r.used as number) ?? 0), 0);
+      return Promise.resolve({ data: sum, error: null });
+    }
     return Promise.resolve({ data: null, error: { message: `rpc ${fn}?` } });
   },
 };
@@ -532,6 +539,93 @@ describe("send-queue cron — opt-out en el despacho", () => {
     vi.mocked(supabaseStub.from).mockRestore();
 
     expect(optOutReads).toBe(1);
+  });
+});
+
+describe("send-queue cron — contabilidad de cuota", () => {
+  it("un fallo transitorio no consume cuota", async () => {
+    // Antes se sumaba ANTES de llamar al proveedor y en cada reintento: un
+    // tramo de 429 dejaba la cuota "llena" sin haber enviado nada.
+    connectorState.quota = {
+      used: 0,
+      limit: 2,
+      unit: "messages",
+      period: "month",
+      resetAt: null,
+    };
+    connectorState.sendImpl = async () => ({
+      ok: false,
+      error: "429",
+      retryable: true,
+    });
+    tables.envio_queue.rows.push({ ...PENDING_ROW, id: "q1" });
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "q2",
+      contact: { dni: "2", nombre: "Bea", apellido: "Ruiz", email: "b@x.com" },
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as { rescheduled: number };
+
+    // Las dos se reprograman: ninguna quedó bloqueada por cuota.
+    expect(json.rescheduled).toBe(2);
+    expect(
+      (tables.envio_queue.rows as Row[]).every(
+        (r) => r.last_error !== "quota_blocked",
+      ),
+    ).toBe(true);
+  });
+
+  it("el guard org-wide usa la clave de cuota del conector, no su id", async () => {
+    // Brevo contabiliza bajo `brevo:YYYY-MM-DD`. Preguntar por `brevo` a secas
+    // devolvía siempre 0 y el tope compartido del free tier nunca frenaba.
+    const asked: string[] = [];
+    const originalRpc = supabaseStub.rpc;
+    vi.spyOn(supabaseStub, "rpc").mockImplementation(
+      (fn: string, params: Record<string, unknown>) => {
+        if (fn === "sum_quota_used") asked.push(params.p_connector_id as string);
+        return originalRpc.call(supabaseStub, fn, params);
+      },
+    );
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+    vi.mocked(supabaseStub.rpc).mockRestore();
+
+    // El stub del conector no define quotaKey → cae al id, que es lo correcto
+    // para Resend (cuota mensual sin fecha en la clave).
+    expect(asked).toEqual(["resend"]);
+  });
+
+  it("frena cuando el uso org-wide llegó al límite aunque el proyecto tenga margen", async () => {
+    connectorState.quota = {
+      used: 0,
+      limit: 5,
+      unit: "messages",
+      period: "month",
+      resetAt: null,
+    };
+    // Otro proyecto ya gastó todo el tope compartido.
+    tables.cuotas.rows.push({
+      project_id: "otro",
+      connector_id: "resend",
+      used: 5,
+    });
+    let sendCalls = 0;
+    connectorState.sendImpl = async () => {
+      sendCalls++;
+      return { ok: true };
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    expect(sendCalls).toBe(0);
+    expect((tables.envio_queue.rows[0] as Row).last_error).toBe("quota_blocked");
   });
 });
 

@@ -32,4 +32,13 @@ describe("quota", () => {
     await incrementUsage("otra-c", 99, "p1");
     expect(await getOrgUsage("org-c")).toBe(10);
   });
+
+  it("la clave de cuota de Brevo lleva la fecha (tope diario)", async () => {
+    // El guard org-wide de la cola tiene que preguntar por ESTA clave: pedir
+    // "brevo" a secas devolvía 0 y el tope compartido nunca frenaba nada.
+    const { brevoConnector } = await import("@/lib/connectors/brevo");
+    const { dailyQuotaKey } = await import("@/lib/quota");
+    expect(brevoConnector.quotaKey?.()).toBe(dailyQuotaKey("brevo"));
+    expect(brevoConnector.quotaKey?.()).toMatch(/^brevo:\d{4}-\d{2}-\d{2}$/);
+  });
 });

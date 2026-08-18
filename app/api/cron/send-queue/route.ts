@@ -253,10 +253,14 @@ export async function GET(req: Request) {
       };
       quotaCache.set(qKey, quota);
     }
-    let orgUsed = orgUsedCache.get(row.connector_id);
+    // Clave de cuota del conector, NO su id: los de límite diario contabilizan
+    // bajo `<id>:YYYY-MM-DD`, así que preguntar por `brevo` a secas devolvía
+    // siempre 0 y el guard org-wide del free tier nunca frenaba nada.
+    const orgKey = connector.quotaKey?.() ?? row.connector_id;
+    let orgUsed = orgUsedCache.get(orgKey);
     if (orgUsed === undefined) {
-      orgUsed = await getOrgUsage(row.connector_id);
-      orgUsedCache.set(row.connector_id, orgUsed);
+      orgUsed = await getOrgUsage(orgKey);
+      orgUsedCache.set(orgKey, orgUsed);
     }
     if (quota.used >= quota.limit || orgUsed >= quota.limit) {
       // Reprogramar al reset de la cuota (diaria→mañana, mensual→mes que viene)
@@ -281,11 +285,6 @@ export async function GET(req: Request) {
       rescheduled++;
       continue;
     }
-    // Contabilizamos el envío localmente (cuenta el intento) para no releer la
-    // cuota en la próxima fila del mismo connector/proyecto.
-    quota.used++;
-    orgUsedCache.set(row.connector_id, orgUsed + 1);
-
     // El try cubre SÓLO la llamada al proveedor. Un throw inesperado se trata
     // como fallo transitorio, igual que los que el connector ya clasifica.
     let result: SendResult;
@@ -361,6 +360,15 @@ export async function GET(req: Request) {
     if (result.ok) done++;
     else failed++;
     touchedCampaigns.add(row.campaign_id);
+
+    // La cuota la incrementa el connector (RPC atómico) cuando el envío sale;
+    // acá sólo mantenemos el espejo en memoria para no releerla en cada fila.
+    // Antes se sumaba ANTES de llamar al proveedor y en cada reintento, así que
+    // un tramo de 429 podía dejar la cuota "llena" sin haber enviado nada.
+    if (result.ok) {
+      quota.used++;
+      orgUsedCache.set(orgKey, orgUsed + 1);
+    }
 
     // Registro del envío (lo que ve el dashboard de la campaña). Idempotente
     // por el unique (campaign_id, token): si una corrida anterior ya lo

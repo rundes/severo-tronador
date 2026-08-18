@@ -74,6 +74,8 @@ export const brevoConnector: OutreachConnector = {
       : { ok: true, message: "Modo mock — simula envíos y consume cuota (sin API key)." };
   },
 
+  quotaKey,
+
   async getStatus(): Promise<ConnectorStatus> {
     return (await getUsage(quotaKey())) >= DAILY_LIMIT ? "quota_exhausted" : "enabled";
   },

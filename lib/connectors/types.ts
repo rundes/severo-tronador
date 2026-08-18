@@ -157,6 +157,12 @@ export interface SendResult {
 
 export interface OutreachConnector extends Connector {
   category: "outreach";
+  // Clave bajo la que este conector contabiliza su cuota. Por defecto es el id,
+  // pero los de límite DIARIO le agregan la fecha (`brevo:YYYY-MM-DD`) para que
+  // el contador se resetee solo al cambiar de día. Quien necesite el uso real
+  // (ej. el guard org-wide de la cola) tiene que pedirlo con esta clave, no con
+  // el id: buscar por `brevo` a secas devolvía siempre 0.
+  quotaKey?(): string;
   // projectId opcional (default = proyecto default) → la cuota se trackea por
   // proyecto. send-queue pasa el del envío; callers de display usan el default.
   getQuota(projectId?: string): Promise<Quota>;
