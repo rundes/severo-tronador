@@ -49,3 +49,13 @@ export const log = {
   warn: (event: string, fields?: Fields) => emit("warn", event, fields),
   error: (event: string, fields?: Fields) => emit("error", event, fields),
 };
+
+// Un token de encuesta (o de share) es una credencial: quien lo tiene puede
+// responder como esa persona o abrir el tablero compartido. Loguearlo completo
+// lo deja en cualquier sistema que ingeste los logs, con retención propia y otra
+// gente con acceso. El prefijo alcanza para correlacionar dos líneas del mismo
+// evento, que es para lo que se logueaba.
+export function tokenTag(token: string | null | undefined): string {
+  if (!token) return "none";
+  return `${token.slice(0, 8)}…`;
+}

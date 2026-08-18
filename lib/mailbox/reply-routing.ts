@@ -8,7 +8,7 @@
 //
 // Sin Supabase corre en modo dry-run: parsea pero no persiste.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
-import { log } from "@/lib/logger";
+import { log, tokenTag } from "@/lib/logger";
 import { detectOptOut } from "@/lib/inbound";
 import { optOut } from "@/lib/optout";
 import type { EmailFull } from "./types";
@@ -65,7 +65,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
   if (!token) return { ok: false, reason: "no_token" };
 
   if (!dbConfigured()) {
-    log.info("mail.reply.dry_run", { token, subject: email.subject });
+    log.info("mail.reply.dry_run", { token: tokenTag(token), subject: email.subject });
     return { ok: true, envioToken: token };
   }
 
@@ -84,7 +84,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
   }
   const row = envio as EnvioRow | null;
   if (!row) {
-    log.warn("mail.reply.envio_not_found", { token });
+    log.warn("mail.reply.envio_not_found", { token: tokenTag(token) });
     return { ok: false, reason: "envio_not_found", envioToken: token };
   }
 
@@ -97,12 +97,12 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
     if (row.dni) {
       await optOut(row.project_id, row.dni, `email ${keyword.toLowerCase()}`);
       log.info("mail.reply.opt_out", {
-        token,
+        token: tokenTag(token),
         dni: row.dni,
         campaign_id: row.campaign_id,
       });
     } else {
-      log.warn("mail.reply.opt_out.unmatched", { token, from: email.from.email });
+      log.warn("mail.reply.opt_out.unmatched", { token: tokenTag(token), from: email.from.email });
     }
     return {
       ok: true,
@@ -158,7 +158,7 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
     .single();
 
   if (insErr) {
-    log.warn("mail.reply.insert_failed", { token, error: insErr.message });
+    log.warn("mail.reply.insert_failed", { token: tokenTag(token), error: insErr.message });
     return { ok: false, reason: "db_error", envioToken: token };
   }
 

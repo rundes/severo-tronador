@@ -7,9 +7,9 @@
 // creada por un proyecto la veían todos. `projectId` es obligatorio en toda la
 // superficie pública para que ningún caller pueda olvidarlo.
 import type { Channel } from "@/lib/relationship";
-import type { Contact } from "@/lib/connectors/types";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
+import { prefixedId } from "@/lib/ids";
 
 export type TemplateFormato = "texto" | "html" | "html_full";
 
@@ -256,7 +256,7 @@ export async function createTemplate(
     ...input,
     projectId,
     formato: input.formato ?? "texto",
-    id: `tpl-${Date.now().toString(36)}`,
+    id: prefixedId("tpl"),
     createdAt: new Date().toISOString(),
   };
   return upsertTemplate(tpl);
@@ -285,13 +285,15 @@ export async function updateTemplate(
   return upsertTemplate(tpl);
 }
 
-// Sustituye {{var}} por el campo del contacto (vacío si no existe).
-export function interpolate(text: string, contact: Contact): string {
-  return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {
-    const v = (contact as unknown as Record<string, unknown>)[key];
-    return v == null ? "" : String(v);
-  });
-}
+// La interpolación vive en un solo lugar: lib/interpolate-vars.ts.
+//
+// Convivían DOS motores: uno acá —sólo campos directos del contacto— y
+// `interpolateExtended`, que además resuelve derivadas ({{saludo}},
+// {{fecha_humana}}, {{firma}}, {{encuesta_url}}) y fallbacks. Los cuerpos usaban
+// el completo y los ASUNTOS el de acá, así que un `{{saludo}}` en el asunto se
+// renderizaba vacío mientras el mismo token en el cuerpo funcionaba — y el
+// editor de plantillas ofrecía las derivadas sin distinguir dónde valían. Todos
+// los call sites pasaron al motor completo y este se eliminó.
 
 // Variables que la plantilla referencia.
 export function templateVars(text: string): string[] {

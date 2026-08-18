@@ -157,6 +157,27 @@ describe("config de conectores · niveles", () => {
     );
   });
 
+  it("borrar la config NO reactiva el conector", async () => {
+    // Era la trampa: al desaparecer la fila del proyecto, isEnabled caía al
+    // fallback de organización —true cuando no hay fila— y "Borrar config"
+    // terminaba reactivando el conector con las credenciales de la org.
+    const { deleteConnectorConfig, isEnabled, saveConnectorConfig } =
+      await import("@/lib/connectors/config");
+    rows.push({
+      connector_id: "resend",
+      project_id: null,
+      config: { RESEND_FROM: "org@tronador.net.ar" },
+      enabled: true,
+    });
+    await saveConnectorConfig("resend", P1, { RESEND_FROM: "p1@tronador.net.ar" });
+    expect(await isEnabled("resend", P1)).toBe(true);
+
+    await deleteConnectorConfig("resend", P1);
+    expect(await isEnabled("resend", P1)).toBe(false);
+    // El resto de los proyectos sigue funcionando con el fallback.
+    expect(await isEnabled("resend", P2)).toBe(true);
+  });
+
   it("el toggle del proyecto gana sobre el de organización", async () => {
     const { isEnabled, setEnabled } = await import("@/lib/connectors/config");
     rows.push({

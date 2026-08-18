@@ -9,7 +9,7 @@
 // explícita (1 día, 7 días, 30 días). Para revocar, regenerar
 // CONFIG_MASTER_KEY (todas las links rompen).
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
 
 export type ShareScope = "campaign" | "dashboard";
 
@@ -20,10 +20,22 @@ export interface SharePayload {
   exp: number; // ms epoch
 }
 
+// Subclave derivada de CONFIG_MASTER_KEY con HKDF, etiquetada por propósito.
+//
+// Antes se usaba la clave maestra CRUDA, la misma que cifra las credenciales de
+// conectores con AES-GCM. Reusar material de clave entre dos primitivas
+// distintas es un antipatrón: un problema en un uso se lleva puesto al otro. La
+// derivación no cambia nada de operación — sigue habiendo una sola variable de
+// entorno.
+//
+// OJO: cambiar el `info` invalida todos los links compartidos ya emitidos.
+const HKDF_INFO = "severo-tronador/share-token/v1";
+
 function keyBytes(): Buffer {
   const b64 = process.env.CONFIG_MASTER_KEY;
   if (!b64) throw new Error("CONFIG_MASTER_KEY no configurado");
-  return Buffer.from(b64, "base64");
+  const master = Buffer.from(b64, "base64");
+  return Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), HKDF_INFO, 32));
 }
 
 function b64url(buf: Buffer): string {

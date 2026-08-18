@@ -142,18 +142,30 @@ export async function saveConnectorConfig(
   if (error) throw error;
 }
 
-// Borra el override del proyecto. La fila de organizacion no se toca: es el
-// fallback y borrarla dejaria sin conector a todos los demas proyectos.
+// Borra las credenciales del override del proyecto. La fila de organizacion no
+// se toca: es el fallback y borrarla dejaria sin conector a todos los demas
+// proyectos.
+//
+// La fila del proyecto NO se borra: se vacia y queda con enabled=false. Si se
+// borrara, `isEnabled` caeria al fallback de organizacion —que es `true` cuando
+// no hay fila— y "Borrar config" terminaria REACTIVANDO el conector con las
+// credenciales de la organizacion. Lo que el operador pidio es lo contrario.
 export async function deleteConnectorConfig(
   connectorId: string,
   projectId: string,
 ): Promise<void> {
   if (!dbConfigured()) return;
-  await getSupabase()
-    .from("conector_config")
-    .delete()
-    .eq("connector_id", connectorId)
-    .eq("project_id", projectId);
+  const { error } = await getSupabase().from("conector_config").upsert(
+    {
+      connector_id: connectorId,
+      project_id: projectId,
+      config: {},
+      enabled: false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "connector_id,project_id" },
+  );
+  if (error) throw error;
 }
 
 export async function setEnabled(
@@ -173,8 +185,14 @@ export async function setEnabled(
   );
 }
 
-// El toggle del proyecto gana sobre el de la organizacion; sin ninguna fila,
-// un conector se considera habilitado.
+// El toggle del proyecto gana sobre el de la organizacion; sin ninguna fila, un
+// conector se considera habilitado.
+//
+// El default true es deliberado: el toggle existe para DESACTIVAR algo que ya
+// funciona, y un conector sin credenciales corre en modo mock igual (no manda
+// nada real). Lo que si era una trampa —que "Borrar config" reactivara el
+// conector al desaparecer la fila— lo cierra deleteConnectorConfig, que deja la
+// fila con enabled=false en vez de borrarla.
 export async function isEnabled(
   connectorId: string,
   projectId?: string,

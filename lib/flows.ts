@@ -13,7 +13,7 @@ import {
   type SegmentFilter,
 } from "@/lib/segments";
 import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-query";
-import { interpolate, getTemplate } from "@/lib/templates";
+import { getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { createToken } from "@/lib/survey";
 import { trackedLink, openPixel } from "@/lib/tracking";
@@ -278,7 +278,7 @@ export async function startFlow(
         contact: m.contact,
         template: {
           subject: template.asunto
-            ? interpolate(template.asunto, m.contact)
+            ? interpolateExtended(template.asunto, m.contact, { surveyUrl: url })
             : null,
           body: buildBody(template.cuerpo, m.contact, url, token, step.channel),
         },

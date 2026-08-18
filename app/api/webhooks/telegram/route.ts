@@ -13,7 +13,7 @@ import { resolveToken } from "@/lib/survey";
 import { upsertChat, markOptOut, getChatByDni } from "@/lib/telegram-chats";
 import { optOut } from "@/lib/optout";
 import { constantTimeEqual } from "@/lib/crypto";
-import { log } from "@/lib/logger";
+import { log, tokenTag } from "@/lib/logger";
 import { ingestInbound } from "@/lib/inbound";
 
 interface TelegramUpdate {
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     }
     const ref = await resolveToken(token);
     if (!ref) {
-      log.info("webhook.telegram.start_unknown_token", { token });
+      log.info("webhook.telegram.start_unknown_token", { token: tokenTag(token) });
       return NextResponse.json({ ok: true, action: "unknown_token" });
     }
     await upsertChat({

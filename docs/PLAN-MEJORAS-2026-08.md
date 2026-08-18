@@ -239,7 +239,54 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 7. **Performance**: `import * as Icons from "lucide-react"` en el sidebar rompe tree-shaking (toda ruta paga la librería); `react-easy-crop` estático; waterfalls de 5 awaits secuenciales en contactos/mail/campanas → `Promise.all`; `<img>` crudo en páginas públicas → `next/image`.
 8. **Forms**: validación solo server-side vía `redirect(?error=)` — reusar schemas zod en cliente; editores largos sin guard de cambios sin guardar.
 
-## F6 — Higiene y deuda (continuo)
+## F6 — Higiene y deuda (continuo) — 🔶 parcial
+
+> Entregado en la rama `chore/higiene-deuda`. Migración a aplicar antes del
+> deploy: `0058_constraints_e_higiene.sql`.
+>
+> **Hecho:**
+> - **Telnyx retirado** (punto 1): el webhook seguía VIVO aceptando SMS
+>   entrantes de un proveedor descartado en julio — superficie de ataque de algo
+>   que ya nadie usa — y los conectores seguían visibles en /conectores,
+>   invitando a configurar un canal inutilizable. `OUTREACH_BY_ID` los conserva
+>   con fecha de expiración explícita (2027-01) para drenar cola legacy.
+> - **`.env.example`** (punto 2): faltaban `AUTH_SECRET`,
+>   `TELEGRAM_WEBHOOK_SECRET`, `GOOGLE_PICKER_API_KEY`, `META_ACCESS_TOKEN`,
+>   `APP_TZ` y los knobs de la cola; sobraban las cinco `TELNYX_*`.
+> - **Docs drift** (punto 3): PLAN.md declaraba F5 SMS/voz en producción.
+> - **Un solo motor de interpolación** (punto 4): convivían dos, y los ASUNTOS
+>   usaban el corto mientras los cuerpos usaban el completo — un `{{saludo}}` en
+>   el asunto se renderizaba vacío mientras el mismo token funcionaba en el
+>   cuerpo, y el editor ofrecía las derivadas sin distinguir dónde valían.
+> - **Constraints DB** (punto 5): CHECKs de estado en `envios`, `envio_queue`,
+>   `sheets_sync_queue` y `campanas` (NOT VALID: aplican a lo nuevo sin
+>   re-verificar histórico); índice muerto `idx_padron_dni` —cubierto por
+>   `padron_dni_project_uk` desde 0021— y sobrecarga legacy de
+>   `increment_quota`, que escribía todo bajo el proyecto default. Las PKs text
+>   pasan a `prefixedId`: `Date.now().toString(36)` colisiona entre dos
+>   creaciones en el mismo milisegundo.
+> - **Tests prioritarios** (punto 6): `csv` (formula injection), `email-sanitize`
+>   (XSS), `contactos/mapping` (el punto donde un Sheet ajeno se convierte en el
+>   padrón), `ids`. El `csvEscape` duplicado del export de segmentos se eliminó:
+>   era el único sin la protección, y es el CSV que sale con nombres y teléfonos.
+> - **Seguridad media** (punto 7): magic bytes en el upload (confiaba en el
+>   `content-type` del cliente, sobre un bucket PÚBLICO); HKDF para el HMAC de
+>   share-token, que reusaba la clave maestra del AES-GCM de credenciales;
+>   tokens truncados en logs (son credenciales); "Borrar config" ya no reactiva
+>   el conector al desaparecer la fila; el worker de Cloudflare baja su tope de
+>   5MB a 4MB — por encima del límite de body de Vercel, un mail entre 4,5 y 5MB
+>   se reintentaba en loop sin que nadie lo viera.
+>
+> **Pendiente**, y por qué se dejó:
+> - **`ad-studio.tsx` a reducer + split** (1226 líneas, 24 `useState`) y **dedupe
+>   de post-composer / difusion-board**: son refactors mecánicos grandes sobre UI
+>   sin cobertura de componentes. El riesgo es de regresión visual y de
+>   comportamiento, y el beneficio es de mantenibilidad, no funcional. Conviene
+>   hacerlos con tests de componente delante, no a ciegas.
+> - **`fecha_nac text` → `date`**: es migración de datos sobre una columna que
+>   hoy acepta cualquier formato de cualquier Sheet importado. Requiere decidir
+>   qué hacer con lo que no parsea antes de tocar nada.
+> - **`op = "remove"` del espejo a Sheets**: sigue marcando `unsupported`.
 
 1. **Telnyx post-retiro**: webhook vivo aceptando entrantes SMS, conectores en el registry visibles en /conectores, env vars en `.env.example` — borrar ruta y registry (dejar `OUTREACH_BY_ID` para drenar cola legacy con fecha de expiración).
 2. **`.env.example` desincronizado**: faltan `TELEGRAM_WEBHOOK_SECRET`, `META_ACCESS_TOKEN`, `AUTH_SECRET`, `GOOGLE_PICKER_API_KEY`…; sobran `TELNYX_*`, `REDDIT_*`, claves que ya van por panel.
@@ -261,6 +308,6 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 | ✅ F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
 | ✅ F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
 | ✅ F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |
-| F6 higiene | continuo | Deuda acumulada |
+| 🔶 F6 higiene | continuo | Deuda acumulada |
 
 F0-F2 son secuenciales (mismo código: send-queue, templates). F3, F4 y F5 son paralelizables entre sí.

@@ -47,12 +47,19 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
     .join("");
 }
 
-export default {
+// Tope de tamaño del mail que se acepta.
+//
+// Estaba en 5MB, por encima del límite de body de una función de Vercel (4.5MB):
+// un mail entre 4.5 y 5MB pasaba el chequeo del worker, Vercel lo rechazaba con
+// 413, el worker lanzaba, y Cloudflare lo reintentaba en loop hasta agotar los
+// reintentos — sin que nadie viera nada. 4MB deja margen para el overhead del
+// JSON (el raw va como string dentro de un objeto).
+const MAX_RAW_BYTES = 4 * 1024 * 1024;
+
+const handler = {
   async email(message: CloudflareEmailMessage, env: Env): Promise<void> {
-    // Tope defensivo: Cloudflare permite hasta 25MB; nuestros replies
-    // no deberían pasar de 1MB. Más arriba, rechazamos.
-    if (message.rawSize > 5 * 1024 * 1024) {
-      message.setReject("Message exceeds 5MB limit");
+    if (message.rawSize > MAX_RAW_BYTES) {
+      message.setReject("Message exceeds 4MB limit");
       return;
     }
 
@@ -83,3 +90,5 @@ export default {
     }
   },
 };
+
+export default handler;

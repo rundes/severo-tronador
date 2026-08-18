@@ -31,7 +31,7 @@ módulos de `lib/connectors/` que la fase puso en producción.
 | **F2** | Segmentos (filtros sobre el padrón), ficha de relación por contacto, health score, cooldowns. | — (lógica de negocio sobre el padrón) |
 | **F3** | Email real con tracking de apertura/clicks y gestión de cuota del free tier. | `resend` |
 | **F4** | WhatsApp service-initiated con webhooks (estados de entrega). La recepción de respuestas entrantes (WhatsApp/SMS/Telegram) se cierra con la columna de ingesta `inbound_messages` (ver docs/superpowers/specs/2026-06-27-inbound-2vias-design.md). | `meta-wa-cloud` |
-| **F5** | SMS y voz/IVR salientes con topes mensuales como guardarraíl. | `telnyx-sms`, `telnyx-voice` |
+| **F5** | SMS y voz/IVR salientes con topes mensuales como guardarraíl. **Retirado** (2026-07-24): el gateway dio mal servicio y los canales se sacaron de la oferta. Los conectores salieron del registry en F6 del plan de mejoras; siguen resolubles por `connector_id` sólo para drenar cola legacy. El histórico de envíos no se tocó. | ~~`telnyx-sms`~~, ~~`telnyx-voice`~~ |
 | **F6** | Encuestas/intercambios tokenizados, builder tipado, opt-out cross-channel, A/B testing de mensajes. | — (encuestas + `lib/ab-test.ts`) |
 | **F7** | Análisis cualitativo asistido (coding inductivo/deductivo, sentiment, clustering) + dashboard de cierre. | `claude-api` |
 | **F8** | Escucha pasiva: prensa, redes y medios locales con detección de temas emergentes y sentiment. | `gdelt`, `x-api`, `reddit-api`, `rss`, `meta-content-library` |
@@ -77,12 +77,20 @@ de consulta externa:
   mail entrante al webhook de la app (recepción `@tronador.net.ar`).
 - `infra/twikit-worker/` — worker `twscrape` que trae timelines de X a
   `listening_items` para cuentas chicas sin plan pago.
+- `infra/fb-worker/` — worker Playwright que trae posts y comentarios públicos
+  de Facebook a `listening_items` (comunidades chicas sin API).
 
 ---
 
 ## Mejoras incrementales abiertas
 
 No son fases nuevas, sino refinamientos sobre lo entregado:
+
+> **Auditoría integral (agosto 2026).** Las siete fases del plan de mejoras
+> (`docs/PLAN-MEJORAS-2026-08.md`) están cerradas: integridad del pipeline de
+> envío, aislamiento multi-tenant, escala de datos, observabilidad y CI,
+> adopción del design system e higiene. Lo que quedó deliberadamente afuera está
+> anotado ahí, fase por fase, con su razón.
 
 - **WhatsApp**: mapear plantillas pre-aprobadas para envíos fuera de la ventana
   de 24h (el envío actual usa `type=text`, válido dentro de la ventana).

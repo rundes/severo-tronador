@@ -18,7 +18,7 @@ import {
 } from "@/lib/segments";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
-import { getTemplate, interpolate } from "@/lib/templates";
+import { getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import { renderCampaignEmailHtml, type EmailTemplateInput } from "@/lib/email-render";
 import { createToken, createTokens } from "@/lib/survey";
@@ -29,6 +29,7 @@ import { isEnabled } from "@/lib/connectors/config";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
+import { prefixedId } from "@/lib/ids";
 
 export interface Envio {
   // PK uuid en la tabla `envios`; opcional porque el fallback en memoria no lo usa.
@@ -419,6 +420,15 @@ export const EMAIL_PROVIDERS: { id: string; label: string }[] = [
 // Resolución de conector outreach por id (no por canal): el email tiene 2
 // proveedores (resend / brevo), así que el cron y executeCampaign resuelven
 // por el connector_id guardado en cada envío, no por el canal.
+// Resolución por connector_id, para despachar una fila de la cola con el
+// conector con que se encoló.
+//
+// telnyx-sms y telnyx-voice siguen acá A PROPÓSITO aunque el proveedor esté
+// retirado (decisión 2026-07-24) y ya no aparezcan en /conectores: puede quedar
+// alguna fila legacy en `envio_queue` encolada con esos ids, y sin la entrada el
+// cron la marcaría "connector no registrado". Se pueden borrar cuando no queden
+// filas de esos conectores en la cola — a más tardar en 2027-01, cuando la
+// retención (30 días sobre filas terminadas) haya limpiado todo lo de 2026.
 const OUTREACH_BY_ID: Record<string, OutreachConnector> = {
   [resendConnector.id]: resendConnector,
   [brevoConnector.id]: brevoConnector,
@@ -510,7 +520,7 @@ export async function executeCampaign(
     }
   }
 
-  const campaignId = `cmp-${Date.now().toString(36)}`;
+  const campaignId = prefixedId("cmp");
   // El prefiltro empuja a SQL lo que se puede resolver como columna (barrio,
   // grupo, contactabilidad…): con un padrón grande, traerlo entero a memoria
   // para descartar el 95% en JS es el techo de crecimiento del sistema. El
@@ -604,7 +614,9 @@ export async function executeCampaign(
       const url = `${baseUrl()}/encuesta/${token}`;
       const result = await connector.send(
         {
-          subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : undefined,
+          subject: tpl.asunto
+            ? interpolateExtended(tpl.asunto, m.contact, { surveyUrl: url })
+            : undefined,
           body: buildBody(tpl, m.contact, url, token, input.channel),
           replyTo: isRepliesConfigured() ? buildReplyTo(token) : undefined,
         },
@@ -667,7 +679,9 @@ export async function executeCampaign(
       connector_id: connector.id,
       contact: m.contact,
       template: {
-        subject: tpl.asunto ? interpolate(tpl.asunto, m.contact) : null,
+        subject: tpl.asunto
+          ? interpolateExtended(tpl.asunto, m.contact, { surveyUrl: url })
+          : null,
         body: buildBody(tpl, m.contact, url, token, input.channel),
       },
       token,
