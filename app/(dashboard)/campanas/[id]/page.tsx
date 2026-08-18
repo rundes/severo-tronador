@@ -21,7 +21,7 @@ export const metadata = { title: "Campaña · Severo Tronador" };
 const ESTADO_META = {
   sent: { label: "enviado", cls: "text-emerald-600" },
   failed: { label: "fallido", cls: "text-red-600" },
-  skipped: { label: "omitido", cls: "text-zinc-400" },
+  skipped: { label: "omitido", cls: "text-zinc-500 dark:text-zinc-400" },
 } as const;
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -39,6 +39,9 @@ const DELIVERY_LABEL: Record<string, string> = {
   failed: "rebotó",
 };
 
+// Filas de envío por página en el detalle de campaña.
+const ENVIOS_POR_PAGINA = 100;
+
 export default async function CampanaPage({
   params,
   searchParams,
@@ -51,6 +54,18 @@ export default async function CampanaPage({
   const sp = (await searchParams) ?? {};
   const campaign = await getCampaign(projectId, id);
   if (!campaign) notFound();
+
+  // Paginación de la lista de envíos (ver el bloque "Envíos" más abajo).
+  const enviosTotal = campaign.envios.length;
+  const pageNum = Math.max(1, Number(sp.envios ?? "1") || 1);
+  const enviosDesde = Math.min(
+    (pageNum - 1) * ENVIOS_POR_PAGINA,
+    Math.max(0, enviosTotal - 1),
+  );
+  const enviosPagina = campaign.envios.slice(
+    enviosDesde,
+    enviosDesde + ENVIOS_POR_PAGINA,
+  );
 
   // Si la action acabó de generar un share link, lo recibimos en ?shared=
   // + exp para mostrarlo en la UI con un copy button.
@@ -126,7 +141,7 @@ export default async function CampanaPage({
 
         {/* Segmento asociado */}
         <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-          <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+          <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             Segmento objetivo
           </div>
           {savedSegment ? (
@@ -138,7 +153,7 @@ export default async function CampanaPage({
                 {segmentSize !== null && (
                   <div className="mt-0.5 font-mono text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                     {segmentSize.toLocaleString("es-AR")}
-                    <span className="ml-1 text-sm font-normal text-zinc-400">
+                    <span className="ml-1 text-sm font-normal text-zinc-500 dark:text-zinc-400">
                       personas en padrón
                     </span>
                   </div>
@@ -150,7 +165,7 @@ export default async function CampanaPage({
                     {cobertura}%
                   </div>
                   <div className="text-xs text-zinc-500">cobertura</div>
-                  <div className="text-[10px] text-zinc-400">
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
                     alcance Meta / tamaño segmento
                   </div>
                 </div>
@@ -159,7 +174,7 @@ export default async function CampanaPage({
           ) : (
             <p className="text-sm text-zinc-500">
               Sin segmento asociado.{" "}
-              <span className="text-zinc-400">
+              <span className="text-zinc-500 dark:text-zinc-400">
                 Editá la campaña para vincular un segmento.
               </span>
             </p>
@@ -169,7 +184,7 @@ export default async function CampanaPage({
         {/* Audiencia personalizada (Fase 2) */}
         <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               Audiencia personalizada (Meta)
             </div>
             {audStatus?.mode === "mock" && (
@@ -242,7 +257,7 @@ export default async function CampanaPage({
         {/* Panel de métricas del anuncio */}
         <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               Métricas del anuncio Meta
             </div>
             {adInsights?.mode === "mock" && (
@@ -301,7 +316,7 @@ export default async function CampanaPage({
                 <p className="text-sm text-zinc-500">
                   Esta campaña todavía no tiene un anuncio vinculado.
                 </p>
-                <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-400">
+                <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
                   Creá la audiencia arriba para generar un anuncio que la targetee, o
                   creá el aviso en{" "}
                   <Link href="/difusion?tab=publicar" className="underline">
@@ -323,7 +338,7 @@ export default async function CampanaPage({
                       ? m.value.toFixed(2)
                       : m.value.toLocaleString("es-AR")}
                   </div>
-                  <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                  <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                     {m.label}
                   </div>
                 </div>
@@ -412,7 +427,7 @@ export default async function CampanaPage({
             <select
               name="duracion"
               defaultValue="week"
-              className="rounded px-1.5 py-1 text-xs bg-transparent text-zinc-700 focus:outline-none dark:text-zinc-200"
+              className="rounded px-1.5 py-1 text-xs bg-transparent text-zinc-700 dark:text-zinc-200"
             >
               <option value="day">1d</option>
               <option value="week">7d</option>
@@ -442,7 +457,7 @@ export default async function CampanaPage({
             className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800"
           >
             <div className={`text-2xl font-semibold ${m.cls}`}>{m.n}</div>
-            <div className="text-xs text-zinc-400">{m.label}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">{m.label}</div>
           </div>
         ))}
       </div>
@@ -464,8 +479,8 @@ export default async function CampanaPage({
             className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800"
           >
             <div className={`text-2xl font-semibold ${m.cls}`}>{m.n}</div>
-            <div className="text-xs text-zinc-400">{m.label}</div>
-            <div className="text-[10px] text-zinc-400">{m.sub}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">{m.label}</div>
+            <div className="text-[10px] text-zinc-500 dark:text-zinc-400">{m.sub}</div>
           </div>
         ))}
       </div>
@@ -478,7 +493,7 @@ export default async function CampanaPage({
             </h2>
             {sig && !sig.sampleTooSmall && (
               <span className={`font-mono text-[10px] uppercase tracking-wider ${
-                sig.significant ? "text-emerald-600" : "text-zinc-400"
+                sig.significant ? "text-emerald-600" : "text-zinc-500 dark:text-zinc-400"
               }`}>
                 χ²={sig.chi2.toFixed(2)} · p={sig.pValue.toFixed(3)} · {
                   sig.significant ? "significativo" : "no significativo"
@@ -495,12 +510,12 @@ export default async function CampanaPage({
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-left text-[10px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Variante</th>
-                  <th className="px-3 py-2 font-medium">Template</th>
-                  <th className="px-3 py-2 font-medium">Peso</th>
-                  <th className="px-3 py-2 font-medium text-right">Sent</th>
-                  <th className="px-3 py-2 font-medium text-right">Resp</th>
-                  <th className="px-3 py-2 font-medium text-right">RR</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Variante</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Template</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Peso</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Sent</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Resp</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">RR</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -515,9 +530,9 @@ export default async function CampanaPage({
                       </td>
                       <td className="px-3 py-2 text-xs text-zinc-500">{v.template_id}</td>
                       <td className="px-3 py-2 font-mono text-xs text-zinc-500">{v.weight}</td>
-                      <td className="px-3 py-2 text-right font-mono">{v.sent}</td>
-                      <td className="px-3 py-2 text-right font-mono">{v.responses}</td>
-                      <td className="px-3 py-2 text-right font-mono">
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{v.sent}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{v.responses}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {(v.responseRate * 100).toFixed(1)}%
                       </td>
                     </tr>
@@ -530,15 +545,57 @@ export default async function CampanaPage({
       )}
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-          Envíos
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Envíos
+          </div>
+          {/* La lista se paginaba: una campaña de 50.000 destinatarios
+              renderizaba las 50.000 filas de una, y el HTML de la página de
+              detalle pasaba de kilobytes a decenas de megas. */}
+          {enviosTotal > ENVIOS_POR_PAGINA && (
+            <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="tabular-nums">
+                {enviosDesde + 1}–{enviosDesde + enviosPagina.length} de{" "}
+                {enviosTotal}
+              </span>
+              <span className="flex gap-2">
+                {pageNum > 1 ? (
+                  <Link
+                    href={`/campanas/${campaign.id}?envios=${pageNum - 1}`}
+                    className="underline hover:text-zinc-800 dark:hover:text-zinc-100"
+                  >
+                    Anteriores
+                  </Link>
+                ) : (
+                  <span aria-hidden className="opacity-40">
+                    Anteriores
+                  </span>
+                )}
+                {enviosDesde + enviosPagina.length < enviosTotal ? (
+                  <Link
+                    href={`/campanas/${campaign.id}?envios=${pageNum + 1}`}
+                    className="underline hover:text-zinc-800 dark:hover:text-zinc-100"
+                  >
+                    Siguientes
+                  </Link>
+                ) : (
+                  <span aria-hidden className="opacity-40">
+                    Siguientes
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
         </div>
         <div className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
-          {campaign.envios.map((e) => {
+          {enviosPagina.map((e) => {
             const meta = ESTADO_META[e.estado];
             return (
               <div
-                key={e.dni}
+                // dni + token: el mismo contacto puede tener más de un envío en
+                // una campaña con variantes A/B, y con `key={e.dni}` React
+                // colapsaba las filas repetidas.
+                key={`${e.dni}:${e.token ?? ""}`}
                 className="flex items-center justify-between px-4 py-2"
               >
                 <Link
@@ -546,7 +603,7 @@ export default async function CampanaPage({
                   className="hover:underline"
                 >
                   {e.nombre}{" "}
-                  <span className="text-zinc-400">{e.destino}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{e.destino}</span>
                 </Link>
                 <span className={meta.cls}>
                   {meta.label}
@@ -556,7 +613,7 @@ export default async function CampanaPage({
                     </span>
                   )}
                   {e.reason && (
-                    <span className="ml-1 text-xs text-zinc-400">
+                    <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-400">
                       ({e.reason})
                     </span>
                   )}

@@ -25,10 +25,9 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import { controlClassName } from "@/components/ui/field";
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100";
-
+const inputCls = controlClassName;
 interface NominatimHit {
   display_name: string;
   lat: string;
@@ -150,7 +149,7 @@ export default function MapPickerInner({
           className={`${inputCls} w-full`}
         />
         {searching && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-zinc-400">
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
             …
           </span>
         )}
@@ -269,7 +268,7 @@ export default function MapPickerInner({
         </MapContainer>
       </div>
 
-      <p className="text-[10px] uppercase tracking-wider text-zinc-400">
+      <p className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
         Click en el mapa fija pin · arrastrá el marker para ajustar · tiles
         de OpenStreetMap
       </p>

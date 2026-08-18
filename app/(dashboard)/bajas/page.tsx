@@ -77,7 +77,7 @@ export default async function BajasPage({
               inputMode="numeric"
               pattern="[0-9]{6,9}"
               placeholder="30111222"
-              className="w-36 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums focus:border-[oklch(52%_0.13_255)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-36 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums focus:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>
           <label className="block flex-1 min-w-48">
@@ -87,7 +87,7 @@ export default async function BajasPage({
             <input
               name="reason"
               placeholder="pidió no ser contactado por teléfono"
-              className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm focus:border-[oklch(52%_0.13_255)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm focus:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>
           <SubmitButton pendingLabel="Registrando…">Dar de baja</SubmitButton>
@@ -129,7 +129,7 @@ export default async function BajasPage({
                 {o.reason && (
                   <span className="text-xs text-zinc-500">{o.reason}</span>
                 )}
-                <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-400">
+                <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
                   {fecha(o.at)}
                 </span>
                 <form action={revocarBaja}>

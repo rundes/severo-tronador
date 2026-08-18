@@ -233,7 +233,7 @@ export function LiveMonitor({
               {live ? "en vivo" : "reconectando"}
             </span>
           </span>
-          <span className="font-mono text-[10px] tabular-nums text-zinc-400">hace {secondsAgo}s</span>
+          <span className="font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">hace {secondsAgo}s</span>
 
           {/* Barra de ratio de sentiment + cifras */}
           <span className="flex items-center gap-2">
@@ -260,7 +260,7 @@ export function LiveMonitor({
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
                 Stream · menciones
               </h3>
-              <span className="font-mono text-[10px] tabular-nums text-zinc-400">
+              <span className="font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
                 {visibleFeed.length}
                 {visibleFeed.length !== feed.length ? `/${feed.length}` : ""}
               </span>
@@ -319,7 +319,7 @@ export function LiveMonitor({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar…"
-                className="ml-auto w-28 rounded border border-zinc-200 bg-transparent px-2 py-0.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:w-40 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:text-zinc-200"
+                className="ml-auto w-28 rounded border border-zinc-200 bg-transparent px-2 py-0.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:w-40 focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:text-zinc-200"
               />
             </div>
           </div>
@@ -347,8 +347,8 @@ export function LiveMonitor({
                         <span className="font-mono uppercase tracking-wider text-zinc-500">
                           {sourceIcon(item.source)} {item.source}
                         </span>
-                        <span className="truncate text-zinc-400">{item.author ?? "—"}</span>
-                        <span className="ml-auto shrink-0 font-mono tabular-nums text-zinc-400">
+                        <span className="truncate text-zinc-500 dark:text-zinc-400">{item.author ?? "—"}</span>
+                        <span className="ml-auto shrink-0 font-mono tabular-nums text-zinc-500 dark:text-zinc-400">
                           {relativeAgo(item.publishedAt)}
                         </span>
                       </div>
@@ -361,7 +361,7 @@ export function LiveMonitor({
                             href={safeHttpUrl(item.url)}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                            className="text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 dark:text-zinc-400"
                           >
                             abrir →
                           </a>
@@ -385,7 +385,7 @@ export function LiveMonitor({
                           type="button"
                           disabled={!persistOk}
                           onClick={() => toggleDismiss(item, key)}
-                          className="text-[10px] uppercase tracking-wider text-zinc-400 transition-colors hover:text-red-600 disabled:opacity-40 dark:hover:text-red-400"
+                          className="text-[10px] uppercase tracking-wider text-zinc-500 transition-colors hover:text-red-600 disabled:opacity-40 dark:hover:text-red-400 dark:text-zinc-400"
                           title={dismissedSet.has(key) ? "Restaurar al feed" : "Descartar (ocultar)"}
                         >
                           {dismissedSet.has(key) ? "↩ restaurar" : "✕ descartar"}
@@ -496,7 +496,7 @@ function Subhead({ dot, label, right }: { dot: string; label: string; right?: nu
       <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${dot}`} />
       <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">{label}</span>
       {right !== undefined && (
-        <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-400">{right}</span>
+        <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">{right}</span>
       )}
     </div>
   );

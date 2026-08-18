@@ -485,7 +485,7 @@ function Contact({ state }: { state?: string }) {
               minLength={2}
               maxLength={120}
               autoComplete="name"
-              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:outline-none focus:ring-0"
+              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:ring-0"
               placeholder="Tu nombre"
             />
           </ContactField>
@@ -495,7 +495,7 @@ function Contact({ state }: { state?: string }) {
               type="email"
               required
               autoComplete="email"
-              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:outline-none focus:ring-0"
+              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:ring-0"
               placeholder="tu@correo.com"
             />
           </ContactField>
@@ -506,7 +506,7 @@ function Contact({ state }: { state?: string }) {
               minLength={10}
               maxLength={5000}
               rows={5}
-              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:outline-none focus:ring-0"
+              className="w-full border-0 border-b border-[oklch(60%_0.05_250)] bg-transparent px-0 py-2 text-base placeholder:text-[oklch(60%_0.04_250)] focus:border-[oklch(70%_0.08_80)] focus:ring-0"
               placeholder="En qué podemos colaborar"
             />
           </ContactField>

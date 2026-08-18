@@ -248,7 +248,7 @@ export default async function EncuestaDetailPage({
                 testAction={probarEnvioEncuesta}
               />
             )}
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
               El envío crea una campaña por el canal elegido. Mirá cuántos se
               enviaron / quedan pendientes en{" "}
               <Link href="/campanas" className="underline underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-300">

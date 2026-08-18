@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { Proposal } from "@/lib/ad-proposals";
 import type { ProposalMedia, PreviewFrame } from "@/lib/meta-ads";
 import { buttonClass } from "@/components/ui/button";
+import { controlClassName } from "@/components/ui/field";
 
 // Tipos de las server actions pasadas como props (igual que en ad-studio).
 type PreviewAdAction = (
@@ -35,9 +36,7 @@ type ListAdsetsAction = (campaignId: string) => Promise<{ id: string; name: stri
 const CTAS = ["LEARN_MORE", "SIGN_UP", "GET_OFFER", "CONTACT_US", "WATCH_MORE"] as const;
 type Cta = (typeof CTAS)[number];
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 // Construye una Proposal mínima a partir del mensaje ingresado manualmente.
 // El generador de Meta usa el campo `platforms.facebook.post` como mensaje.
 function buildManualProposal(mensaje: string): Proposal {
@@ -220,7 +219,7 @@ export function MetaAdComposer({
               placeholder="https://…/imagen.jpg"
               className={`${inputCls} w-full font-mono`}
             />
-            <span className="text-[11px] text-zinc-400">
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
               Podés pegar una URL generada por la IA o una imagen ya publicada.
             </span>
           </label>
@@ -234,7 +233,7 @@ export function MetaAdComposer({
               placeholder="https://…/video.mp4"
               className={`${inputCls} w-full font-mono`}
             />
-            <span className="text-[11px] text-zinc-400">
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
               Si usás video, se sube a Meta antes de crear la vista previa.
             </span>
           </label>
@@ -276,7 +275,7 @@ export function MetaAdComposer({
           {pending ? "Generando vista previa…" : "Previsualizar con el generador de Meta"}
         </button>
         {previewMsg && (
-          <p className="text-[11px] text-zinc-400">{previewMsg}</p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{previewMsg}</p>
         )}
       </div>
 
@@ -335,7 +334,7 @@ export function MetaAdComposer({
           </button>
         </div>
 
-        <p className="text-[11px] text-zinc-400">
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
           Se crea en estado <strong>PAUSADO</strong>: no gasta hasta que lo actives en el
           Administrador de anuncios de Meta.
         </p>
@@ -448,7 +447,7 @@ export function MetaAdComposer({
         )}
 
         {crearMsg && !adCreado && (
-          <p className="text-[11px] text-zinc-400">{crearMsg}</p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{crearMsg}</p>
         )}
       </div>
     </div>

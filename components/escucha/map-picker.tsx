@@ -11,7 +11,7 @@ import dynamic from "next/dynamic";
 const MapPickerInner = dynamic(() => import("./map-picker-inner"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[260px] items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-400 dark:border-zinc-700">
+    <div className="flex h-[260px] items-center justify-center rounded-md border border-zinc-200 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
       Cargando mapa…
     </div>
   ),

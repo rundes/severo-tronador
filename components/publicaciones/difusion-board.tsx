@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ImageUpload } from "@/components/encuestas/image-upload";
 import { buttonClass } from "@/components/ui/button";
 import type { AiTextState, AiImageState, AiSuggestState } from "@/app/(dashboard)/publicaciones/actions";
+import { controlClassName } from "@/components/ui/field";
 
 type AiAction = (prev: AiTextState, fd: FormData) => Promise<AiTextState>;
 type ImgAction = (prev: AiImageState, fd: FormData) => Promise<AiImageState>;
@@ -14,9 +15,7 @@ type PublishAction = (
   imageUrl?: string,
 ) => Promise<{ ok: boolean; msg: string }>;
 
-const inputCls =
-  "w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 // Tablero de difusión multi-red. Compone una vez (texto + imagen, con IA) y
 // publica en cada red. Facebook/Instagram: nativo vía Meta API. X/TikTok/
 // YouTube: no tienen connector OAuth todavía → "copiar y abrir el creador"
@@ -178,7 +177,7 @@ export function DifusionBoard({
         </div>
 
         {(suggestions.length > 0 || improved) && (
-          <div className="space-y-2 rounded-md border border-zinc-200 bg-white/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div className="space-y-2 rounded-md border border-zinc-200 bg-white/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
             {suggestions.length > 0 && (
               <ul className="ml-4 list-disc space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
                 {suggestions.map((s, i) => (
@@ -188,7 +187,7 @@ export function DifusionBoard({
             )}
             {improved && (
               <div className="space-y-1">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Versión mejorada</div>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Versión mejorada</div>
                 <p className="whitespace-pre-wrap rounded border border-zinc-200 p-2 text-xs text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">{improved}</p>
                 <button
                   type="button"
@@ -226,8 +225,8 @@ export function DifusionBoard({
 
         {/* Preview */}
         <div className="space-y-2">
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-400">Previsualización</div>
-          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Previsualización</div>
+          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center gap-2 px-3 py-2">
               <div className="h-8 w-8 rounded-full bg-[oklch(52%_0.13_255)]/20" aria-hidden />
               <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">Tu organización</div>
@@ -241,7 +240,7 @@ export function DifusionBoard({
               <div className="m-3 rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">🔗 {link}</div>
             )}
             {!mensaje && !imageUrl && !link && (
-              <p className="px-3 pb-3 text-sm text-zinc-400">Escribí o generá contenido.</p>
+              <p className="px-3 pb-3 text-sm text-zinc-500 dark:text-zinc-400">Escribí o generá contenido.</p>
             )}
           </div>
         </div>
@@ -249,7 +248,7 @@ export function DifusionBoard({
 
       {/* Redes */}
       <div className="space-y-2">
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-400">Publicar en</div>
+        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Publicar en</div>
         <div className="flex flex-wrap gap-2">
           {PLATFORMS.map((p) => (
             <button
@@ -262,7 +261,7 @@ export function DifusionBoard({
             >
               <span>{p.icon}</span>
               {p.label}
-              <span className="text-[10px] font-normal text-zinc-400">
+              <span className="text-[10px] font-normal text-zinc-500 dark:text-zinc-400">
                 {p.kind === "native" ? "nativo" : p.kind === "intent" ? "abre X" : "copia+abre"}
               </span>
             </button>
@@ -273,7 +272,7 @@ export function DifusionBoard({
             Facebook/Instagram corren en modo mock hasta configurar el conector Meta.
           </p>
         )}
-        <p className="text-[11px] text-zinc-400">
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
           Facebook e Instagram publican por API. X, TikTok y YouTube todavía no
           tienen conexión directa: se copia el contenido y se abre su creador
           (X prellena el texto). Para TikTok/YouTube subís el video desde el

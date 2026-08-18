@@ -1,7 +1,35 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Cropper from "react-easy-crop";
+import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
+
+// El recortador (react-easy-crop) sólo existe cuando el usuario eligió una
+// imagen: importarlo estático lo mete en el bundle inicial de la ruta para
+// todos, incluidos los que nunca suben nada. `ssr: false` porque mide el DOM.
+//
+// El tipo se declara acá con las props que efectivamente se usan: al pasar por
+// next/dynamic se pierden los defaults del componente y su CropperProps pasa a
+// exigir las once props opcionales.
+type CropperMinimalProps = {
+  image: string;
+  crop: { x: number; y: number };
+  zoom: number;
+  aspect?: number;
+  onCropChange: (crop: { x: number; y: number }) => void;
+  onZoomChange: (zoom: number) => void;
+  onCropComplete: (
+    area: unknown,
+    pixels: { x: number; y: number; width: number; height: number },
+  ) => void;
+};
+
+const Cropper = dynamic(() => import("react-easy-crop"), {
+  ssr: false,
+  loading: () => (
+    <div aria-hidden className="h-full w-full animate-pulse bg-zinc-800" />
+  ),
+}) as ComponentType<CropperMinimalProps>;
 import { getCroppedBlob, type PixelCrop } from "./crop-utils";
 import { buttonClass } from "@/components/ui/button";
 
@@ -87,7 +115,7 @@ export function ImageUpload({
         <span className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
           {label}
         </span>
-        <span className="text-[11px] text-zinc-400">{recommend}</span>
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{recommend}</span>
       </div>
 
       {url && !src && (

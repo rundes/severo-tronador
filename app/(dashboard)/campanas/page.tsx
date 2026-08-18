@@ -3,6 +3,8 @@ import { listCampaigns } from "@/lib/campaigns";
 import { requireProject } from "@/lib/workspace";
 import { Hint } from "@/components/ui/hint";
 import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { buttonClass } from "@/components/ui/button";
 
 export const metadata = { title: "Campañas · Severo Tronador" };
 
@@ -70,21 +72,16 @@ export default async function CampanasPage() {
       </Hint>
 
       {campaigns.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700">
-          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            Todavía no hay campañas
-          </p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-500">
-            Armá un segmento y tocá “Iniciar campaña” para enviar tu primer
-            relevamiento.
-          </p>
-          <Link
-            href="/segmentos"
-            className="mt-4 inline-block rounded-lg bg-[oklch(52%_0.13_255)] px-4 py-2 text-sm font-medium text-white hover:bg-[oklch(47%_0.13_255)]"
-          >
-            Crear segmento
-          </Link>
-        </div>
+        <EmptyState
+          icon="📣"
+          title="Todavía no hay campañas"
+          description="Armá un segmento y tocá “Iniciar campaña” para enviar tu primer relevamiento."
+          action={
+            <Link href="/segmentos" className={buttonClass("primary")}>
+              Crear segmento
+            </Link>
+          }
+        />
       ) : (
         <ol className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {campaigns.map((c) => (

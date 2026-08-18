@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SegmentFilter } from "@/lib/segments";
 import { buttonClass } from "@/components/ui/button";
+import { controlClassName } from "@/components/ui/field";
 
 interface TemplateRef {
   id: string;
@@ -30,9 +31,7 @@ const CONDITIONS: { value: StepDraft["condition_kind"]; label: string }[] = [
   { value: "if_response_to_prev", label: "si respondió antes" },
 ];
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 export function FlowBuilder({
   action,
   templatesByChannel,
@@ -225,7 +224,7 @@ export function FlowBuilder({
                   <button
                     type="button"
                     onClick={() => removeStep(i)}
-                    className="text-xs text-zinc-400 hover:text-red-600"
+                    className="text-xs text-zinc-500 hover:text-red-600 dark:text-zinc-400"
                     aria-label="Quitar step"
                   >
                     ✕
@@ -243,7 +242,7 @@ export function FlowBuilder({
       >
         Crear flow
       </button>
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
         El flow queda en estado <code>draft</code> hasta que apretes «Iniciar».
         Eso despacha al cron los envíos con sus <code>scheduled_at</code>.
       </p>

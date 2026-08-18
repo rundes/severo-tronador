@@ -6,6 +6,7 @@ import { duplicarEncuesta } from "./actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata = { title: "Encuestas · Tronador" };
 
@@ -33,9 +34,16 @@ export default async function EncuestasPage() {
       />
 
       {encuestas.length === 0 ? (
-        <p className="rounded border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Todavía no hay encuestas. Creá la primera.
-        </p>
+        <EmptyState
+          icon="📋"
+          title="Todavía no hay encuestas"
+          description="Una encuesta define las preguntas; después se distribuye por campaña o por link público."
+          action={
+            <Link href="/encuestas/nueva" className={buttonClass("primary")}>
+              Crear la primera
+            </Link>
+          }
+        />
       ) : (
         <ol className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {encuestas.map((e) => (

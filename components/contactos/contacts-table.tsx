@@ -182,7 +182,7 @@ export function ContactsTable({
         <table className="w-full text-left text-xs">
           <thead className="bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
             <tr>
-              <th className="px-2.5 py-2">
+              <th scope="col" className="px-2.5 py-2">
                 <input
                   type="checkbox"
                   checked={allOnPage}
@@ -192,12 +192,13 @@ export function ContactsTable({
                 />
               </th>
               {BASE_COLS.map((h) => (
-                <th key={h} className="px-2.5 py-2 font-medium">
+                <th scope="col" key={h} className="px-2.5 py-2 font-medium">
                   {h}
                 </th>
               ))}
               {fieldDefs.map((d) => (
                 <th
+                  scope="col"
                   key={d.id}
                   className="whitespace-nowrap px-2.5 py-2 font-medium"
                 >

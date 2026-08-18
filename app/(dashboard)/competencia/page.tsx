@@ -9,12 +9,13 @@ import {
   type AdActiveStatus,
   type AdLibAd,
 } from "@/lib/meta-ad-library-search";
+import { controlClassName } from "@/components/ui/field";
+import { Suspense } from "react";
+import { SkeletonCard } from "@/components/ui/skeleton";
 
 export const metadata = { title: "Competencia · Tronador" };
 
-const inputCls =
-  "min-h-11 rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-base disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 sm:min-h-0 sm:text-sm";
-
+const inputCls = controlClassName;
 function fmtDate(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -45,20 +46,6 @@ export default async function CompetenciaPage({
   const pais = (params.pais ?? "AR").toUpperCase().slice(0, 2);
   const tipo = (params.tipo as AdType) || "POLITICAL_AND_ISSUE_ADS";
   const estado = (params.estado as AdActiveStatus) || "ALL";
-
-  const result = q
-    ? await searchAdLibrary({
-        terms: q,
-        country: pais,
-        dateMin: desde || undefined,
-        dateMax: hasta || undefined,
-        adType: tipo,
-        activeStatus: estado,
-        limit: 60,
-      })
-    : null;
-
-  const ads: AdLibAd[] = result?.ok ? result.ads : [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -135,17 +122,78 @@ export default async function CompetenciaPage({
         </p>
       )}
 
-      {result && !result.ok && (
-        <p
-          role="alert"
-          className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400"
-        >
-          {result.error}
-        </p>
+      {q && (
+        // La Meta Ad Library es una API externa lenta: esperarla acá frenaba el
+        // TTFB de la página COMPLETA, incluido el buscador que el usuario acaba
+        // de usar. Con Suspense, el formulario vuelve al instante con lo que
+        // escribió y los resultados llegan cuando llegan.
+        <Suspense key={`${q}|${pais}|${desde}|${hasta}|${tipo}|${estado}`} fallback={<ResultadosCargando />}>
+          <Resultados
+            q={q}
+            pais={pais}
+            desde={desde}
+            hasta={hasta}
+            tipo={tipo}
+            estado={estado}
+          />
+        </Suspense>
       )}
+    </div>
+  );
+}
 
-      {result?.ok && (
-        <>
+function ResultadosCargando() {
+  return (
+    <div role="status" aria-live="polite">
+      <span className="sr-only">Buscando anuncios en la Meta Ad Library…</span>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonCard key={i} lines={4} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function Resultados({
+  q,
+  pais,
+  desde,
+  hasta,
+  tipo,
+  estado,
+}: {
+  q: string;
+  pais: string;
+  desde: string;
+  hasta: string;
+  tipo: AdType;
+  estado: AdActiveStatus;
+}) {
+  const result = await searchAdLibrary({
+    terms: q,
+    country: pais,
+    dateMin: desde || undefined,
+    dateMax: hasta || undefined,
+    adType: tipo,
+    activeStatus: estado,
+    limit: 60,
+  });
+  const ads: AdLibAd[] = result.ok ? result.ads : [];
+
+  if (!result.ok) {
+    return (
+      <p
+        role="alert"
+        className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400"
+      >
+        {result.error}
+      </p>
+    );
+  }
+
+  return (
+    <>
           <p className="text-xs text-zinc-500">
             {ads.length === 0
               ? "Sin resultados para esa búsqueda."
@@ -179,17 +227,17 @@ export default async function CompetenciaPage({
                   )}
 
                   <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-[11px]">
-                    <dt className="text-zinc-400">Inicio</dt>
+                    <dt className="text-zinc-500 dark:text-zinc-400">Inicio</dt>
                     <dd className="text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                       {fmtDate(ad.startTime)}
                     </dd>
-                    <dt className="text-zinc-400">Fin</dt>
+                    <dt className="text-zinc-500 dark:text-zinc-400">Fin</dt>
                     <dd className="text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                       {ad.stopTime ? fmtDate(ad.stopTime) : "activo"}
                     </dd>
                     {spend && (
                       <>
-                        <dt className="text-zinc-400">Gasto {ad.currency ?? ""}</dt>
+                        <dt className="text-zinc-500 dark:text-zinc-400">Gasto {ad.currency ?? ""}</dt>
                         <dd className="text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                           {spend}
                         </dd>
@@ -197,7 +245,7 @@ export default async function CompetenciaPage({
                     )}
                     {impr && (
                       <>
-                        <dt className="text-zinc-400">Impresiones</dt>
+                        <dt className="text-zinc-500 dark:text-zinc-400">Impresiones</dt>
                         <dd className="text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                           {impr}
                         </dd>
@@ -205,7 +253,7 @@ export default async function CompetenciaPage({
                     )}
                     {aud && (
                       <>
-                        <dt className="text-zinc-400">Audiencia est.</dt>
+                        <dt className="text-zinc-500 dark:text-zinc-400">Audiencia est.</dt>
                         <dd className="text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                           {aud}
                         </dd>
@@ -239,9 +287,7 @@ export default async function CompetenciaPage({
                 </article>
               );
             })}
-          </div>
-        </>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

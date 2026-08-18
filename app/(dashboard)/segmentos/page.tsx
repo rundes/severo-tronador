@@ -45,7 +45,7 @@ function Bar({ n, total }: { n: number; total: number }) {
   const pct = total ? Math.round((n / total) * 100) : 0;
   const filled = Math.round((pct / 100) * 24);
   return (
-    <span className="font-mono text-xs text-zinc-400">
+    <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
       {"█".repeat(filled)}
       {"░".repeat(24 - filled)} {pct}%
     </span>
@@ -141,7 +141,7 @@ export default async function SegmentosPage({
               <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
                 ✦ Crear segmento con IA
               </span>
-              <span className="text-[11px] text-zinc-400">usa tu cuenta de Claude</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">usa tu cuenta de Claude</span>
             </div>
             <textarea
               name="prompt"
@@ -151,7 +151,7 @@ export default async function SegmentosPage({
             />
             <div className="flex items-center gap-3">
               <SubmitButton pendingLabel="Generando…">Generar filtros</SubmitButton>
-              <span className="text-[11px] text-zinc-400">
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
                 Revisás y ajustás antes de guardar.
               </span>
             </div>
@@ -164,7 +164,7 @@ export default async function SegmentosPage({
 
           <FilterForm barrios={barriosDisponibles(all)} grupos={grupos} afiliaciones={afiliacionesDisponibles(all)} />
           <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
+            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-500 hover:text-zinc-600 dark:text-zinc-400">
               Modo avanzado (AND/OR)
             </summary>
             <div className="mt-3">
@@ -176,7 +176,7 @@ export default async function SegmentosPage({
 
       {/* Segmento desde lista manual de DNIs o emails */}
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-500 hover:text-zinc-600 dark:text-zinc-400">
           📋 Segmento desde lista (DNIs o emails)
         </summary>
         <form action={guardarSegmentoLista} className="mt-3 space-y-2">
@@ -212,7 +212,7 @@ export default async function SegmentosPage({
       </details>
 
       <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Segmentos guardados ({saved.length})
         </summary>
         <div className="mt-3">
@@ -306,7 +306,7 @@ export default async function SegmentosPage({
         </div>
 
         <div className="mt-4">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Distribución de salud
           </div>
           <div className="space-y-0.5 text-sm">
@@ -327,7 +327,7 @@ export default async function SegmentosPage({
         </div>
 
         <div className="mt-4">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Disponibles para contacto hoy
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-600 dark:text-zinc-300">
@@ -371,7 +371,7 @@ export default async function SegmentosPage({
       {costs.length > 0 && <CostPreview costs={costs} />}
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Vista previa {total > 50 && "(primeros 50)"}
         </div>
         <div className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
@@ -383,7 +383,7 @@ export default async function SegmentosPage({
             >
               <span className="text-sm">
                 {contact.nombre} {contact.apellido}
-                <span className="ml-2 text-zinc-400">
+                <span className="ml-2 text-zinc-500 dark:text-zinc-400">
                   {edad ?? "—"} · {contact.barrio}
                 </span>
               </span>
@@ -391,7 +391,7 @@ export default async function SegmentosPage({
             </Link>
           ))}
           {total === 0 && (
-            <div className="px-4 py-6 text-center text-sm text-zinc-400">
+            <div className="px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
               Ningún contacto coincide con estos filtros.
             </div>
           )}

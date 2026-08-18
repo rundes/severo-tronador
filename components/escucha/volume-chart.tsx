@@ -18,7 +18,7 @@ export function VolumeChart({
   if (buckets.length === 0) {
     return (
       <div
-        className="flex items-center justify-center rounded border border-dashed border-zinc-200 text-[10px] text-zinc-400 dark:border-zinc-800"
+        className="flex items-center justify-center rounded border border-dashed border-zinc-200 text-[10px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
         style={{ width, height }}
       >
         sin datos

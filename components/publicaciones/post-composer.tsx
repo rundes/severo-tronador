@@ -5,13 +5,12 @@ import { ImageUpload } from "@/components/encuestas/image-upload";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { buttonClass } from "@/components/ui/button";
 import type { AiTextState, AiImageState } from "@/app/(dashboard)/publicaciones/actions";
+import { controlClassName } from "@/components/ui/field";
 
 type AiAction = (prev: AiTextState, fd: FormData) => Promise<AiTextState>;
 type ImgAction = (prev: AiImageState, fd: FormData) => Promise<AiImageState>;
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 // Compositor de publicaciones: asistente de contenido con Gemini (ajustes
 // acumulativos) + previsualización en vivo + envío a FB/IG. El asistente llama
 // a la server action directamente (useTransition) y vuelca el texto al cuerpo.
@@ -79,7 +78,7 @@ export function PostComposer({
           <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
             ✦ Generar contenido con IA
           </span>
-          <span className="text-[11px] text-zinc-400">Google AI Studio (Gemini)</span>
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Google AI Studio (Gemini)</span>
         </div>
         <textarea
           value={prompt}
@@ -192,7 +191,7 @@ export function PostComposer({
                 <input type="checkbox" name="targets" value="ig" disabled={!igReady && ready} />
                 📸 Instagram
                 {!igReady && (
-                  <span className="text-[11px] text-zinc-400">(falta IG en el conector)</span>
+                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400">(falta IG en el conector)</span>
                 )}
               </label>
             </div>
@@ -203,15 +202,15 @@ export function PostComposer({
 
         {/* ── Previsualización ──────────────────────────────────────────── */}
         <div className="space-y-2">
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-400">
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             Previsualización
           </div>
-          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center gap-2 px-3 py-2">
               <div className="h-8 w-8 rounded-full bg-[oklch(52%_0.13_255)]/20" aria-hidden />
               <div className="text-xs">
                 <div className="font-semibold text-zinc-800 dark:text-zinc-100">Tu organización</div>
-                <div className="text-[10px] text-zinc-400">Ahora · 🌐</div>
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Ahora · 🌐</div>
               </div>
             </div>
             {mensaje && (
@@ -229,12 +228,12 @@ export function PostComposer({
               </div>
             )}
             {!mensaje && !imageUrl && !link && (
-              <p className="px-3 pb-3 text-sm text-zinc-400">
+              <p className="px-3 pb-3 text-sm text-zinc-500 dark:text-zinc-400">
                 Escribí o generá contenido para ver la vista previa.
               </p>
             )}
           </div>
-          <p className="text-[10px] text-zinc-400">
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
             Aproximación de cómo se verá. El render real depende de cada red.
           </p>
         </div>

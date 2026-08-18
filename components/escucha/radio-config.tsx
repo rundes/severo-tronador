@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import type { RadioProgram } from "@/lib/radio";
+import { controlClassName } from "@/components/ui/field";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 const NEW: RadioProgram = {
   url: "",
   station: "",
@@ -38,7 +37,7 @@ export function RadioConfig({ initial }: { initial: RadioProgram[] }) {
     <div className="space-y-3">
       <input type="hidden" name="radioStreams" value={JSON.stringify(programs)} />
       {programs.length === 0 && (
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Sin programas. Agregá uno con la URL del stream y su franja horaria.
         </p>
       )}
@@ -74,7 +73,7 @@ export function RadioConfig({ initial }: { initial: RadioProgram[] }) {
             <button
               type="button"
               onClick={() => setPrograms((list) => list.filter((_, idx) => idx !== i))}
-              className="ml-auto text-xs text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+              className="ml-auto text-xs text-zinc-500 hover:text-red-600 dark:hover:text-red-400 dark:text-zinc-400"
             >
               Quitar
             </button>

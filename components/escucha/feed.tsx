@@ -120,7 +120,7 @@ function FeedRow({ item, indent }: { item: FeedItem; indent?: boolean }) {
               </span>
             )}
           </span>
-          <span className="shrink-0 font-mono text-zinc-400">
+          <span className="shrink-0 font-mono text-zinc-500 dark:text-zinc-400">
             {relativeAgo(item.publishedAt)}
           </span>
         </div>
@@ -132,7 +132,7 @@ function FeedRow({ item, indent }: { item: FeedItem; indent?: boolean }) {
             href={safeHttpUrl(item.url)}
             target="_blank"
             rel="noreferrer"
-            className="mt-1 inline-block text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            className="mt-1 inline-block text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 dark:text-zinc-400"
           >
             abrir →
           </a>
@@ -168,12 +168,12 @@ export function Feed({ items }: { items: FeedItem[] }) {
               {entry.parent ? (
                 <FeedRow item={entry.parent} />
               ) : (
-                <div className="px-4 pt-3 text-[10px] uppercase tracking-wider text-zinc-400">
+                <div className="px-4 pt-3 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Hilo · post padre no incluido
                 </div>
               )}
               <div className="mb-1 ml-4 border-l border-zinc-200 dark:border-zinc-800">
-                <div className="px-3 pt-1.5 text-[10px] uppercase tracking-wider text-zinc-400">
+                <div className="px-3 pt-1.5 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   💬 {entry.comments.length}{" "}
                   {entry.comments.length === 1 ? "respuesta" : "respuestas"}
                 </div>

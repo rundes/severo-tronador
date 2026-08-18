@@ -91,7 +91,7 @@ function AdCard({
               className="h-[560px] w-full border-0 bg-white"
             />
           ) : (
-            <div className="flex h-[560px] items-center justify-center p-4 text-center text-xs text-zinc-400">
+            <div className="flex h-[560px] items-center justify-center p-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
               Conectá Meta (Conectores → Meta) para ver el preview real.
             </div>
           )}

@@ -11,7 +11,7 @@ export function TagCloud({
 }) {
   if (tags.length === 0) {
     return (
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
         Sin tags todavía en este sentimiento.
       </p>
     );

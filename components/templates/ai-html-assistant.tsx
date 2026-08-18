@@ -52,14 +52,14 @@ export function AiHtmlAssistant({
         onChange={(e) => setPrompt(e.target.value)}
         rows={5}
         placeholder="Describí el email que querés. Ej: «Invitación a la encuesta con un botón grande a {{encuesta_url}} y un tono cercano». Podés pedir cambios sobre lo ya generado."
-        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100"
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100"
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={generar} disabled={pending || !prompt.trim()} className={buttonClass("accent")}>
           {pending ? "Generando…" : current.trim() ? "✦ Generar / refinar" : "✦ Generar HTML"}
         </button>
-        <span className="text-[11px] text-zinc-400">
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
           Usa tu cuenta de Claude (conector Claude API).
         </span>
       </div>
@@ -77,7 +77,7 @@ export function AiHtmlAssistant({
       )}
 
       <div className="space-y-1 pt-1">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           Ejemplos
         </div>
         <ul className="space-y-1">

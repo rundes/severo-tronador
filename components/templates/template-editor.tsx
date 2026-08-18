@@ -13,6 +13,7 @@ import { buttonClass } from "@/components/ui/button";
 import { AiHtmlAssistant } from "@/components/templates/ai-html-assistant";
 import { VisualEditor } from "@/components/templates/visual-editor";
 import type { AiHtmlState } from "@/app/(dashboard)/templates/actions";
+import { controlClassName } from "@/components/ui/field";
 
 interface VarOption {
   key: string;
@@ -36,9 +37,7 @@ const CHANNEL_OPTS = [
   { value: "whatsapp", label: "💬 WhatsApp" },
 ];
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100";
-
+const inputCls = controlClassName;
 // Plantillas HTML prediseñadas (contenido, sin el shell). Variables {{...}}
 // se interpolan igual que en texto. El shell de marca + opt-out los agrega
 // el render al enviar.
@@ -525,7 +524,7 @@ export function TemplateEditor({
                   }}
                 />
               )}
-              <p className="text-[10px] text-zinc-400">
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
                 HTML seguro (se sanitiza al enviar: se permiten p, a, img, table,
                 listas, encabezados y <code>style</code> inline). El cuerpo de
                 texto plano de arriba se guarda como respaldo.
@@ -572,7 +571,7 @@ export function TemplateEditor({
               {isEditing ? "Guardar cambios" : "Guardar plantilla"}
             </SubmitButton>
             <FormStatus ok={statusOk} error={statusError} />
-            <p className="text-[10px] text-zinc-400">
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
               Al guardar, la plantilla queda en la colección y se puede usar en
               campañas y encuestas.
               {isHtml && (
@@ -593,7 +592,7 @@ export function TemplateEditor({
             <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
               Preview {isEmail ? (isHtml ? "· HTML" : "· texto") : ""}
             </h2>
-            <span className="font-mono text-[10px] text-zinc-400">
+            <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
               destinatario: {sampleContactLabel}
             </span>
           </div>

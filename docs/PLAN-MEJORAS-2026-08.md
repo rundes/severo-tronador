@@ -170,7 +170,63 @@ El riesgo legal/reputacional más alto del producto:
 4. **CSP**: falta por completo; con `dangerouslySetInnerHTML` en render de mail es la segunda capa necesaria. Empezar en `Report-Only`.
 5. Zod en bordes: 0 de 20 rutas API validan body (webhooks incluidos, el HMAC autentica origen, no forma); extender `lib/schemas.ts`.
 
-## F5 — Frontend: adoptar el design system propio (semana 5-6)
+## F5 — Frontend: adoptar el design system propio (semana 5-6) — ✅ hecho
+
+> Entregado en la rama `feat/design-system`. Sin migraciones.
+>
+> Lo que se hizo, punto por punto:
+> 1. **Controles** (`components/ui/field.tsx`): `Input`/`Textarea`/`Select`/
+>    `Field`. Las 20 definiciones locales de `inputCls` pasan a apuntar al token
+>    del sistema, así que los ~200 usos no se tocaron. Se eliminaron los
+>    `focus:outline-none`, que anulaban el `:focus-visible` global de
+>    globals.css y dejaban 12 controles sin ningún indicador de foco (WCAG
+>    2.4.7). Única excepción documentada: el lienzo `contenteditable` del editor
+>    visual, donde el outline encierra todo el área y el foco lo comunica el
+>    cursor.
+> 2. **Modal/ConfirmDialog** (`components/ui/modal.tsx`) con `role="dialog"`,
+>    `aria-modal`, título asociado, trampa de foco, devolución del foco al
+>    disparador y cierre con Escape. Migrados el modal de conectores y el de
+>    borrado de respuestas. El drawer del sidebar lleva `inert` cuando está
+>    cerrado en mobile: sus ~30 links se tabulaban igual estando fuera de
+>    pantalla.
+> 4. **EmptyState / Skeleton** + `global-error.tsx` y `not-found.tsx`, que
+>    faltaban por completo. Los estados vacíos migrados ofrecen la salida
+>    concreta en vez de sólo avisar. `/competencia` pasa a `<Suspense>`: la Meta
+>    Ad Library frenaba el TTFB de la página entera, incluido el buscador que el
+>    usuario acababa de usar.
+> 5. **Contraste**: los 211 `text-zinc-400` usados como texto informativo pasan
+>    a `text-zinc-500 dark:text-zinc-400` (2.6:1 → 4.6:1 en claro). Las
+>    superficies con `dark:bg-zinc-950` sobre un fondo que también es zinc-950
+>    —las tarjetas desaparecían en oscuro— pasan a zinc-900.
+> 6. **Paleta**: `lib/channels.ts` unifica las cinco copias del mapa
+>    canal→emoji; tres se habían quedado sin Telegram y el mismo canal aparecía
+>    en una pantalla y no en otra. `tabular-nums` en las celdas numéricas
+>    alineadas a la derecha.
+> 7. **Performance**: el `import * as Icons from "lucide-react"` del sidebar
+>    traía la librería entera al bundle de TODA ruta del panel (el nombre venía
+>    como string desde el server, así que el bundler no podía saber cuáles se
+>    usaban) → mapa explícito. `react-easy-crop` pasa a `next/dynamic`.
+>    Waterfalls de awaits en la ficha de contacto y en /mail → `Promise.all`.
+>    Las portadas de encuesta pasan a `next/image` (con `remotePatterns`
+>    derivado de SUPABASE_URL).
+>
+> Desvíos respecto de lo planeado, con su razón:
+> - **Sin `<DataTable>`** (punto 3). Se hizo lo que estaba mal: `scope="col"` en
+>   los encabezados de las 6 tablas de datos y paginación de la lista de envíos
+>   de campaña (renderizaba los 50.000 de una; el `key={e.dni}` además colapsaba
+>   las filas repetidas de una campaña con variantes A/B). Un componente único
+>   para 9 tablas que hoy no comparten estructura —una con selección múltiple,
+>   otra con columnas dinámicas del padrón, otra con columna sticky— sería una
+>   abstracción especulativa: cada una terminaría pasando su excepción por prop.
+> - **Card sigue sin adoptarse en las ~100 copias del string**. Se corrigió el
+>   `dark:bg` que la hacía invisible, pero reemplazar 100 sitios es un cambio
+>   mecánico grande de riesgo visual alto y beneficio funcional nulo. Queda como
+>   deuda, no como bug.
+> - **Sin zod en cliente ni guard de cambios sin guardar** (punto 8). La
+>   validación server-side con `redirect(?error=)` funciona; duplicar los
+>   schemas en el cliente es mejora de UX, no corrección. El guard de "tenés
+>   cambios sin guardar" necesita decidir qué hacer con los editores que
+>   autoguardan en localStorage (ad-studio), y eso es diseño.
 
 El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su string está copiado ~100 veces; 22 copias divergentes de `inputCls`. Orden de extracción (mayor ROI primero):
 
@@ -204,7 +260,7 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 | ✅ F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
 | ✅ F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
 | ✅ F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
-| F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |
+| ✅ F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |
 | F6 higiene | continuo | Deuda acumulada |
 
 F0-F2 son secuenciales (mismo código: send-queue, templates). F3, F4 y F5 son paralelizables entre sí.

@@ -53,14 +53,14 @@ export function RadioAgenda({
           Próximas grabaciones
         </h3>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-zinc-400">Sin programas próximos.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Sin programas próximos.</p>
         ) : (
           <ul className="space-y-1.5">
             {upcoming.slice(0, 12).map((o, i) => (
               <li key={i} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate">
                   <span className="font-medium text-zinc-800 dark:text-zinc-100">{o.programa}</span>{" "}
-                  <span className="text-zinc-400">· {o.station}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">· {o.station}</span>
                 </span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">
                   {fmt(o.startMs)}
@@ -75,15 +75,15 @@ export function RadioAgenda({
           Grabaciones recientes
         </h3>
         {runs.length === 0 ? (
-          <p className="text-sm text-zinc-400">Todavía no se grabó ningún programa.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Todavía no se grabó ningún programa.</p>
         ) : (
           <ul className="space-y-1.5">
             {runs.slice(0, 12).map((r) => (
               <li key={r.id} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate">
                   <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.programa}</span>{" "}
-                  <span className="text-zinc-400">· {r.station}</span>
-                  <span className="ml-1 font-mono text-[10px] text-zinc-400">{fmtIso(r.scheduledStart)}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">· {r.station}</span>
+                  <span className="ml-1 font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{fmtIso(r.scheduledStart)}</span>
                 </span>
                 <span className="shrink-0">{statusBadge(r.status, r.mentions)}</span>
               </li>

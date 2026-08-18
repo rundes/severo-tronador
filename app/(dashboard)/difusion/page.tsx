@@ -21,12 +21,11 @@ import {
 import { listMyAds, getAdPreview, type DatePreset, type AdStatusFilter } from "@/lib/meta-ads";
 import { MisAnuncios } from "@/components/publicaciones/mis-anuncios";
 import { AdsReportTable } from "@/components/publicaciones/ads-report-table";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Difusión · Tronador" };
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 type Tab = "publicar" | "anuncios" | "reporte";
 
 export default async function DifusionPage({

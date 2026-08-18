@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { scaleBounds, type Question, type QuestionType } from "@/lib/encuestas/types";
 import { SURVEY_LAYOUTS } from "@/lib/encuestas/layouts";
 import { ImageUpload } from "@/components/encuestas/image-upload";
+import { controlClassName } from "@/components/ui/field";
 
 const TYPE_LABEL: Record<QuestionType, string> = {
   text: "Texto corto",
@@ -15,9 +16,7 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   boolean: "Sí / No",
 };
 
-const inputCls =
-  "w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 function newQuestion(): Question {
   return { id: crypto.randomUUID(), type: "text", label: "", required: false };
 }
@@ -35,7 +34,7 @@ function PreviewField({ q }: { q: Question }) {
         {(q.options ?? []).map((opt, i) => (
           <div key={i} className="flex items-center gap-3 rounded-lg border border-zinc-300 p-3 text-sm dark:border-zinc-700">
             <span className={`h-4 w-4 shrink-0 border border-zinc-400 ${q.type === "single" ? "rounded-full" : "rounded"}`} />
-            <span>{opt || <em className="text-zinc-400">opción vacía</em>}</span>
+            <span>{opt || <em className="text-zinc-500 dark:text-zinc-400">opción vacía</em>}</span>
           </div>
         ))}
       </div>
@@ -60,15 +59,15 @@ function PreviewField({ q }: { q: Question }) {
 
 function Preview({ questions }: { questions: Question[] }) {
   return (
-    <div className="mx-auto max-w-md space-y-6 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="mx-auto max-w-md space-y-6 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       {questions.length === 0 && (
-        <p className="text-sm text-zinc-400">Agregá preguntas para ver la vista previa.</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Agregá preguntas para ver la vista previa.</p>
       )}
       {questions.map((q, i) => (
         <div key={q.id} className="space-y-2">
           <p className="text-base font-medium leading-snug text-zinc-900 dark:text-zinc-100">
-            <span className="mr-1 text-zinc-400">{i + 1}.</span>
-            {q.label || <em className="text-zinc-400">sin enunciado</em>}
+            <span className="mr-1 text-zinc-500 dark:text-zinc-400">{i + 1}.</span>
+            {q.label || <em className="text-zinc-500 dark:text-zinc-400">sin enunciado</em>}
             {q.required && <span className="ml-0.5 text-red-500">*</span>}
           </p>
           {q.description && <p className="text-sm text-zinc-500">{q.description}</p>}
@@ -227,7 +226,7 @@ export function QuestionEditor({
             className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
           >
             <div className="flex items-start gap-2">
-              <span className="mt-2 w-5 shrink-0 text-center font-mono text-xs text-zinc-400">
+              <span className="mt-2 w-5 shrink-0 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
                 {idx + 1}
               </span>
               <div className="min-w-0 flex-1 space-y-2">
@@ -324,7 +323,7 @@ export function QuestionEditor({
               </div>
 
               {!readOnly && (
-                <div className="flex shrink-0 flex-col gap-1 text-zinc-400">
+                <div className="flex shrink-0 flex-col gap-1 text-zinc-500 dark:text-zinc-400">
                   <button type="button" onClick={() => move(q.id, -1)} aria-label="Subir" className="hover:text-zinc-700 dark:hover:text-zinc-200">↑</button>
                   <button type="button" onClick={() => move(q.id, 1)} aria-label="Bajar" className="hover:text-zinc-700 dark:hover:text-zinc-200">↓</button>
                   <button type="button" onClick={() => remove(q.id)} aria-label="Quitar" className="hover:text-red-600">✕</button>

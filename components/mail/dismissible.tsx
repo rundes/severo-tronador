@@ -53,7 +53,7 @@ export function Dismissible({
         type="button"
         onClick={dismiss}
         aria-label="Cerrar aviso"
-        className="absolute right-2 top-2 rounded p-1 text-zinc-400 transition-colors hover:bg-black/5 hover:text-zinc-600 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+        className="absolute right-2 top-2 rounded p-1 text-zinc-500 transition-colors hover:bg-black/5 hover:text-zinc-600 dark:hover:bg-white/10 dark:hover:text-zinc-200 dark:text-zinc-400"
       >
         ✕
       </button>

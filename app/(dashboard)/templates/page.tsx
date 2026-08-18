@@ -171,7 +171,7 @@ export default async function TemplatesPage({
                     {t.nombre}
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-zinc-400">
+                    <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
                       {CHANNEL_ICON[t.channel]} {t.channel}
                       {t.formato === "html" ? " · HTML" : t.formato === "html_full" ? " · HTML full" : ""}
                     </span>

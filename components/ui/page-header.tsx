@@ -16,7 +16,7 @@ export function PageHeader({
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div className="space-y-1.5">
         {eyebrow && (
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {eyebrow}
           </div>
         )}

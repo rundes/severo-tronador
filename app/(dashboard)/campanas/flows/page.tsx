@@ -134,7 +134,7 @@ export default async function FlowsPage({
                     <input type="hidden" name="id" value={flow.id} />
                     <button
                       type="submit"
-                      className="rounded px-2 py-1 text-xs text-zinc-400 hover:text-red-600"
+                      className="rounded px-2 py-1 text-xs text-zinc-500 hover:text-red-600 dark:text-zinc-400"
                       aria-label="Borrar"
                     >
                       ✕
@@ -148,16 +148,16 @@ export default async function FlowsPage({
                     key={step.position}
                     className="flex items-center gap-3 text-zinc-600 dark:text-zinc-300"
                   >
-                    <span className="font-mono text-zinc-400">
+                    <span className="font-mono text-zinc-500 dark:text-zinc-400">
                       d+{step.delay_days}
                     </span>
                     <span>
                       {CHANNEL_ICON[step.channel] ?? "•"} {step.channel}
                     </span>
-                    <span className="text-zinc-400">
+                    <span className="text-zinc-500 dark:text-zinc-400">
                       · tpl {step.template_id}
                     </span>
-                    <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                    <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                       {CONDITION_LABEL[step.condition_kind] ?? step.condition_kind}
                     </span>
                   </li>

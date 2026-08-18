@@ -11,6 +11,7 @@ import type { GenProposalsResult } from "@/app/(dashboard)/publicaciones/actions
 import type { SavedBrief, BriefInput } from "@/lib/estudio-briefs";
 import { buttonClass } from "@/components/ui/button";
 import { ImageUpload } from "@/components/encuestas/image-upload";
+import { controlClassName } from "@/components/ui/field";
 
 type GenAction = (prompt: string, platforms: string[], brief?: BriefRefs) => Promise<GenProposalsResult>;
 type RefineAction = (
@@ -78,9 +79,7 @@ const PLATFORMS: { id: Platform; label: string; icon: string }[] = [
   { id: "youtube", label: "YouTube", icon: "▶️" },
 ];
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 const BRIEF_STORAGE_KEY = "adstudio:brief:v1";
 
 function fieldText(v: string | string[]): string {
@@ -570,7 +569,7 @@ export function AdStudio({
                 {refCount} ref
               </span>
             )}
-            <span className="ml-1.5 font-normal text-zinc-400">— ajustá y volvé a generar</span>
+            <span className="ml-1.5 font-normal text-zinc-500 dark:text-zinc-400">— ajustá y volvé a generar</span>
           </summary>
           <div className="space-y-3 border-t border-zinc-200 p-3 dark:border-zinc-800">
             <BriefEditor
@@ -627,7 +626,7 @@ export function AdStudio({
               ))}
             </div>
           </div>
-          <p className="text-[11px] text-zinc-400">
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
             Modelos disponibles: {models.length ? models.join(", ") : "ninguno (configurá SiliconFlow / Google AI / Claude en Conectores)"}.
           </p>
           <button
@@ -727,7 +726,7 @@ export function AdStudio({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={media[p.id]!.imageUrl} alt="" className="mt-2 max-h-[32rem] w-full rounded-lg border border-zinc-200 object-contain dark:border-zinc-800" />
                     )}
-                    {media[p.id]?.imgMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.imgMsg}</p>}
+                    {media[p.id]?.imgMsg && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{media[p.id]!.imgMsg}</p>}
                   </div>
                   <div className="space-y-1">
                     <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">🎬 Video</span>
@@ -760,7 +759,7 @@ export function AdStudio({
                     {media[p.id]?.videoUrl && (
                       <video src={media[p.id]!.videoUrl} controls className="mt-2 max-h-[32rem] w-full rounded-lg border border-zinc-200 dark:border-zinc-800" />
                     )}
-                    {media[p.id]?.vidMsg && <p className="text-[11px] text-zinc-400">{media[p.id]!.vidMsg}</p>}
+                    {media[p.id]?.vidMsg && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{media[p.id]!.vidMsg}</p>}
                   </div>
                 </div>
 
@@ -796,7 +795,7 @@ export function AdStudio({
                       </button>
                     </div>
                     {!media[p.id]?.imageUrl && !media[p.id]?.videoUrl && (
-                      <p className="text-[11px] text-zinc-400">Generá una imagen o video arriba para previsualizar el anuncio.</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Generá una imagen o video arriba para previsualizar el anuncio.</p>
                     )}
                     {adState[p.id]?.previews?.length ? (
                       <div className="space-y-2">
@@ -824,7 +823,7 @@ export function AdStudio({
                         />
                       </div>
                     ) : null}
-                    {adState[p.id]?.msg && <p className="text-[11px] text-zinc-400">{adState[p.id]!.msg}</p>}
+                    {adState[p.id]?.msg && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{adState[p.id]!.msg}</p>}
 
                     {/* Crear el anuncio (PAUSED) */}
                     <div className="space-y-2 rounded-md border border-zinc-100 p-2 dark:border-zinc-800">
@@ -869,7 +868,7 @@ export function AdStudio({
                                 ))}
                               </select>
                             </label>
-                            <p className="text-[10px] text-zinc-400">
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
                               Los emails/teléfonos del segmento se hashean con SHA-256 antes de enviarse a Meta. Requiere aceptar los Términos de Custom Audiences en Meta Business.
                             </p>
                           </div>
@@ -909,7 +908,7 @@ export function AdStudio({
                           Ver en Difusión → ({crearState[p.id]!.adId})
                         </a>
                       )}
-                      {crearState[p.id]?.msg && <p className="text-[11px] text-zinc-400">{crearState[p.id]!.msg}</p>}
+                      {crearState[p.id]?.msg && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{crearState[p.id]!.msg}</p>}
                     </div>
                   </div>
                 </details>
@@ -933,7 +932,7 @@ export function AdStudio({
           {selectedProposals.map((p) => (
             <div key={p.id} className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-                {p.label} {p.angle && <span className="font-normal text-zinc-400">· {p.angle}</span>}
+                {p.label} {p.angle && <span className="font-normal text-zinc-500 dark:text-zinc-400">· {p.angle}</span>}
               </div>
               {(media[p.id]?.imageUrl || media[p.id]?.videoUrl) && (
                 <div className="flex flex-wrap gap-3">
@@ -1098,7 +1097,7 @@ function BriefEditor({
           onRemove={removeAt(setVideos)}
         />
       </div>
-      <p className="text-[11px] text-zinc-400">
+      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
         Las referencias se mantienen en este navegador y se le pasan a la IA como
         contexto en cada generación y ajuste. Los modelos de texto no &laquo;ven&raquo; las
         imágenes/videos: usan las URLs y tu descripción para alinear el estilo.
@@ -1138,7 +1137,7 @@ function RefList({
     <div className="space-y-1.5">
       <div className="flex flex-col">
         <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{label}</span>
-        {hint && <span className="text-[11px] text-zinc-400">{hint}</span>}
+        {hint && <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</span>}
       </div>
       <div className="flex gap-1.5">
         <input
@@ -1195,7 +1194,7 @@ function RefList({
               <button
                 type="button"
                 onClick={() => onRemove(i)}
-                className="shrink-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+                className="shrink-0 text-zinc-500 hover:text-red-600 dark:hover:text-red-400 dark:text-zinc-400"
                 aria-label="Quitar referencia"
               >
                 ✕
