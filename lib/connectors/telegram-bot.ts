@@ -18,13 +18,19 @@ import type {
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
+import {
+  isRetryableStatus,
+  networkFailure,
+  parseRetryAfter,
+  sendFetch,
+} from "./send-http";
 import { getChatByDni } from "@/lib/telegram-chats";
 
 const ID = "telegram-bot";
 const SOFT_LIMIT = 100000; // Telegram bot API es 30 msgs/seg + 20 grupos/min. Tope blando para tracking.
 
 async function bot(token: string, method: string, body: unknown): Promise<Response> {
-  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  return sendFetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -158,9 +164,17 @@ export const telegramBotConnector: OutreachConnector = {
         ok: boolean;
         result?: { message_id?: number };
         description?: string;
+        parameters?: { retry_after?: number };
       };
       if (!data.ok) {
-        return { ok: false, error: data.description ?? `Telegram HTTP ${res.status}` };
+        // Flood control: Telegram devuelve 429 con parameters.retry_after
+        // (segundos). Reintentar antes sólo extiende el bloqueo.
+        return {
+          ok: false,
+          error: data.description ?? `Telegram HTTP ${res.status}`,
+          retryable: isRetryableStatus(res.status),
+          retryAfterSeconds: parseRetryAfter(data.parameters?.retry_after),
+        };
       }
       await incrementUsage(ID, 1, projectId);
       return {
@@ -168,7 +182,7 @@ export const telegramBotConnector: OutreachConnector = {
         providerMessageId: data.result?.message_id?.toString(),
       };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return networkFailure("Telegram", err);
     }
   },
 };

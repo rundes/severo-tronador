@@ -16,6 +16,12 @@ import type {
 import { getUsage, incrementUsage, nextDailyReset, dailyQuotaKey } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
+import {
+  isRetryableStatus,
+  networkFailure,
+  parseRetryAfter,
+  sendFetch,
+} from "./send-http";
 import { isValidEmail } from "@/lib/schemas";
 
 // Brevo limita por DÍA (free = 300/día). La cuota se trackea bajo una key
@@ -68,6 +74,8 @@ export const brevoConnector: OutreachConnector = {
       : { ok: true, message: "Modo mock — simula envíos y consume cuota (sin API key)." };
   },
 
+  quotaKey,
+
   async getStatus(): Promise<ConnectorStatus> {
     return (await getUsage(quotaKey())) >= DAILY_LIMIT ? "quota_exhausted" : "enabled";
   },
@@ -109,7 +117,7 @@ export const brevoConnector: OutreachConnector = {
     }
 
     try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      const res = await sendFetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: {
           "api-key": cfg.BREVO_API_KEY,
@@ -135,13 +143,18 @@ export const brevoConnector: OutreachConnector = {
         } catch {
           // sin cuerpo JSON
         }
-        return { ok: false, error: `Brevo ${detail}` };
+        return {
+          ok: false,
+          error: `Brevo ${detail}`,
+          retryable: isRetryableStatus(res.status),
+          retryAfterSeconds: parseRetryAfter(res.headers.get("retry-after")),
+        };
       }
       const data = (await res.json()) as { messageId?: string };
       await incrementUsage(quotaKey(), 1, projectId);
       return { ok: true, providerMessageId: data.messageId };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return networkFailure("Brevo", err);
     }
   },
 };

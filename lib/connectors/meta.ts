@@ -11,6 +11,7 @@ import type {
   Connector,
 } from "./types";
 import { getConnectorConfig } from "./config";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 const ID = "meta";
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -74,7 +75,7 @@ export const metaConnector: Connector = {
       };
     }
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${GRAPH}/${cfg.META_PAGE_ID}?fields=name&access_token=${encodeURIComponent(
           cfg.META_ACCESS_TOKEN,
         )}`,

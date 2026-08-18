@@ -6,6 +6,7 @@ import { addResponse } from "@/lib/survey";
 import { optOut as optOutContact } from "@/lib/optout";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { recordInbound, inboundExists } from "@/lib/inbound-store";
+import { log } from "@/lib/logger";
 
 // Normaliza un teléfono a dígitos E.164 sin `+`, forzando prefijo país AR (54)
 // si falta. Sirve para comparar el remitente entrante contra padron.telefono
@@ -106,12 +107,22 @@ export async function ingestInbound(
     dni = await resolveContactByPhone(projectId, input.senderExternalId);
   }
 
-  // Opt-out: prioridad sobre guardar respuesta.
+  // Opt-out: prioridad sobre guardar respuesta. Una baja de alguien que NO
+  // matcheó contra el padrón no se puede aplicar (no hay a quién dársela), pero
+  // tampoco se descarta: se marca `is_opt_out` igual para que quede visible en
+  // la bandeja de entrantes como baja pendiente de revisión manual.
   const keyword = detectOptOut(body);
+  const isOptOut = keyword !== null;
   let optedOut = false;
   if (keyword && dni) {
     await optOutContact(projectId, dni, `${input.channel} ${keyword.toLowerCase()}`);
     optedOut = true;
+  } else if (keyword) {
+    log.warn("inbound.opt_out.unmatched", {
+      channel: input.channel,
+      sender: input.senderExternalId,
+      keyword,
+    });
   }
 
   // Contexto + respuesta derivada. Un body vacío (blank SMS, etc.) no debe
@@ -119,7 +130,7 @@ export async function ingestInbound(
   // token) — si no, la respuesta real del contacto queda bloqueada.
   let responseToken: string | null = null;
   let campaignId: string | null = null;
-  if (dni && !optedOut && body.length > 0) {
+  if (dni && !isOptOut && body.length > 0) {
     const since = new Date(Date.now() - WINDOW_HOURS * 3600_000).toISOString();
     const ref = await latestSurveyTokenForDni(projectId, dni, since);
     if (ref) {
@@ -143,7 +154,7 @@ export async function ingestInbound(
     provider_message_id: input.providerMessageId ?? null,
     campaign_id: campaignId,
     respuesta_token: responseToken,
-    is_opt_out: optedOut,
+    is_opt_out: isOptOut,
     raw: input.raw ?? null,
   });
 

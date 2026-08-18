@@ -18,8 +18,10 @@ import {
   type Campaign,
 } from "@/lib/campaigns";
 import type { Channel } from "@/lib/relationship";
+import type { SendResult } from "@/lib/connectors/types";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { getOrgUsage } from "@/lib/quota";
+import { optedOutSet } from "@/lib/optout";
 import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
@@ -77,23 +79,23 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return NextResponse.json({ skipped: "no db" });
 
   const db = getSupabase();
-  const nowIso = new Date().toISOString();
 
   // Colas SEPARADAS por proveedor: cada connector drena hasta BATCH filas por
   // corrida, en paralelo. Así una cola grande de un proveedor (ej. 1300 de
   // Resend) no tapa la de otro (Brevo), y cada uno respeta su propia cuota.
   // Iteramos los conectores CONOCIDOS (no una query "distinct", que el límite
   // de 1000 filas de PostgREST truncaría a un solo proveedor con mucha cola).
+  //
+  // El lote se TOMA (claim), no se lee: el RPC marca las filas 'processing' con
+  // FOR UPDATE SKIP LOCKED en la misma transacción, así dos ticks solapados se
+  // reparten filas distintas en vez de enviar las mismas dos veces. `attempts`
+  // ya viene incrementado por el claim.
   const pending: PendingRow[] = [];
   for (const cid of OUTREACH_CONNECTOR_IDS) {
-    const { data, error } = await db
-      .from("envio_queue")
-      .select("*")
-      .eq("status", "pending")
-      .eq("connector_id", cid)
-      .lte("scheduled_at", nowIso)
-      .order("created_at")
-      .limit(BATCH);
+    const { data, error } = await db.rpc("claim_envio_queue", {
+      p_connector_id: cid,
+      p_limit: BATCH,
+    });
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -102,11 +104,69 @@ export async function GET(req: Request) {
 
   let done = 0;
   let failed = 0;
+  let dead = 0;
   let rescheduled = 0;
   const touchedCampaigns = new Set<string>();
 
   let skippedByCondition = 0;
   let rescheduledByWindow = 0;
+  let skippedByOptOut = 0;
+
+  // Bajas por proyecto, leídas una vez por tick. El opt-out se chequea al
+  // ENCOLAR, pero una baja posterior (o un flow con steps a días vista) dejaba
+  // pasar envíos a gente ya dada de baja: acá está el último punto de control
+  // antes de tocar el connector.
+  // Registro del envío (lo que ve el dashboard de la campaña). Idempotente por
+  // el unique (campaign_id, token): si una corrida anterior ya lo registró, el
+  // upsert no hace nada y no se duplica el espejo a Sheets.
+  async function recordEnvio(row: PendingRow, result: SendResult) {
+    const envioRow = {
+      project_id: row.project_id,
+      campaign_id: row.campaign_id,
+      dni: row.contact.dni,
+      nombre: `${row.contact.nombre} ${row.contact.apellido}`,
+      destino:
+        row.channel === "email"
+          ? row.contact.email ?? "—"
+          : row.contact.telefono ?? "—",
+      estado: result.ok ? "sent" : "failed",
+      reason: result.error ?? null,
+      provider_message_id: result.providerMessageId ?? null,
+      delivery: null,
+      token: row.token,
+      variant_id: row.variant_id ?? null,
+      created_at: new Date().toISOString(),
+    };
+    const { data: inserted, error } = await db
+      .from("envios")
+      .upsert(envioRow, {
+        onConflict: "campaign_id,token",
+        ignoreDuplicates: true,
+      })
+      .select("id");
+    if (error) {
+      // No se puede reintentar el envío, así que se deja rastro y se sigue: la
+      // fila de la cola guarda el provider_message_id para reconciliar.
+      log.error("cron.send_queue.envio_persist_failed", {
+        queue_id: row.id,
+        campaign_id: row.campaign_id,
+        error: error.message,
+      });
+      return;
+    }
+    if ((inserted ?? []).length > 0) {
+      await enqueueSheetSync("envios", "upsert", envioRow);
+    }
+  }
+
+  const optOutCache = new Map<string, Set<string>>();
+  async function optedOutIn(projectId: string): Promise<Set<string>> {
+    const cached = optOutCache.get(projectId);
+    if (cached) return cached;
+    const set = await optedOutSet(projectId);
+    optOutCache.set(projectId, set);
+    return set;
+  }
 
   // Cache de send-window por flow_id para no consultar N veces.
   const windowCache = new Map<
@@ -139,14 +199,36 @@ export async function GET(req: Request) {
   const orgUsedCache = new Map<string, number>();
 
   for (const row of pending) {
+    // Opt-out: última barrera antes del connector. Terminal (no reintenta) y
+    // sin fila en `envios`, así que no cuenta como enviado ni como fallo.
+    if ((await optedOutIn(row.project_id)).has(row.contact.dni)) {
+      await db
+        .from("envio_queue")
+        .update({
+          status: "done",
+          claimed_at: null,
+          last_error: "opt_out_skipped",
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      skippedByOptOut++;
+      touchedCampaigns.add(row.campaign_id);
+      continue;
+    }
+
     // Send-window del flow: si está fuera, reschedule al próximo inicio.
     if (row.flow_id) {
       const win = await getWindow(row.flow_id);
       if (win.startHour != null && win.endHour != null && !isInWindow(win)) {
         const next = nextWindowStart(win);
+        // Vuelve a 'pending' y devuelve el intento que consumió el claim: no se
+        // tocó al proveedor, así que esto no gasta uno de los MAX_ATTEMPTS.
         await db
           .from("envio_queue")
           .update({
+            status: "pending",
+            attempts: row.attempts - 1,
+            claimed_at: null,
             scheduled_at: next,
             last_error: "out_of_window",
           })
@@ -170,6 +252,7 @@ export async function GET(req: Request) {
           .from("envio_queue")
           .update({
             status: "done",
+            claimed_at: null,
             last_error: "condition_skipped",
             processed_at: new Date().toISOString(),
           })
@@ -189,6 +272,7 @@ export async function GET(req: Request) {
         .from("envio_queue")
         .update({
           status: "failed",
+          claimed_at: null,
           last_error: `connector ${row.connector_id} no registrado`,
           processed_at: new Date().toISOString(),
         })
@@ -213,10 +297,14 @@ export async function GET(req: Request) {
       };
       quotaCache.set(qKey, quota);
     }
-    let orgUsed = orgUsedCache.get(row.connector_id);
+    // Clave de cuota del conector, NO su id: los de límite diario contabilizan
+    // bajo `<id>:YYYY-MM-DD`, así que preguntar por `brevo` a secas devolvía
+    // siempre 0 y el guard org-wide del free tier nunca frenaba nada.
+    const orgKey = connector.quotaKey?.() ?? row.connector_id;
+    let orgUsed = orgUsedCache.get(orgKey);
     if (orgUsed === undefined) {
-      orgUsed = await getOrgUsage(row.connector_id);
-      orgUsedCache.set(row.connector_id, orgUsed);
+      orgUsed = await getOrgUsage(orgKey);
+      orgUsedCache.set(orgKey, orgUsed);
     }
     if (quota.used >= quota.limit || orgUsed >= quota.limit) {
       // Reprogramar al reset de la cuota (diaria→mañana, mensual→mes que viene)
@@ -226,20 +314,26 @@ export async function GET(req: Request) {
         quota.resetAt && new Date(quota.resetAt).getTime() > Date.now()
           ? quota.resetAt
           : new Date(Date.now() + 60_000).toISOString();
+      // Igual que la ventana: se devuelve el intento del claim porque el
+      // proveedor nunca se tocó.
       await db
         .from("envio_queue")
-        .update({ scheduled_at: retryAt, last_error: "quota_blocked" })
+        .update({
+          status: "pending",
+          attempts: row.attempts - 1,
+          claimed_at: null,
+          scheduled_at: retryAt,
+          last_error: "quota_blocked",
+        })
         .eq("id", row.id);
       rescheduled++;
       continue;
     }
-    // Contabilizamos el envío localmente (cuenta el intento) para no releer la
-    // cuota en la próxima fila del mismo connector/proyecto.
-    quota.used++;
-    orgUsedCache.set(row.connector_id, orgUsed + 1);
-
+    // El try cubre SÓLO la llamada al proveedor. Un throw inesperado se trata
+    // como fallo transitorio, igual que los que el connector ya clasifica.
+    let result: SendResult;
     try {
-      const result = await connector.send(
+      result = await connector.send(
         {
           subject: row.template.subject ?? undefined,
           body: row.template.body,
@@ -247,77 +341,87 @@ export async function GET(req: Request) {
             row.channel === "email" && isRepliesConfigured()
               ? buildReplyTo(row.token)
               : undefined,
+          // El token identifica el envío de punta a punta: los proveedores que
+          // soportan idempotencia lo usan para no mandar dos veces lo mismo.
+          idempotencyKey: row.token,
         },
         row.contact,
         row.project_id,
       );
-
-      // Fallo transitorio (rate limit / 5xx): no es un rechazo real del envío.
-      // Lo tratamos como una excepción → backoff y reintento, sin insertar una
-      // fila `envios` failed ni quemar la fila en el primer 429.
-      if (!result.ok && result.retryable) {
-        throw new Error(result.error ?? "retryable");
-      }
-
-      // Persistir envío en `envios` (lo que ve el dashboard de la campaña).
-      const envioRow = {
-        project_id: row.project_id,
-        campaign_id: row.campaign_id,
-        dni: row.contact.dni,
-        nombre: `${row.contact.nombre} ${row.contact.apellido}`,
-        destino:
-          row.channel === "email"
-            ? row.contact.email ?? "—"
-            : row.contact.telefono ?? "—",
-        estado: result.ok ? "sent" : "failed",
-        reason: result.error ?? null,
-        provider_message_id: result.providerMessageId ?? null,
-        delivery: null,
-        token: row.token,
-        variant_id: row.variant_id ?? null,
-        created_at: new Date().toISOString(),
-      };
-      const { error: envErr } = await db.from("envios").insert(envioRow);
-      if (envErr) throw new Error(envErr.message);
-      await enqueueSheetSync("envios", "upsert", envioRow);
-
-      await db
-        .from("envio_queue")
-        .update({
-          status: result.ok ? "done" : "failed",
-          attempts: row.attempts + 1,
-          provider_message_id: result.providerMessageId ?? null,
-          last_error: result.ok ? null : result.error ?? "unknown",
-          processed_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-
-      if (result.ok) done++;
-      else failed++;
-      touchedCampaigns.add(row.campaign_id);
     } catch (e) {
-      const msg = (e as Error).message;
-      const newAttempts = row.attempts + 1;
-      const isFinal = newAttempts >= MAX_ATTEMPTS;
+      result = { ok: false, error: (e as Error).message, retryable: true };
+    }
+
+    // Fallo transitorio (rate limit / 5xx / red): no es un rechazo real del
+    // envío. Backoff y reintento, sin insertar una fila `envios` failed ni
+    // quemar la fila en el primer 429.
+    if (!result.ok && result.retryable) {
+      // `attempts` ya lo incrementó el claim.
+      const isFinal = row.attempts >= MAX_ATTEMPTS;
+      // Si el proveedor pidió una espera concreta, se respeta: reintentar antes
+      // sólo hace que extienda el bloqueo.
+      const waitMs =
+        result.retryAfterSeconds != null
+          ? result.retryAfterSeconds * 1000
+          : backoffMs(row.attempts);
       await db
         .from("envio_queue")
         .update({
-          status: isFinal ? "failed" : "pending",
-          attempts: newAttempts,
-          last_error: msg,
+          // 'dead', no 'failed': el proveedor nunca rechazó el mensaje, nos
+          // rendimos nosotros tras agotar los reintentos. Separarlos permite
+          // encontrar y reintentar a mano lo que se cayó por una caída del
+          // proveedor, sin mezclarlo con los rechazos legítimos.
+          status: isFinal ? "dead" : "pending",
+          claimed_at: null,
+          last_error: result.error ?? "retryable",
           scheduled_at: isFinal
             ? null
-            : new Date(Date.now() + backoffMs(newAttempts)).toISOString(),
+            : new Date(Date.now() + waitMs).toISOString(),
           processed_at: isFinal ? new Date().toISOString() : null,
         })
         .eq("id", row.id);
       if (isFinal) {
-        failed++;
+        dead++;
         touchedCampaigns.add(row.campaign_id);
+        // Sin esto el envío desaparecía de las métricas de la campaña: ni
+        // enviado ni fallido, sólo una fila muerta en la cola.
+        await recordEnvio(row, result);
       } else {
         rescheduled++;
       }
+      await sleep(SEND_DELAY_MS);
+      continue;
     }
+
+    // Cerrar la fila ANTES de persistir el registro: el proveedor ya aceptó (o
+    // rechazó) el mensaje y ese hecho es irreversible. Antes, un error en el
+    // insert de `envios` caía al catch y reprogramaba la fila como pending →
+    // el próximo tick volvía a mandar el mismo mensaje.
+    await db
+      .from("envio_queue")
+      .update({
+        status: result.ok ? "done" : "failed",
+        claimed_at: null,
+        provider_message_id: result.providerMessageId ?? null,
+        last_error: result.ok ? null : result.error ?? "unknown",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+
+    if (result.ok) done++;
+    else failed++;
+    touchedCampaigns.add(row.campaign_id);
+
+    // La cuota la incrementa el connector (RPC atómico) cuando el envío sale;
+    // acá sólo mantenemos el espejo en memoria para no releerla en cada fila.
+    // Antes se sumaba ANTES de llamar al proveedor y en cada reintento, así que
+    // un tramo de 429 podía dejar la cuota "llena" sin haber enviado nada.
+    if (result.ok) {
+      quota.used++;
+      orgUsedCache.set(orgKey, orgUsed + 1);
+    }
+
+    await recordEnvio(row, result);
 
     // Espaciar el próximo envío para respetar el rate limit del proveedor.
     await sleep(SEND_DELAY_MS);
@@ -329,21 +433,34 @@ export async function GET(req: Request) {
     await refreshCampaignState(db, campaignId);
   }
 
+  // Backlog de la dead-letter: sin este número, las filas agotadas se acumulan
+  // sin que nadie se entere. Es la señal para mirar y reintentar a mano.
+  const { count: deadBacklog } = await db
+    .from("envio_queue")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "dead");
+
   log.info("cron.send_queue.tick", {
     done,
     failed,
+    dead,
+    dead_backlog: deadBacklog ?? 0,
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
+    skipped_by_opt_out: skippedByOptOut,
     batch: pending.length,
     campaigns_touched: touchedCampaigns.size,
   });
   return NextResponse.json({
     done,
     failed,
+    dead,
+    dead_backlog: deadBacklog ?? 0,
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
+    skipped_by_opt_out: skippedByOptOut,
     batch: pending.length,
   });
 }
@@ -361,11 +478,14 @@ async function refreshCampaignState(
 
   const [{ count: pendingCount }, { count: sentCount }, { count: failedCount }] =
     await Promise.all([
+      // 'processing' cuenta como pendiente: son filas tomadas por el tick en
+      // curso. Sin eso, una campaña con todo el lote en vuelo se cerraría como
+      // 'enviada' a mitad de camino.
       db
         .from("envio_queue")
         .select("*", { count: "exact", head: true })
         .eq("campaign_id", campaignId)
-        .eq("status", "pending"),
+        .in("status", ["pending", "processing"]),
       db
         .from("envios")
         .select("*", { count: "exact", head: true })

@@ -15,6 +15,12 @@ import type {
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
+import {
+  isRetryableStatus,
+  networkFailure,
+  parseRetryAfter,
+  sendFetch,
+} from "./send-http";
 import { isValidEmail } from "@/lib/schemas";
 
 // Tope mensual de envíos (guardarraíl). Default 3000 (free de Resend). Si tu
@@ -107,11 +113,16 @@ export const resendConnector: OutreachConnector = {
     }
 
     try {
-      const res = await fetch("https://api.resend.com/emails", {
+      const res = await sendFetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${cfg.RESEND_API_KEY}`,
           "Content-Type": "application/json",
+          // Resend deduplica por esta clave durante 24h: un reintento tras un
+          // timeout de red no manda el mail dos veces.
+          ...(message.idempotencyKey
+            ? { "Idempotency-Key": message.idempotencyKey }
+            : {}),
         },
         body: JSON.stringify({
           from: cfg.RESEND_FROM,
@@ -122,17 +133,18 @@ export const resendConnector: OutreachConnector = {
         }),
       });
       if (!res.ok) {
-        // Rate limit (429) y errores de servidor (5xx) son transitorios: el
-        // cron debe reintentar con backoff. El resto (4xx de validación) es
-        // un rechazo permanente del envío.
-        const retryable = res.status === 429 || res.status >= 500;
-        return { ok: false, error: `Resend HTTP ${res.status}`, retryable };
+        return {
+          ok: false,
+          error: `Resend HTTP ${res.status}`,
+          retryable: isRetryableStatus(res.status),
+          retryAfterSeconds: parseRetryAfter(res.headers.get("retry-after")),
+        };
       }
       const data = (await res.json()) as { id?: string };
       await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.id };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return networkFailure("Resend", err);
     }
   },
 };

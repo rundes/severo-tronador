@@ -112,6 +112,45 @@ describe("reply-routing (sin DB)", () => {
   });
 });
 
+describe("reply-routing · detección de baja en el body", () => {
+  it("firstMeaningfulLine ignora citas y líneas vacías", async () => {
+    const { firstMeaningfulLine } = await import(
+      "@/lib/mailbox/reply-routing"
+    );
+    expect(firstMeaningfulLine("\n\n  BAJA  \n\nSaludos")).toBe("BAJA");
+    expect(
+      firstMeaningfulLine("> El 1/2 escribió:\n> texto citado\nBAJA"),
+    ).toBe("BAJA");
+    expect(firstMeaningfulLine("")).toBe("");
+  });
+
+  it("una baja viaja en la primera línea, no en el hilo citado entero", async () => {
+    const { firstMeaningfulLine } = await import(
+      "@/lib/mailbox/reply-routing"
+    );
+    const { detectOptOut } = await import("@/lib/inbound");
+    const body = [
+      "BAJA",
+      "",
+      "> El 12 de agosto escribió:",
+      "> Hola Ana, te escribimos por la encuesta...",
+    ].join("\n");
+    expect(detectOptOut(firstMeaningfulLine(body))).toBe("BAJA");
+    // El body entero nunca matchearía (detectOptOut es match exacto).
+    expect(detectOptOut(body)).toBeNull();
+  });
+
+  it("no confunde una frase que menciona la palabra con una baja", async () => {
+    const { firstMeaningfulLine } = await import(
+      "@/lib/mailbox/reply-routing"
+    );
+    const { detectOptOut } = await import("@/lib/inbound");
+    expect(
+      detectOptOut(firstMeaningfulLine("no me den de baja, quiero seguir")),
+    ).toBeNull();
+  });
+});
+
 describe("mail-sync · sin live mode", () => {
   it("procesa unread del mock y los marca leídos", async () => {
     const { syncReplies } = await import("@/lib/mailbox/mail-sync");

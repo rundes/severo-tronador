@@ -81,14 +81,13 @@ export async function getOrgUsage(connectorId: string): Promise<number> {
     for (const [k, v] of mem) if (k.endsWith(`:${connectorId}`)) sum += v;
     return sum;
   }
-  const { data } = await getSupabase()
-    .from("cuotas")
-    .select("used")
-    .eq("connector_id", connectorId);
-  return (data ?? []).reduce(
-    (acc, r) => acc + ((r as { used?: number }).used ?? 0),
-    0,
-  );
+  // Suma en SQL: traer las filas y sumarlas en JS se truncaba en las 1000 de
+  // PostgREST, así que el guard veía menos uso del real.
+  const { data, error } = await getSupabase().rpc("sum_quota_used", {
+    p_connector_id: connectorId,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
 export async function resetUsage(
