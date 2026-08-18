@@ -31,10 +31,11 @@ export default async function middleware(req: NextRequest) {
 //   /api/cron/*       — protegido por CRON_SECRET
 //   /api/webhooks/*   — protegido por firma del provider
 //   /api/version      — endpoint público de health/versionado
+//   /api/csp-report   — el navegador postea los reportes de CSP sin sesión
 //   /encuesta/*       — landing pública para responder encuestas
 //   /_next/*, favicon — assets
 export const config = {
   matcher: [
-    "/((?!api/auth|api/cron|api/webhooks|api/version|api/track|encuesta|e/|brand|signin|share|_next/static|_next/image|_next/data|favicon.ico).*)",
+    "/((?!api/auth|api/cron|api/webhooks|api/version|api/track|api/csp-report|encuesta|e/|brand|signin|share|_next/static|_next/image|_next/data|favicon.ico).*)",
   ],
 };

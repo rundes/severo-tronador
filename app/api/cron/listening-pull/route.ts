@@ -11,6 +11,7 @@ import {
 } from "@/lib/listening-cache";
 import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
@@ -40,6 +41,7 @@ export async function GET(req: Request) {
     }
     const ms = Date.now() - t0;
     log.info("listening.pull.ok", { total, projects: projects.length, ms });
+    await recordHeartbeat("listening-pull", { total, projects: projects.length });
     return NextResponse.json({ ok: true, ms, total, projects: projects.length, byProject });
   } catch (e) {
     log.error("listening.pull.failed", { error: (e as Error).message });

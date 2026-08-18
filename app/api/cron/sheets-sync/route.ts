@@ -3,6 +3,7 @@ import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { appendRows, canExportSheets, rowFor } from "@/lib/sheets-export";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 // 500 por tick: el drenaje ya no hace un request a Sheets por fila, sino uno
 // por entidad presente en el lote, así que el techo lo pone el maxDuration y no
@@ -90,5 +91,6 @@ export async function GET(req: Request) {
   }
 
   log.info("cron.sheets_sync.tick", { done, failed, unsupported, batch: rows.length });
+  await recordHeartbeat("sheets-sync", { done, failed, unsupported });
   return NextResponse.json({ done, failed, unsupported });
 }

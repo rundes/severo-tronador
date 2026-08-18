@@ -1,0 +1,64 @@
+name: Chequeo de latidos de crons
+
+# Dead-man's switch. Cada cron deja su marca en `cron_heartbeats` al terminar
+# bien; esto compara la última marca contra el intervalo esperado y falla si
+# alguno se paró.
+#
+# Es la única alerta que detecta las fallas que NO producen un run en rojo: que
+# GitHub deshabilite el `schedule` por 60 días sin actividad en el repo, que
+# rote el CRON_SECRET, o que el workflow se borre. En esos casos no hay error
+# que reportar — sólo silencio.
+
+on:
+  schedule:
+    - cron: "40 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cron-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      detalle: ${{ steps.check.outputs.detalle }}
+    steps:
+      - name: Hit /api/cron/health
+        id: check
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret no configurado en el repo"
+            exit 1
+          fi
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/health")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body"
+          # El endpoint devuelve 500 cuando hay jobs atrasados: es el canal de
+          # alerta, no un fallo de infraestructura.
+          if [ "$code" != "200" ]; then
+            echo "detalle=$(echo "$body" | head -c 400)" >> "$GITHUB_OUTPUT"
+            echo "::error::hay crons sin latir"
+            exit 1
+          fi
+
+  alerta:
+    needs: check
+    if: failure()
+    uses: ./.github/workflows/cron-alert.yml
+    with:
+      job: latidos
+      detalle: ${{ needs.check.outputs.detalle }}
+    permissions:
+      contents: read
+      issues: write

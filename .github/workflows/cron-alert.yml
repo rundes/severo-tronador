@@ -1,0 +1,66 @@
+name: Alerta de cron
+
+# Workflow reutilizable: abre (o actualiza) un issue cuando un cron falla.
+#
+# Los 7 workflows críticos fallaban en silencio — el run quedaba en rojo en una
+# pestaña que nadie mira. Un issue sí notifica por los canales que el equipo ya
+# tiene configurados, y no hace falta integrar nada nuevo.
+#
+# Reutiliza UN issue por job (busca por label) en vez de abrir uno por tick:
+# un cron que corre cada 5 minutos y está caído generaría cientos.
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        description: Nombre del cron que falló
+        required: true
+        type: string
+      detalle:
+        description: Contexto extra para el cuerpo del issue
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Abrir o actualizar el issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB: ${{ inputs.job }}
+          DETALLE: ${{ inputs.detalle }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          label="cron-caido"
+          title="Cron caído: $JOB"
+
+          # ¿Ya hay un issue abierto para este job?
+          existing=$(gh issue list --repo "$REPO" --label "$label" --state open \
+            --search "$title in:title" --json number --jq '.[0].number // empty')
+
+          body=$(printf '%s\n' \
+            "El cron \`$JOB\` falló." \
+            "" \
+            "- Run: $RUN_URL" \
+            "- Cuándo: $(date -u +'%Y-%m-%d %H:%M UTC')" \
+            "${DETALLE:+- Detalle: $DETALLE}" \
+            "" \
+            "Se cierra solo cuando alguien lo revise. Si el cron vuelve a andar," \
+            "el chequeo diario de latidos (\`/api/cron/health\`) deja de reportarlo.")
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+            echo "Comentado en el issue #$existing"
+          else
+            gh label create "$label" --repo "$REPO" --color B60205 \
+              --description "Un cron dejó de correr" 2>/dev/null || true
+            gh issue create --repo "$REPO" --title "$title" --label "$label" --body "$body"
+          fi

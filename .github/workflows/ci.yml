@@ -1,7 +1,11 @@
 name: CI
 
-# Corre tsc + eslint + vitest en cada PR y en push a main. Falla rápido si
-# hay un error de tipos, lint o tests (#16 STABILIZATION).
+# Corre tsc + eslint + vitest (con umbral de cobertura) + next build en cada PR
+# y en push a main.
+#
+# El build está acá porque antes un fallo de compilación llegaba directo a
+# Vercel: CI pasaba en verde y el deploy se caía después. Marcar este workflow
+# como required check en main es lo que cierra el circuito.
 
 on:
   push:
@@ -36,5 +40,26 @@ jobs:
       - name: Lint
         run: npx eslint .
 
-      - name: Tests
-        run: npm run test
+      - name: Tests + cobertura
+        run: npx vitest run --coverage
+
+      - name: Build
+        # Sin secrets: el build no debe depender de credenciales. Si empieza a
+        # fallar acá por falta de una env var, el bug es que algo se evalúa en
+        # build time en vez de en request time.
+        run: npm run build
+
+  audit:
+    runs-on: ubuntu-latest
+    # Informativo: no bloquea el merge. Las vulnerabilidades de dependencias se
+    # atienden en su propio ciclo, no frenando un fix no relacionado.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (moderate+)
+        run: npm audit --audit-level=moderate

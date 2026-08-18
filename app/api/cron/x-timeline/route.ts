@@ -8,6 +8,7 @@ import { dbConfigured } from "@/lib/db/supabase";
 import { processXHandleQueue, type XTimelineSummary } from "@/lib/x-timeline";
 import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
     }
     const ms = Date.now() - t0;
     log.info("x_timeline.cron.ok", { ms, posts, projects: projects.length });
+    await recordHeartbeat("x-timeline", { posts, projects: projects.length });
     return NextResponse.json({ ok: true, ms, posts, projects: projects.length, byProject });
   } catch (e) {
     log.error("x_timeline.cron.failed", { error: (e as Error).message });

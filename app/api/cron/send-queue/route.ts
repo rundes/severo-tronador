@@ -27,6 +27,7 @@ import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
 import { buildReplyTo, isRepliesConfigured } from "@/lib/mailbox/reply-address";
 import { sleep } from "@/lib/sleep";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 // Damos margen a la función: los envíos del batch son secuenciales (~300ms c/u
 // con Resend), así que 50 ≈ 15s. maxDuration evita el corte a 10s del default.
@@ -452,6 +453,7 @@ export async function GET(req: Request) {
     batch: pending.length,
     campaigns_touched: touchedCampaigns.size,
   });
+  await recordHeartbeat("send-queue", { done, failed, dead });
   return NextResponse.json({
     done,
     failed,

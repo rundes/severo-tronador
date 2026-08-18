@@ -6,7 +6,8 @@ import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured } from "@/lib/db/supabase";
 import { getListeningConfig } from "@/lib/listening-config";
 import { upsertItems } from "@/lib/listening-cache";
-import { transcriptToItems, segmentsToItems, type RadioSegment } from "@/lib/radio";
+import { transcriptToItems, segmentsToItems } from "@/lib/radio";
+import { parseJsonBody, RadioIngestSchema } from "@/lib/schemas";
 import { markRunDone } from "@/lib/radio-runs";
 import { log } from "@/lib/logger";
 
@@ -20,27 +21,11 @@ export async function POST(req: Request) {
   if (!authOk(req)) return new Response("Forbidden", { status: 403 });
   if (!dbConfigured()) return NextResponse.json({ skipped: "no db" });
 
-  let body: {
-    projectId?: string;
-    runId?: string;
-    station?: string;
-    programa?: string;
-    isoStart?: string;
-    transcript?: string;
-    segments?: RadioSegment[];
-    audioObject?: string;
-    durationSec?: number;
-    failed?: boolean;
-  };
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
-  }
-  const { projectId, runId, station, programa, isoStart, transcript, segments, audioObject, durationSec, failed } = body;
-  if (!projectId || !station || !isoStart) {
-    return NextResponse.json({ ok: false, error: "campos faltantes" }, { status: 400 });
-  }
+  // El CRON_SECRET autentica el origen, no el contenido: sin validar forma, un
+  // cambio de formato del runner entraba igual y explotaba adentro.
+  const parsed = await parseJsonBody(req, RadioIngestSchema);
+  if (!parsed.ok) return parsed.response;
+  const { projectId, runId, station, programa, isoStart, transcript, segments, audioObject, durationSec, failed } = parsed.data;
   // La grabación/transcripción falló en el runner → marcar el run y salir.
   if (failed) {
     if (runId) await markRunDone(runId, { status: "failed" });
