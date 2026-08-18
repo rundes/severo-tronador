@@ -18,6 +18,7 @@ import {
   type Campaign,
 } from "@/lib/campaigns";
 import type { Channel } from "@/lib/relationship";
+import type { SendResult } from "@/lib/connectors/types";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { getOrgUsage } from "@/lib/quota";
 import { optedOutSet } from "@/lib/optout";
@@ -285,7 +286,9 @@ export async function GET(req: Request) {
     quota.used++;
     orgUsedCache.set(row.connector_id, orgUsed + 1);
 
-    let result: Awaited<ReturnType<typeof connector.send>>;
+    // El try cubre SÓLO la llamada al proveedor. Un throw inesperado se trata
+    // como fallo transitorio, igual que los que el connector ya clasifica.
+    let result: SendResult;
     try {
       result = await connector.send(
         {
@@ -295,33 +298,38 @@ export async function GET(req: Request) {
             row.channel === "email" && isRepliesConfigured()
               ? buildReplyTo(row.token)
               : undefined,
+          // El token identifica el envío de punta a punta: los proveedores que
+          // soportan idempotencia lo usan para no mandar dos veces lo mismo.
+          idempotencyKey: row.token,
         },
         row.contact,
         row.project_id,
       );
-
-      // Fallo transitorio (rate limit / 5xx): no es un rechazo real del envío.
-      // Lo tratamos como una excepción → backoff y reintento, sin insertar una
-      // fila `envios` failed ni quemar la fila en el primer 429.
-      if (!result.ok && result.retryable) {
-        throw new Error(result.error ?? "retryable");
-      }
     } catch (e) {
-      // El try cubre SÓLO la llamada al proveedor. Todo lo que viene después
-      // (registro en `envios`, espejo a Sheets) pasó el punto de no retorno:
-      // reprogramar ahí reenviaría un mensaje que ya salió.
-      const msg = (e as Error).message;
+      result = { ok: false, error: (e as Error).message, retryable: true };
+    }
+
+    // Fallo transitorio (rate limit / 5xx / red): no es un rechazo real del
+    // envío. Backoff y reintento, sin insertar una fila `envios` failed ni
+    // quemar la fila en el primer 429.
+    if (!result.ok && result.retryable) {
       // `attempts` ya lo incrementó el claim.
       const isFinal = row.attempts >= MAX_ATTEMPTS;
+      // Si el proveedor pidió una espera concreta, se respeta: reintentar antes
+      // sólo hace que extienda el bloqueo.
+      const waitMs =
+        result.retryAfterSeconds != null
+          ? result.retryAfterSeconds * 1000
+          : backoffMs(row.attempts);
       await db
         .from("envio_queue")
         .update({
           status: isFinal ? "failed" : "pending",
           claimed_at: null,
-          last_error: msg,
+          last_error: result.error ?? "retryable",
           scheduled_at: isFinal
             ? null
-            : new Date(Date.now() + backoffMs(row.attempts)).toISOString(),
+            : new Date(Date.now() + waitMs).toISOString(),
           processed_at: isFinal ? new Date().toISOString() : null,
         })
         .eq("id", row.id);

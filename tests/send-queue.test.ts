@@ -663,6 +663,29 @@ describe("send-queue cron — sin doble envío", () => {
     expect(enqueueSheetSync).not.toHaveBeenCalled();
   });
 
+  it("respeta el retry_after del proveedor en vez del backoff exponencial", async () => {
+    // backoffMs(1) son 2 minutos; el proveedor pide 30s. Reintentar antes de lo
+    // que pidió sólo hace que extienda el bloqueo, pero esperar 2 minutos frena
+    // la cola de más.
+    connectorState.sendImpl = async () => ({
+      ok: false,
+      error: "429 flood",
+      retryable: true,
+      retryAfterSeconds: 30,
+    });
+    tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 0 });
+
+    const GET = await getHandler();
+    const before = Date.now();
+    await GET(makeReq());
+
+    const q0 = tables.envio_queue.rows[0] as Row;
+    expect(q0.status).toBe("pending");
+    const waitMs = new Date(q0.scheduled_at as string).getTime() - before;
+    expect(waitMs).toBeGreaterThanOrEqual(29_000);
+    expect(waitMs).toBeLessThan(40_000);
+  });
+
   it("reprogramar por cuota devuelve el intento que consumió el claim", async () => {
     connectorState.quota = {
       used: 10,

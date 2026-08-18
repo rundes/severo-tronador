@@ -19,6 +19,12 @@ import type {
 import { getUsage, incrementUsage, nextMonthlyReset } from "@/lib/quota";
 import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 import { getConnectorConfig } from "./config";
+import {
+  isRetryableStatus,
+  networkFailure,
+  parseRetryAfter,
+  sendFetch,
+} from "./send-http";
 import { isValidPhone } from "@/lib/schemas";
 
 const FREE_LIMIT = 1000; // conversaciones service-initiated/mes
@@ -141,7 +147,7 @@ export const metaWaCloudConnector: OutreachConnector = {
             type: "text",
             text: { body: message.body },
           };
-      const res = await fetch(
+      const res = await sendFetch(
         `https://graph.facebook.com/v21.0/${cfg.META_WA_PHONE_NUMBER_ID}/messages`,
         {
           method: "POST",
@@ -153,7 +159,12 @@ export const metaWaCloudConnector: OutreachConnector = {
         },
       );
       if (!res.ok) {
-        return { ok: false, error: `Meta HTTP ${res.status}` };
+        return {
+          ok: false,
+          error: `Meta HTTP ${res.status}`,
+          retryable: isRetryableStatus(res.status),
+          retryAfterSeconds: parseRetryAfter(res.headers.get("retry-after")),
+        };
       }
       const data = (await res.json()) as {
         messages?: { id?: string }[];
@@ -161,7 +172,7 @@ export const metaWaCloudConnector: OutreachConnector = {
       await incrementUsage(ID, 1, projectId);
       return { ok: true, providerMessageId: data.messages?.[0]?.id };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return networkFailure("Meta", err);
     }
   },
 };

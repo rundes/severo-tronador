@@ -7,6 +7,7 @@ import type {
   Connector,
 } from "./types";
 import { getConnectorConfig } from "./config";
+import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 
 const ID = "google-ai";
 
@@ -49,7 +50,7 @@ export const googleAiConnector: Connector = {
       return { ok: true, message: "Modo mock — sin GOOGLE_AI_API_KEY configurada." };
     }
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(
           cfg.GOOGLE_AI_API_KEY,
         )}`,
