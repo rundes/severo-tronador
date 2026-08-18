@@ -6,7 +6,12 @@
 // Memory fallback en globalThis para dev sin Supabase.
 
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
-import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
+import {
+  applySegment,
+  loadContacts,
+  padronPrefilterFor,
+  type SegmentFilter,
+} from "@/lib/segments";
 import { applyQuery, type SegmentQuery, isSegmentQuery } from "@/lib/segment-query";
 import { interpolate, getTemplate } from "@/lib/templates";
 import { interpolateExtended } from "@/lib/interpolate-vars";
@@ -237,8 +242,14 @@ export async function startFlow(
       return { ok: false, reason: "step_no_connector", step: step.position };
   }
 
-  // Resolver audiencia (segment_filter o segment_query).
-  const all = await loadContacts(projectId);
+  // Resolver audiencia (segment_filter o segment_query). El prefiltro empuja a
+  // SQL lo resoluble como columna; el filtro completo se aplica igual abajo.
+  const all = await loadContacts(
+    projectId,
+    isSegmentQuery(flow.segment_filter)
+      ? undefined
+      : padronPrefilterFor(flow.segment_filter as SegmentFilter),
+  );
   const matched = isSegmentQuery(flow.segment_filter)
     ? applyQuery(all, flow.segment_filter as SegmentQuery)
     : applySegment(all, flow.segment_filter as SegmentFilter);

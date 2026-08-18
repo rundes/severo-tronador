@@ -193,6 +193,85 @@ export async function readPadronFromDb(
   return out;
 }
 
+// Predicados del padrón que se pueden resolver en SQL. Son los campos que
+// viven como columna; los que dependen de la ficha de relación (health score,
+// último contacto, canal preferido) o de la edad —que se calcula sobre
+// `fecha_nac`, que es text— siguen filtrándose en memoria.
+export interface PadronPrefilter {
+  sexo?: string;
+  barrio?: string;
+  circuito?: string;
+  mesa?: string;
+  grupoId?: string;
+  afiliacion?: string;
+  hasEmail?: boolean;
+  hasTelefono?: boolean;
+  // Lista manual de DNIs. Sólo se empuja a SQL si es chica: un `.in()` con
+  // miles de valores arma una URL que el servidor rechaza con 414.
+  dnis?: string[];
+}
+
+// Cuántos DNIs de una lista manual se empujan a SQL antes de dejar el filtrado
+// en memoria.
+const MAX_IN_VALUES = 200;
+
+// ¿Este prefiltro descarta algo? Si no, no vale la pena la query especial.
+export function hasPadronPrefilter(f: PadronPrefilter | undefined): boolean {
+  if (!f) return false;
+  return (
+    f.sexo != null ||
+    f.barrio != null ||
+    f.circuito != null ||
+    f.mesa != null ||
+    f.grupoId != null ||
+    f.afiliacion != null ||
+    f.hasEmail != null ||
+    f.hasTelefono != null ||
+    (f.dnis != null && f.dnis.length > 0 && f.dnis.length <= MAX_IN_VALUES)
+  );
+}
+
+// Padrón del proyecto con los predicados que se pueden resolver en SQL ya
+// aplicados. El resto del filtro se sigue evaluando en memoria sobre lo que
+// vuelve, así que el resultado es idéntico a filtrar todo del lado de la app:
+// esto sólo achica cuánto viaja.
+export async function readPadronFiltered(
+  projectId: string,
+  filter: PadronPrefilter,
+): Promise<Contact[]> {
+  if (!dbConfigured()) return [];
+  const sb = getSupabase();
+  const out: Contact[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q = sb.from("padron").select("*").eq("project_id", projectId);
+    if (filter.sexo) q = q.eq("sexo", filter.sexo);
+    if (filter.barrio) q = q.eq("barrio", filter.barrio);
+    if (filter.circuito) q = q.eq("circuito", filter.circuito);
+    if (filter.mesa) q = q.eq("mesa", filter.mesa);
+    if (filter.grupoId) q = q.eq("grupo_id", filter.grupoId);
+    if (filter.afiliacion) q = q.eq("afiliacion", filter.afiliacion);
+    // `hasEmail: true` exige columna presente Y no vacía: el import deja "" en
+    // vez de null cuando la celda del Sheet viene en blanco.
+    if (filter.hasEmail === true) q = q.not("email", "is", null).neq("email", "");
+    if (filter.hasEmail === false) q = q.or("email.is.null,email.eq.");
+    if (filter.hasTelefono === true) q = q.not("telefono", "is", null).neq("telefono", "");
+    if (filter.hasTelefono === false) q = q.or("telefono.is.null,telefono.eq.");
+    if (filter.dnis && filter.dnis.length > 0 && filter.dnis.length <= MAX_IN_VALUES) {
+      q = q.in("dni", filter.dnis);
+    }
+    const { data, error } = await q
+      .order("dni", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      throw new Error(`No se pudo leer el padrón desde Supabase: ${error.message}`);
+    }
+    const batch = (data ?? []) as Contact[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
 // Los DNIs del proyecto que corresponden a una lista de emails. Query puntual
 // (`in`) en vez de traer el padrón entero: se usa en el compositor de mail, que
 // manda a un puñado de destinatarios. El match es case-insensitive por el lado
