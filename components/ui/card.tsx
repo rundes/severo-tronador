@@ -23,7 +23,7 @@ export function Card({
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             {eyebrow && (
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
                 {eyebrow}
               </div>
             )}

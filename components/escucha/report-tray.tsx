@@ -15,13 +15,13 @@ export function ReportTray({ markedCount, disabled = false }: ReportTrayProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <span className="font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
         <span
           className={`font-semibold ${
             markedCount > 0
               ? "text-[oklch(52%_0.13_255)]"
-              : "text-zinc-400"
+              : "text-zinc-500 dark:text-zinc-400"
           }`}
         >
           {markedCount}
@@ -43,7 +43,7 @@ export function ReportTray({ markedCount, disabled = false }: ReportTrayProps) {
       {disabled && (
         <span
           title="Configurá Supabase para generar informes"
-          className="cursor-not-allowed rounded border border-zinc-200 px-2.5 py-1 text-[11px] text-zinc-400 dark:border-zinc-700"
+          className="cursor-not-allowed rounded border border-zinc-200 px-2.5 py-1 text-[11px] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
         >
           Generar informe (PDF)
         </span>

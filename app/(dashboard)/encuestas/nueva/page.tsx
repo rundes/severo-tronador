@@ -2,12 +2,11 @@ import Link from "next/link";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { SURVEY_LAYOUTS, DEFAULT_LAYOUT } from "@/lib/encuestas/layouts";
 import { crearEncuesta } from "../actions";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Nueva encuesta · Tronador" };
 
-const inputCls =
-  "w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 export default async function NuevaEncuestaPage({
   searchParams,
 }: {
@@ -38,7 +37,7 @@ export default async function NuevaEncuestaPage({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-            Descripción <span className="font-normal normal-case text-zinc-400">(opcional)</span>
+            Descripción <span className="font-normal normal-case text-zinc-500 dark:text-zinc-400">(opcional)</span>
           </span>
           <textarea name="descripcion" rows={3} className={`${inputCls} resize-y`} />
         </label>

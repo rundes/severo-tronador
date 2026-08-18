@@ -146,11 +146,11 @@ export default async function AuditoriaPage({
                     </a>
                   )}
                   {e.entity_id && (
-                    <span className="font-mono text-[10px] text-zinc-400">
+                    <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
                       {e.entity_type}#{e.entity_id.slice(0, 8)}
                     </span>
                   )}
-                  <span className="ml-auto font-mono text-[10px] text-zinc-400">
+                  <span className="ml-auto font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
                     {ago(e.at)}
                   </span>
                 </div>
@@ -158,7 +158,7 @@ export default async function AuditoriaPage({
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
                     {Object.entries(e.details).map(([k, v]) => (
                       <span key={k}>
-                        <span className="text-zinc-400">{k}:</span>{" "}
+                        <span className="text-zinc-500 dark:text-zinc-400">{k}:</span>{" "}
                         <span className="font-mono">{String(v)}</span>
                       </span>
                     ))}

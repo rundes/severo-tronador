@@ -185,7 +185,7 @@ export default async function DashboardPage({
           <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
             Envíos y respuestas / día
           </h2>
-          <span className="font-mono text-[11px] text-zinc-400">
+          <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
             últimos {window}d
           </span>
         </div>
@@ -206,7 +206,7 @@ export default async function DashboardPage({
                 <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
                   {CHANNEL_ICON[ch]} {ch}
                 </span>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   {fmtPct(rr)}
                 </span>
               </div>
@@ -239,12 +239,12 @@ export default async function DashboardPage({
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-left text-[10px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Campaña</th>
-                  <th className="px-3 py-2 font-medium">Canal</th>
-                  <th className="px-3 py-2 font-medium text-right">Sent</th>
-                  <th className="px-3 py-2 font-medium text-right">Resp</th>
-                  <th className="px-3 py-2 font-medium text-right">RR</th>
-                  <th className="px-3 py-2 font-medium text-right">USD</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Campaña</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Canal</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Sent</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Resp</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">RR</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">USD</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -260,17 +260,17 @@ export default async function DashboardPage({
                       >
                         {c.nombre}
                       </Link>
-                      <div className="text-[10px] text-zinc-400">
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
                         {c.created_at.slice(0, 10)}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-zinc-500">
                       {CHANNEL_ICON[c.channel]} {c.channel}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-700 dark:text-zinc-200">
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-200">
                       {c.sent.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-700 dark:text-zinc-200">
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-200">
                       {c.responses.toLocaleString()}
                     </td>
                     <td
@@ -282,7 +282,7 @@ export default async function DashboardPage({
                     >
                       {fmtPct(c.responseRate)}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-500">
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-500">
                       {fmtUsd(c.estCostUsd)}
                     </td>
                   </tr>
@@ -299,7 +299,7 @@ export default async function DashboardPage({
           <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
             Salud del padrón
           </h2>
-          <span className="font-mono text-[11px] text-zinc-400">
+          <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
             {health.total.toLocaleString()} contactos
           </span>
         </div>
@@ -338,7 +338,7 @@ function OverviewCard({
       <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
         <span aria-hidden>{icon}</span> {label}
       </div>
-      {sub && <div className="text-[10px] text-zinc-400">{sub}</div>}
+      {sub && <div className="text-[10px] text-zinc-500 dark:text-zinc-400">{sub}</div>}
     </Link>
   );
 }
@@ -359,7 +359,7 @@ function QuotaBar({
         <span className="text-zinc-600 dark:text-zinc-300">
           {CHANNEL_ICON[quota.channel]} {quota.channel}
         </span>
-        <span className="font-mono text-[11px] text-zinc-400">
+        <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
           {quota.used.toLocaleString()}/{quota.limit.toLocaleString()} ·{" "}
           {remaining.toLocaleString()} libres
         </span>
@@ -410,7 +410,7 @@ function TimeSeriesChart({
 }) {
   if (points.length === 0) {
     return (
-      <p className="text-xs text-zinc-400">Sin datos en este período.</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">Sin datos en este período.</p>
     );
   }
   const max = Math.max(1, ...points.map((p) => p.envios));
@@ -503,7 +503,7 @@ function HealthBars({
 }) {
   if (dist.total === 0) {
     return (
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
         Padrón vacío. Cargá contactos en /padron.
       </p>
     );
@@ -529,17 +529,17 @@ function HealthBars({
         <span>
           🟢 sanas{" "}
           <strong className="font-mono">{dist.green.toLocaleString()}</strong>{" "}
-          <span className="text-zinc-400">({pct(dist.green)}%)</span>
+          <span className="text-zinc-500 dark:text-zinc-400">({pct(dist.green)}%)</span>
         </span>
         <span>
           🟡 tibias{" "}
           <strong className="font-mono">{dist.yellow.toLocaleString()}</strong>{" "}
-          <span className="text-zinc-400">({pct(dist.yellow)}%)</span>
+          <span className="text-zinc-500 dark:text-zinc-400">({pct(dist.yellow)}%)</span>
         </span>
         <span>
           🔴 deterioradas{" "}
           <strong className="font-mono">{dist.red.toLocaleString()}</strong>{" "}
-          <span className="text-zinc-400">({pct(dist.red)}%)</span>
+          <span className="text-zinc-500 dark:text-zinc-400">({pct(dist.red)}%)</span>
         </span>
       </div>
     </div>

@@ -32,14 +32,14 @@ export function ProjectSwitcher({
         className="flex w-full items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-xs hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
       >
         <span className="min-w-0">
-          <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-400">
+          <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             Proyecto
           </span>
           <span className="block truncate font-medium text-zinc-800 dark:text-zinc-100">
             {active?.nombre ?? "—"}
           </span>
         </span>
-        <span aria-hidden className="shrink-0 text-zinc-400">
+        <span aria-hidden className="shrink-0 text-zinc-500 dark:text-zinc-400">
           {open ? "▴" : "▾"}
         </span>
       </button>
@@ -61,7 +61,7 @@ export function ProjectSwitcher({
                     }`}
                   >
                     <span className="truncate">{p.nombre}</span>
-                    <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-zinc-400">
+                    <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                       {p.id === activeId ? "activo" : p.role}
                     </span>
                   </button>

@@ -2,6 +2,8 @@
 import { useState, useTransition } from "react";
 import type { FieldStatus } from "@/lib/connectors/config";
 import { buttonClass } from "@/components/ui/button";
+import { Field, Input, Select } from "@/components/ui/field";
+import { Modal } from "@/components/ui/modal";
 
 interface Props {
   name: string;
@@ -15,65 +17,73 @@ interface Props {
   borrar: () => Promise<void>;
 }
 
-const input =
-  "w-full rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+function sourceLabel(source: FieldStatus["source"]): string {
+  if (source === "ui") return "guardada";
+  if (source === "env") return "variable de entorno";
+  return "sin configurar";
+}
 
 export function ConfigModal(p: Props) {
   const [pending, start] = useTransition();
   const [test, setTest] = useState<string | null>(null);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={p.onClose}
+    <Modal
+      open
+      onClose={p.onClose}
+      title={p.name}
+      description="Las credenciales se guardan cifradas y sólo para este proyecto."
     >
-      <div
-        className="max-h-[85vh] w-full max-w-lg overflow-auto rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"
-        onClick={(e) => e.stopPropagation()}
+      <a
+        href={p.setupUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block text-xs text-[var(--accent)] underline"
       >
-        <div className="flex items-center justify-between">
-          <h2 className="font-medium">{p.name}</h2>
-          <button onClick={p.onClose} className="text-zinc-400 hover:text-zinc-700">
-            ✕
-          </button>
-        </div>
-        <a
-          href={p.setupUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs text-blue-600 underline"
-        >
-          Cómo obtener estas credenciales →
-        </a>
-        <form
-          className="mt-4 space-y-3"
-          action={(fd) =>
-            start(async () => {
-              const r = await p.guardar(fd);
-              if (r && !r.ok) {
-                setTest(r.message ?? "No se pudo guardar.");
-                return;
-              }
-              p.onClose();
-            })
-          }
-        >
-          {p.fields.map((f) => (
-            <label key={f.key} className="block text-xs text-zinc-500">
-              {f.label} {f.required && <span className="text-red-500">*</span>}
+        Cómo obtener estas credenciales →
+      </a>
+      <form
+        className="mt-4 max-h-[60vh] space-y-3 overflow-auto"
+        action={(fd) =>
+          start(async () => {
+            const r = await p.guardar(fd);
+            if (r && !r.ok) {
+              setTest(r.message ?? "No se pudo guardar.");
+              return;
+            }
+            p.onClose();
+          })
+        }
+      >
+        {p.fields.map((f) => {
+          const id = `cfg-${f.key}`;
+          const hint = [f.help, `fuente actual: ${sourceLabel(f.source)}`]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <Field
+              key={f.key}
+              label={f.label}
+              htmlFor={id}
+              required={f.required}
+              hint={hint}
+            >
               {f.type === "select" && f.options && f.options.length > 0 ? (
-                <select name={f.key} defaultValue="" className={input}>
+                <Select id={id} name={f.key} defaultValue="">
                   <option value="">
-                    {f.hasValue ? "(configurado — sin cambios)" : "— elegí un modelo —"}
+                    {f.hasValue
+                      ? "(configurado — sin cambios)"
+                      : "— elegí un modelo —"}
                   </option>
                   {f.options.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
-                <input
+                <Input
+                  id={id}
                   name={f.key}
                   type={f.type === "secret" ? "password" : "text"}
                   placeholder={
@@ -81,74 +91,68 @@ export function ConfigModal(p: Props) {
                       ? "configurado ••••"
                       : (f.placeholder ?? "")
                   }
-                  className={input}
                 />
               )}
-              {f.help && (
-                <span className="mt-0.5 block text-[11px] text-zinc-400">{f.help}</span>
-              )}
-              <span className="text-[11px] text-zinc-400">
-                fuente actual:{" "}
-                {f.source === "ui"
-                  ? "guardada"
-                  : f.source === "env"
-                    ? "variable de entorno"
-                    : "sin configurar"}
-              </span>
-            </label>
-          ))}
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className={buttonClass("primary")}
-            >
-              Guardar
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={(e) => {
-                const form = e.currentTarget.closest("form") as HTMLFormElement;
-                start(async () =>
-                  setTest((await p.probar(new FormData(form))).message),
-                );
-              }}
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            >
-              Probar conexión
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  await p.toggle(!p.enabled);
-                  p.onClose();
-                })
-              }
-              className="text-sm text-zinc-600"
-            >
-              {p.enabled ? "Desactivar" : "Activar"}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  await p.borrar();
-                  p.onClose();
-                })
-              }
-              className="ml-auto text-xs text-red-600 underline"
-            >
-              Borrar config
-            </button>
-          </div>
-          {test && <p className="text-xs text-zinc-500">{test}</p>}
-        </form>
-      </div>
-    </div>
+            </Field>
+          );
+        })}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <button
+            type="submit"
+            disabled={pending}
+            className={buttonClass("primary")}
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={(e) => {
+              const form = e.currentTarget.closest("form") as HTMLFormElement;
+              start(async () =>
+                setTest((await p.probar(new FormData(form))).message),
+              );
+            }}
+            className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+          >
+            Probar conexión
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                await p.toggle(!p.enabled);
+                p.onClose();
+              })
+            }
+            className="text-sm text-zinc-600 dark:text-zinc-300"
+          >
+            {p.enabled ? "Desactivar" : "Activar"}
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                await p.borrar();
+                p.onClose();
+              })
+            }
+            className="ml-auto text-xs text-red-600 underline dark:text-red-400"
+          >
+            Borrar config
+          </button>
+        </div>
+        {/* El resultado de "probar conexión" aparece después de una acción del
+            usuario: sin role=status, un lector de pantalla no lo anuncia. */}
+        {test && (
+          <p role="status" className="text-xs text-zinc-600 dark:text-zinc-300">
+            {test}
+          </p>
+        )}
+      </form>
+    </Modal>
   );
 }
 
@@ -158,7 +162,7 @@ export function ConfigButton(p: Omit<Props, "onClose">) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         Configurar
       </button>

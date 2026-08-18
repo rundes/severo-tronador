@@ -34,7 +34,7 @@ export function ChannelPreview({
 function TelegramPreview({ template }: { template: Template }) {
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         ✈️ Telegram
       </div>
       <div className="space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
@@ -42,7 +42,7 @@ function TelegramPreview({ template }: { template: Template }) {
         <pre className="whitespace-pre-wrap font-mono text-xs">
           {template.cuerpo}
         </pre>
-        <div className="text-zinc-400">
+        <div className="text-zinc-500 dark:text-zinc-400">
           Solo destinatarios opt-in (tabla telegram_chats). Gratis, ilimitado
           dentro del rate-limit de Telegram (30 msg/s).
         </div>
@@ -57,7 +57,7 @@ function EmailPreview({ template }: { template: Template }) {
     .slice(0, 80);
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         📧 Vista previa bandeja
       </div>
       <div className="space-y-1">
@@ -82,7 +82,7 @@ function WhatsAppPreview({ template }: { template: Template }) {
   );
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         💬 WhatsApp
       </div>
       <div className="space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
@@ -98,10 +98,10 @@ function WhatsAppPreview({ template }: { template: Template }) {
               </code>
             ))
           ) : (
-            <span className="italic text-zinc-400">ninguna</span>
+            <span className="italic text-zinc-500 dark:text-zinc-400">ninguna</span>
           )}
         </div>
-        <div className="text-zinc-400">
+        <div className="text-zinc-500 dark:text-zinc-400">
           Hoy el envío real usa <code>type=text</code> (válido en ventana 24h).
           Plantillas pre-aprobadas con Meta pueden mapearse cuando estén
           disponibles.
@@ -117,7 +117,7 @@ function SmsPreview({ template }: { template: Template }) {
   const r = countSmsSegments(sampleText);
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         📱 SMS
       </div>
       <div className="space-y-1 text-xs">
@@ -143,7 +143,7 @@ function SmsPreview({ template }: { template: Template }) {
             {r.parts}
           </span>
         </div>
-        <div className="text-zinc-400">
+        <div className="text-zinc-500 dark:text-zinc-400">
           Cada parte se cobra como SMS independiente. Telnyx ~$0.04/parte
           AR.
         </div>
@@ -156,7 +156,7 @@ function VoicePreview({ template }: { template: Template }) {
   const est = estimateVoiceScript(template.cuerpo);
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         ☎️ Voz · TTS
       </div>
       <div className="space-y-1 text-xs">
@@ -184,7 +184,7 @@ function VoicePreview({ template }: { template: Template }) {
             </span>
           </div>
         )}
-        <div className="text-zinc-400">
+        <div className="text-zinc-500 dark:text-zinc-400">
           Estimación TTS ~150 palabras/min. Llamadas largas tienen peor tasa
           de respuesta — mantené el guion bajo 30s.
         </div>

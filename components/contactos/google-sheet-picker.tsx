@@ -271,7 +271,7 @@ export function GoogleSheetPicker({
             <h3 className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">
               {picked.name}
             </h3>
-            <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+            <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               {preview.totalRows.toLocaleString()} filas
             </span>
           </div>
@@ -282,6 +282,7 @@ export function GoogleSheetPicker({
                 <tr>
                   {preview.headers.map((h, i) => (
                     <th
+                      scope="col"
                       key={i}
                       className="border-r border-zinc-200 px-2 py-1.5 dark:border-zinc-800"
                     >

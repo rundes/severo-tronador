@@ -4,12 +4,11 @@ import { auth } from "@/lib/auth";
 import { getCredentialFor } from "@/lib/mailbox/credentials";
 import { FormStatus, SubmitButton } from "@/components/ui/submit-button";
 import { sendMail } from "../actions";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Redactar · Mail · Tronador" };
 
-const inputCls =
-  "w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 export default async function ComposePage({
   searchParams,
 }: {
@@ -89,7 +88,7 @@ export default async function ComposePage({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-            CC <span className="font-normal normal-case text-zinc-400">(opcional)</span>
+            CC <span className="font-normal normal-case text-zinc-500 dark:text-zinc-400">(opcional)</span>
           </span>
           <input type="text" name="cc" className={inputCls} placeholder="" />
         </label>

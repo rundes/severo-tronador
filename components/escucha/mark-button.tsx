@@ -48,7 +48,7 @@ export function MarkButton({
     return (
       <span
         title="Configurá Supabase para marcar y generar informes"
-        className="inline-flex cursor-not-allowed items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-[10px] text-zinc-400 dark:border-zinc-700"
+        className="inline-flex cursor-not-allowed items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-[10px] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
       >
         ☆ marcar
       </span>

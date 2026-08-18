@@ -1,7 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Cropper from "react-easy-crop";
+import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
+
+// El recortador (react-easy-crop) sólo existe cuando el usuario eligió una
+// imagen: importarlo estático lo mete en el bundle inicial de la ruta para
+// todos, incluidos los que nunca suben nada. `ssr: false` porque mide el DOM.
+//
+// El tipo se declara acá con las props que efectivamente se usan: al pasar por
+// next/dynamic se pierden los defaults del componente y su CropperProps pasa a
+// exigir las once props opcionales.
+type CropperMinimalProps = {
+  image: string;
+  crop: { x: number; y: number };
+  zoom: number;
+  aspect?: number;
+  onCropChange: (crop: { x: number; y: number }) => void;
+  onZoomChange: (zoom: number) => void;
+  onCropComplete: (
+    area: unknown,
+    pixels: { x: number; y: number; width: number; height: number },
+  ) => void;
+};
+
+const Cropper = dynamic(() => import("react-easy-crop"), {
+  ssr: false,
+  loading: () => (
+    <div aria-hidden className="h-full w-full animate-pulse bg-zinc-800" />
+  ),
+}) as ComponentType<CropperMinimalProps>;
 import { getCroppedBlob, getResizedBlob, type PixelCrop } from "@/components/encuestas/crop-utils";
 import { buttonClass } from "@/components/ui/button";
 import { SUPPORTED_VARS } from "@/lib/interpolate-vars";
@@ -511,7 +539,10 @@ export function VisualEditor({
         role="textbox"
         aria-multiline="true"
         aria-label="Cuerpo del email"
-        className="ve-canvas min-h-[320px] rounded-b-lg border border-t-0 border-zinc-300 bg-white p-4 text-sm leading-relaxed text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+        // El outline del navegador acá encierra todo el lienzo de edición; el foco
+        // real lo comunica el cursor de texto. Es la única excepción al
+        // :focus-visible global.
+        className="ve-canvas min-h-[320px] rounded-b-lg border border-t-0 border-zinc-300 bg-white p-4 text-sm leading-relaxed text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       />
 
       <input
@@ -524,7 +555,7 @@ export function VisualEditor({
 
       {err && <p className="text-xs text-red-600">{err}</p>}
 
-      <p className="text-[10px] text-zinc-400">
+      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
         Tipeá directamente. Hacé click en una imagen para redimensionarla,
         recortarla o moverla. El diseño se sanitiza al enviar.
       </p>

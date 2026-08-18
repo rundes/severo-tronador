@@ -11,10 +11,9 @@ import { RefreshOnSave } from "@/components/escucha/refresh-on-save";
 import { partitionFeeds, statsKeyFor } from "@/lib/escucha-fuentes";
 import type { ListeningConfig } from "@/lib/listening-config";
 import type { PullSummary, SourceCounts } from "@/lib/listening-cache";
+import { controlClassName } from "@/components/ui/field";
 
-const inputCls =
-  "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus-visible:border-[oklch(52%_0.13_255)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
-
+const inputCls = controlClassName;
 export interface SourceStatus {
   id: string;
   label: string;

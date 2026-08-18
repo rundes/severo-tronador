@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { Channel } from "@/lib/relationship";
+import { controlClassName } from "@/components/ui/field";
 
 export interface SendChannel {
   id: Channel;
@@ -10,9 +11,7 @@ export interface SendChannel {
   templates: { id: string; nombre: string }[];
 }
 
-const selectCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const selectCls = controlClassName;
 // Form de envío de una encuesta a un segmento/grupo, por el canal elegido.
 // El selector de canal filtra las plantillas disponibles (cada plantilla es
 // de un canal). Postea a la server action `enviarEncuestaPorMail`.
@@ -139,7 +138,7 @@ export function EncuestaSendForm({
       >
         Enviar prueba
       </button>
-      <span className="text-[11px] text-zinc-400">
+      <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
         Manda 1 mensaje con la plantilla elegida. No consume el envío masivo.
       </span>
     </div>

@@ -22,7 +22,7 @@ export function VercelMetricsCard({
         <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
           Métricas en Vercel
         </h2>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-400">▲ Vercel</span>
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">▲ Vercel</span>
       </div>
       <p className="text-xs text-zinc-500">
         Visitas, visitantes únicos, origen del tráfico y dispositivo

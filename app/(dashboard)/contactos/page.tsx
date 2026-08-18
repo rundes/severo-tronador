@@ -29,12 +29,11 @@ import {
   type ContactField,
 } from "@/lib/contactos/mapping";
 import { listFieldDefs } from "@/lib/contactos/field-defs";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Contactos · Tronador" };
 
-const inputCls =
-  "min-h-11 rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-base disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 sm:min-h-0 sm:text-sm";
-
+const inputCls = controlClassName;
 export default async function ContactosPage({
   searchParams,
 }: {
@@ -656,7 +655,7 @@ function ColumnMapper({
         <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           Mapeo de columnas
         </h3>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           {preview.totalRows.toLocaleString()} filas en el Sheet
         </span>
       </div>
@@ -666,7 +665,7 @@ function ColumnMapper({
           <thead className="bg-zinc-50 text-left text-[10px] uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/40">
             <tr>
               {preview.headers.map((h, i) => (
-                <th key={i} className="border-r border-zinc-200 px-2 py-1.5 dark:border-zinc-800">
+                <th scope="col" key={i} className="border-r border-zinc-200 px-2 py-1.5 dark:border-zinc-800">
                   {h || `(col ${i + 1})`}
                 </th>
               ))}

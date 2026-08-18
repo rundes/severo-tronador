@@ -4,6 +4,8 @@ import { listResponses } from "@/lib/survey";
 import { requireProject } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/page-header";
 import { PopOutButton } from "@/components/dashboard/pop-out-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { buttonClass } from "@/components/ui/button";
 
 export const metadata = { title: "Respuestas · Severo Tronador" };
 
@@ -36,10 +38,16 @@ export default async function RespuestasPage() {
       />
 
       {responses.length === 0 ? (
-        <p className="text-sm text-zinc-400">
-          Todavía no llegaron respuestas. Se capturan cuando alguien completa
-          su link <code>/encuesta/[token]</code>.
-        </p>
+        <EmptyState
+          icon="💬"
+          title="Todavía no llegaron respuestas"
+          description="Se capturan solas cuando alguien completa el link de su encuesta. Si ya mandaste una campaña, puede que todavía no la hayan abierto."
+          action={
+            <Link href="/campanas" className={buttonClass("secondary")}>
+              Ver campañas enviadas
+            </Link>
+          }
+        />
       ) : (
         <div className="space-y-3">
           {responses.map((r) => {
@@ -56,7 +64,7 @@ export default async function RespuestasPage() {
                   >
                     DNI {r.dni}
                   </Link>
-                  <span className="text-zinc-400">
+                  <span className="text-zinc-500 dark:text-zinc-400">
                     {campaignNombre ?? r.campaignId} ·{" "}
                     {new Date(r.at).toLocaleString("es-AR")}
                   </span>

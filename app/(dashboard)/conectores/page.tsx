@@ -71,7 +71,7 @@ export default async function ConectoresPage() {
       <div className="mt-8 space-y-8">
         {byCategory.map(({ cat, items }) => (
           <section key={cat}>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               {CATEGORY_LABELS[cat]}
             </h2>
             <div className="space-y-2">

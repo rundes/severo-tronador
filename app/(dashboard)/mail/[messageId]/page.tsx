@@ -74,7 +74,7 @@ export default async function MessageDetailPage({
         </h1>
         <div className="mt-3 grid gap-1 text-xs text-zinc-500">
           <div>
-            <span className="inline-block w-12 font-mono text-zinc-400">de</span>
+            <span className="inline-block w-12 font-mono text-zinc-500 dark:text-zinc-400">de</span>
             <span className="text-zinc-700 dark:text-zinc-300">
               {message.from.name
                 ? `${message.from.name} <${message.from.email}>`
@@ -82,21 +82,21 @@ export default async function MessageDetailPage({
             </span>
           </div>
           <div>
-            <span className="inline-block w-12 font-mono text-zinc-400">para</span>
+            <span className="inline-block w-12 font-mono text-zinc-500 dark:text-zinc-400">para</span>
             <span className="text-zinc-700 dark:text-zinc-300">
               {message.to.map((t) => t.email).join(", ") || "—"}
             </span>
           </div>
           {message.cc && message.cc.length > 0 && (
             <div>
-              <span className="inline-block w-12 font-mono text-zinc-400">cc</span>
+              <span className="inline-block w-12 font-mono text-zinc-500 dark:text-zinc-400">cc</span>
               <span className="text-zinc-700 dark:text-zinc-300">
                 {message.cc.map((t) => t.email).join(", ")}
               </span>
             </div>
           )}
           <div>
-            <span className="inline-block w-12 font-mono text-zinc-400">fecha</span>
+            <span className="inline-block w-12 font-mono text-zinc-500 dark:text-zinc-400">fecha</span>
             <span className="text-zinc-700 dark:text-zinc-300">
               {formatFull(message.receivedAt)}
             </span>

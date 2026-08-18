@@ -20,6 +20,8 @@ import {
   type SegmentGroup,
   type SegmentOp,
 } from "@/lib/segment-query";
+import { controlClassName } from "@/components/ui/field";
+import { CHANNEL_OPTIONS } from "@/lib/channels";
 
 const FIELDS: SegmentField[] = [
   "sexo",
@@ -36,9 +38,7 @@ const FIELDS: SegmentField[] = [
   "preferredChannel",
 ];
 
-const inputCls =
-  "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-
+const inputCls = controlClassName;
 function defaultCondition(field: SegmentField): SegmentCondition {
   const op = OPS_BY_FIELD[field][0];
   return { type: "condition", field, op, value: defaultValue(field, op) };
@@ -129,7 +129,7 @@ export function QueryBuilder({
   return (
     <div className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <div className="flex items-center gap-3 text-xs">
-        <span className="font-medium uppercase tracking-wide text-zinc-400">
+        <span className="font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Combinador
         </span>
         <button
@@ -243,7 +243,7 @@ function ConditionRow({
         <button
           type="button"
           onClick={onRemove}
-          className="text-xs text-zinc-400 hover:text-red-600"
+          className="text-xs text-zinc-500 hover:text-red-600 dark:text-zinc-400"
           aria-label="Quitar"
         >
           ✕
@@ -264,7 +264,7 @@ function ValueInput({
 }) {
   const { field, op, value } = cond;
   if (op === "exists" || op === "not_exists") {
-    return <span className="text-xs text-zinc-400 italic">—</span>;
+    return <span className="text-xs text-zinc-500 italic dark:text-zinc-400">—</span>;
   }
   if (field === "sexo") {
     return (
@@ -287,10 +287,11 @@ function ValueInput({
         className={inputCls}
       >
         <option value="">—</option>
-        <option value="email">📧 Email</option>
-        <option value="whatsapp">💬 WhatsApp</option>
-        <option value="sms">📱 SMS</option>
-        <option value="voice">☎️ Voz</option>
+        {CHANNEL_OPTIONS.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
       </select>
     );
   }

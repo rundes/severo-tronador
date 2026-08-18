@@ -56,21 +56,32 @@ export default async function MailPage({
 }: {
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
-  const params = (await searchParams) ?? {};
-  const { id: projectId } = await requireProject();
-  const session = await auth();
+  // params, proyecto y sesión no dependen entre sí: en serie eran tres esperas
+  // encadenadas antes de poder pedir el primer dato de la casilla.
+  const [params, project, session] = await Promise.all([
+    searchParams ??
+      Promise.resolve({} as Record<string, string | undefined>),
+    requireProject(),
+    auth(),
+  ]);
+  const projectId = project.id;
   const userEmail = session?.user?.email?.toLowerCase();
 
   const cred = userEmail ? await getCredentialFor(userEmail) : null;
   const creds = cred
     ? { address: cred.address, password: cred.password }
     : undefined;
-  const status = await getMailboxStatus(creds, projectId);
   const mode = mailMode();
 
   const selectedMailboxId = params.box ?? "inbox";
-  const mailboxes = await listMailboxes(creds, projectId);
-  const messages = await listMessages(selectedMailboxId, creds, projectId);
+  // Las tres lecturas del servidor de mail son independientes: el estado de la
+  // casilla, la lista de carpetas y los mensajes de la carpeta abierta. En
+  // serie, la página esperaba los tres round-trips uno atrás del otro.
+  const [status, mailboxes, messages] = await Promise.all([
+    getMailboxStatus(creds, projectId),
+    listMailboxes(creds, projectId),
+    listMessages(selectedMailboxId, creds, projectId),
+  ]);
   const currentBox = mailboxes.find((m) => m.id === selectedMailboxId);
 
   const okMap: Record<string, string> = {
@@ -138,7 +149,7 @@ export default async function MailPage({
               name="local"
               defaultValue={cred.address.split("@")[0]}
               aria-label="Parte local de la dirección"
-              className="w-48 rounded border border-zinc-300 bg-white px-2 py-1 font-mono text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-48 rounded border border-zinc-300 bg-white px-2 py-1 font-mono text-sm focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
             />
             <span className="font-mono text-sm text-zinc-500">@tronador.net.ar</span>
             <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
@@ -244,7 +255,7 @@ export default async function MailPage({
             <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
               {currentBox ? ROLE_LABEL[currentBox.role] : selectedMailboxId}
             </h2>
-            <span className="font-mono text-[11px] text-zinc-400">
+            <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
               {messages.length} mensajes
             </span>
           </div>
@@ -259,7 +270,7 @@ export default async function MailPage({
                   <Link
                     href={`/mail/${encodeURIComponent(m.id)}?box=${selectedMailboxId}`}
                     className={`flex items-baseline gap-3 px-3 py-2.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900 ${
-                      m.isUnread ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/30"
+                      m.isUnread ? "bg-white dark:bg-zinc-900" : "bg-zinc-50/50 dark:bg-zinc-900/30"
                     }`}
                   >
                     <span
@@ -294,11 +305,11 @@ export default async function MailPage({
                       <span className="ml-2 text-zinc-500">{m.preview}</span>
                     </span>
                     {m.hasAttachment && (
-                      <span aria-label="adjunto" className="text-zinc-400">
+                      <span aria-label="adjunto" className="text-zinc-500 dark:text-zinc-400">
                         📎
                       </span>
                     )}
-                    <span className="w-14 shrink-0 text-right font-mono text-[11px] text-zinc-500">
+                    <span className="w-14 shrink-0 text-right font-mono tabular-nums text-[11px] text-zinc-500">
                       {relativeDate(m.receivedAt)}
                     </span>
                   </Link>

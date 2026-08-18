@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { controlClassName } from "@/components/ui/field";
+import { CHANNEL_OPTIONS } from "@/lib/channels";
 
-const inputCls =
-  "w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+const inputCls = controlClassName;
 const labelCls = "flex flex-col gap-1 text-xs font-medium text-zinc-500";
-const legendCls = "text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400";
+const legendCls = "text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -161,10 +162,11 @@ export function FilterForm({
             Canal preferido
             <select name="preferredChannel" defaultValue={get("preferredChannel")} className={inputCls}>
               <option value="">cualquiera</option>
-              <option value="email">📧 Email</option>
-              <option value="whatsapp">💬 WhatsApp</option>
-              <option value="sms">📱 SMS</option>
-              <option value="voice">☎️ Voz</option>
+              {CHANNEL_OPTIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
             <span className="font-normal text-[11px] text-amber-600 dark:text-amber-400">
               Necesita historial de respuestas (3+); vacío al empezar.

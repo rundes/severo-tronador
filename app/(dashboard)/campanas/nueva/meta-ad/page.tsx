@@ -4,12 +4,11 @@ import { listSavedSegments } from "@/lib/segments-store";
 import { loadContacts } from "@/lib/segments";
 import { applySegment } from "@/lib/segments";
 import { requireProject } from "@/lib/workspace";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Nueva campaña · Anuncio Meta · Severo Tronador" };
 
-const inputCls =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
-
+const inputCls = controlClassName;
 const ERROR_MSG: Record<string, string> = {
   nombre_requerido: "El nombre de la campaña es obligatorio.",
   segmento_requerido: "Elegí un segmento guardado.",
@@ -50,7 +49,7 @@ export default async function NuevaCampanaMetaAdPage({
       </Link>
 
       <div>
-        <div className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+        <div className="mb-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
           Nueva campaña
         </div>
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
@@ -114,7 +113,7 @@ export default async function NuevaCampanaMetaAdPage({
                 ))}
               </select>
               {segmentSize !== null && (
-                <span className="text-zinc-400">
+                <span className="text-zinc-500 dark:text-zinc-400">
                   Segmento seleccionado:{" "}
                   <span className="font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
                     {segmentSize.toLocaleString("es-AR")}
@@ -142,7 +141,7 @@ export default async function NuevaCampanaMetaAdPage({
                 <div className="font-medium text-zinc-700 dark:text-zinc-200">
                   Vincular aviso existente
                 </div>
-                <div className="mt-0.5 text-zinc-400">
+                <div className="mt-0.5 text-zinc-500 dark:text-zinc-400">
                   Pegá el ID del anuncio que ya existe en tu cuenta de Meta.
                 </div>
               </div>
@@ -159,7 +158,7 @@ export default async function NuevaCampanaMetaAdPage({
                 <div className="font-medium text-zinc-700 dark:text-zinc-200">
                   Crear desde Tronador
                 </div>
-                <div className="mt-0.5 text-zinc-400">
+                <div className="mt-0.5 text-zinc-500 dark:text-zinc-400">
                   Usá el Estudio de difusión para diseñar y publicar el aviso,
                   luego copiá su ID y volvé a vincularlo.
                 </div>
@@ -182,7 +181,7 @@ export default async function NuevaCampanaMetaAdPage({
               defaultValue={params.metaAdId ?? ""}
               className={inputCls}
             />
-            <span className="text-zinc-400">
+            <span className="text-zinc-500 dark:text-zinc-400">
               Lo encontrás en el Administrador de anuncios de Meta (columna
               «ID del anuncio»). Dejalo vacío si todavía no creaste el aviso.
             </span>
@@ -237,7 +236,7 @@ export default async function NuevaCampanaMetaAdPage({
         >
           Guardar campaña
         </button>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           La campaña se guarda sin envíos. Podés vincular el anuncio más tarde
           editando los IDs. Las métricas se leen en tiempo real desde Meta.
         </p>

@@ -45,7 +45,7 @@ export function SavedList({
             className="flex-1 text-left text-zinc-800 hover:underline dark:text-zinc-200"
           >
             {seg.nombre}
-            <span className="ml-2 text-xs text-zinc-400">
+            <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
               {filtrosResumen(seg.filtros)}
             </span>
           </button>
@@ -53,7 +53,7 @@ export function SavedList({
             <input type="hidden" name="id" value={seg.id} />
             <button
               type="submit"
-              className="text-xs text-zinc-400 hover:text-red-600"
+              className="text-xs text-zinc-500 hover:text-red-600 dark:text-zinc-400"
               aria-label="Borrar"
             >
               ✕

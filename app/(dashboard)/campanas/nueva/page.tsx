@@ -9,12 +9,11 @@ import { listTemplates, getTemplate } from "@/lib/templates";
 import { listEncuestas } from "@/lib/encuestas";
 import { requireProject } from "@/lib/workspace";
 import { ChannelPreview } from "@/components/segmentos/channel-preview";
+import { controlClassName } from "@/components/ui/field";
 
 export const metadata = { title: "Nueva campaña · Severo Tronador" };
 
-const inputCls =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus-visible:border-[oklch(52%_0.13_255)] focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
-
+const inputCls = controlClassName;
 const CHANNEL_LABEL: Record<Channel, string> = {
   email: "📧 Email",
   whatsapp: "💬 WhatsApp",
@@ -114,7 +113,7 @@ export default async function NuevaCampanaPage({
             sub={`${quota.used}/${quota.limit} ${quota.unit}`}
           />
         </div>
-        <p className="mt-2 text-xs text-zinc-400">
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           {advancedQuery
             ? "Filtros: query avanzada (AND/OR/NOT) — editá en /segmentos."
             : `Filtros: ${
@@ -214,7 +213,7 @@ export default async function NuevaCampanaPage({
                   </option>
                 ))}
               </select>
-              <span className="text-zinc-400">
+              <span className="text-zinc-500 dark:text-zinc-400">
                 Elegí con qué proveedor sale esta campaña. Cargá su API key en{" "}
                 <Link href="/conectores" className="underline">
                   Conectores
@@ -291,7 +290,7 @@ export default async function NuevaCampanaPage({
                   </option>
                 ))}
               </select>
-              <span className="text-zinc-400">
+              <span className="text-zinc-500 dark:text-zinc-400">
                 Si elegís una, el link <code>{"{{encuesta_url}}"}</code> de la
                 plantilla apunta a esa encuesta (ignora las preguntas de abajo).
               </span>
@@ -311,7 +310,7 @@ export default async function NuevaCampanaPage({
               }
               className={inputCls}
             />
-            <span className="text-zinc-400">
+            <span className="text-zinc-500 dark:text-zinc-400">
               Solo si no elegiste una encuesta arriba. Si lo dejás vacío, se usa
               una pregunta por defecto. Incluí <code>{"{{encuesta_url}}"}</code> en
               la plantilla para enlazar la encuesta.
@@ -325,7 +324,7 @@ export default async function NuevaCampanaPage({
           >
             Ejecutar envío a {sendable.length} →
           </SubmitButton>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Sin credenciales del canal, el envío se simula (modo mock) y consume
             cuota igual, para probar el flujo completo.
           </p>
@@ -366,7 +365,7 @@ function Stat({
       <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
         {label}
       </div>
-      {sub && <div className="mt-0.5 font-mono text-[11px] text-zinc-400">{sub}</div>}
+      {sub && <div className="mt-0.5 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</div>}
     </div>
   );
 }

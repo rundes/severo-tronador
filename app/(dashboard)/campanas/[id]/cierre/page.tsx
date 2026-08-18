@@ -48,22 +48,22 @@ export default async function CierrePage({
       <div className="grid grid-cols-3 gap-3 text-center">
         <div className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800">
           <div className="text-2xl font-semibold">{cierre.totalResponses}</div>
-          <div className="text-xs text-zinc-400">respuestas</div>
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">respuestas</div>
         </div>
         <div className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800">
           <div className="text-2xl font-semibold">{cierre.totalSent}</div>
-          <div className="text-xs text-zinc-400">enviados</div>
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">enviados</div>
         </div>
         <div className="rounded-lg border border-zinc-200 py-3 dark:border-zinc-800">
           <div className="text-2xl font-semibold">
             {pct(cierre.responseRate)}
           </div>
-          <div className="text-xs text-zinc-400">tasa de respuesta</div>
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">tasa de respuesta</div>
         </div>
       </div>
 
       <div>
-        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Sentiment ({cierre.analyzed} respuestas abiertas)
         </div>
         <div className="flex h-3 overflow-hidden rounded">
@@ -88,11 +88,11 @@ export default async function CierrePage({
       </div>
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Temas emergentes (coding inductivo)
         </div>
         {cierre.themes.length === 0 ? (
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Aún no hay suficientes respuestas para detectar temas.
           </p>
         ) : (
@@ -104,7 +104,7 @@ export default async function CierrePage({
               >
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{t.label}</span>
-                  <span className="font-mono text-xs text-zinc-400">
+                  <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
                     {t.count} menciones
                   </span>
                 </div>
@@ -119,7 +119,7 @@ export default async function CierrePage({
         )}
       </div>
 
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
         El coding inductivo del mock usa frecuencia de términos. Con
         ANTHROPIC_API_KEY, el conector Claude hace coding temático real y
         valida contra la muestra (ver ARCHITECTURE §5b).

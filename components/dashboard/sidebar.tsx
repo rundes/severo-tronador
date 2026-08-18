@@ -4,8 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { FALLBACK_ICON, NAV_ICONS } from "./nav-icons";
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ProjectSwitcher } from "./project-switcher";
 import { activeSection, type NavGroup } from "@/lib/nav";
@@ -25,9 +24,11 @@ interface ProjectOption {
 const MODE_KEY = "nav:mode";
 const SECTIONS_KEY = "nav:sections";
 
-// Resuelve un ícono lucide por nombre; cae a Circle si no existe.
+// Resuelve un ícono del mapa explícito de la navegación; cae a Circle si el
+// nombre no está. Ver nav-icons.ts: el `import *` de lucide traía la librería
+// entera al bundle de todas las rutas del panel.
 function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
-  const C = (Icons as unknown as Record<string, LucideIcon>)[name] ?? Icons.Circle;
+  const C = NAV_ICONS[name] ?? FALLBACK_ICON;
   return <C size={size} aria-hidden className="shrink-0" />;
 }
 
@@ -92,6 +93,18 @@ export function Sidebar({
     prevPath.current = pathname;
   }, [pathname]);
 
+  // ¿Estamos en el breakpoint donde el sidebar es drawer? Hace falta en JS
+  // (no sólo en CSS) para decidir el `inert`: una media query no puede sacar
+  // elementos del orden de tabulación.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   // Bloquear scroll del body con el drawer abierto en mobile.
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
@@ -141,8 +154,16 @@ export function Sidebar({
       )}
 
       {/* Sidebar — desktop sticky (expandido o riel), mobile drawer (siempre
-          expandido). El modo riel solo aplica en md+. */}
+          expandido). El modo riel solo aplica en md+.
+
+          `inert` cuando el drawer está cerrado EN MOBILE: el panel sigue en el
+          DOM, sólo trasladado fuera de pantalla, así que sin esto sus ~30 links
+          se tabulan igual — el usuario de teclado recorre todo el menú invisible
+          antes de llegar al contenido. `inert` los saca del orden de tabulación
+          y del árbol de accesibilidad. En md+ el panel es visible y navegable,
+          de ahí el chequeo de viewport. */}
       <aside
+        inert={!open && isMobile ? true : undefined}
         className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-[#eae9e4] transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${
           rail ? "md:w-14" : "md:w-56"
         } ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
@@ -194,7 +215,7 @@ export function Sidebar({
                   type="button"
                   onClick={() => toggleSection(group.section)}
                   aria-expanded={isSectionOpen(group.section)}
-                  className="flex w-full items-center justify-between gap-2 rounded px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                  className="flex w-full items-center justify-between gap-2 rounded px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
                 >
                   {group.section}
                   {isSectionOpen(group.section) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -292,13 +313,13 @@ function UserPill({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white p-1 pr-1.5 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white p-1 pr-1.5 dark:border-zinc-800 dark:bg-zinc-900">
       {avatar}
       <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] font-medium leading-tight text-zinc-800 dark:text-zinc-100">
           {user.name ?? "—"}
         </div>
-        <div className="truncate text-[10px] leading-tight text-zinc-400">{user.email}</div>
+        <div className="truncate text-[10px] leading-tight text-zinc-500 dark:text-zinc-400">{user.email}</div>
       </div>
       <form action={signOutAction}>
         <button

@@ -1,11 +1,16 @@
 import type { AdRow } from "@/lib/meta-ads";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Tabla comparativa: una fila por anuncio activo, una columna por KPI. Pensada
 // para comparar de un vistazo (números alineados, scroll horizontal si hace falta).
 export function AdsReportTable({ ads }: { ads: AdRow[] }) {
   if (!ads.length) {
     return (
-      <p className="text-sm text-zinc-500">No hay anuncios activos para este período.</p>
+      <EmptyState
+        icon="📣"
+        title="Sin anuncios en este período"
+        description="No hubo pauta activa en el rango elegido. Probá con otro período."
+      />
     );
   }
   // El orden de KPIs es consistente (computeAdMetrics); tomamos las labels del
@@ -17,11 +22,12 @@ export function AdsReportTable({ ads }: { ads: AdRow[] }) {
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-zinc-200 dark:border-zinc-800">
-              <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-950">
+              <th scope="col" className="sticky left-0 z-10 bg-white px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-900">
                 Anuncio
               </th>
               {cols.map((c) => (
                 <th
+                  scope="col"
                   key={c}
                   className="whitespace-nowrap px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-zinc-500"
                 >
@@ -38,11 +44,11 @@ export function AdsReportTable({ ads }: { ads: AdRow[] }) {
                   key={ad.id}
                   className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/60"
                 >
-                  <td className="sticky left-0 z-10 max-w-[240px] bg-white px-3 py-2 dark:bg-zinc-950">
+                  <td className="sticky left-0 z-10 max-w-[240px] bg-white px-3 py-2 dark:bg-zinc-900">
                     <div className="truncate font-medium text-zinc-800 dark:text-zinc-100">
                       {ad.name}
                     </div>
-                    <div className="truncate text-[10px] text-zinc-400">
+                    <div className="truncate text-[10px] text-zinc-500 dark:text-zinc-400">
                       {ad.campaign ?? "—"}
                     </div>
                   </td>

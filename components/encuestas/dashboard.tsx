@@ -23,7 +23,7 @@ function ChoiceBlock({ agg }: { agg: Extract<QuestionAgg, { counts: unknown }> }
             {c.option}
           </span>
           <Bar pct={c.pct} />
-          <span className="w-16 shrink-0 text-right font-mono text-zinc-500">
+          <span className="w-16 shrink-0 text-right font-mono tabular-nums text-zinc-500">
             {c.n} · {c.pct}%
           </span>
         </div>
@@ -43,11 +43,11 @@ function ScaleBlock({ agg }: { agg: Extract<QuestionAgg, { type: "scale" }> }) {
       <div className="space-y-1.5">
         {agg.distribution.map((d) => (
           <div key={d.value} className="flex items-center gap-2 text-xs">
-            <span className="w-6 shrink-0 text-right font-mono text-zinc-600 dark:text-zinc-300">
+            <span className="w-6 shrink-0 text-right font-mono tabular-nums text-zinc-600 dark:text-zinc-300">
               {d.value}
             </span>
             <Bar pct={Math.round((d.n / maxN) * 100)} />
-            <span className="w-10 shrink-0 text-right font-mono text-zinc-500">{d.n}</span>
+            <span className="w-10 shrink-0 text-right font-mono tabular-nums text-zinc-500">{d.n}</span>
           </div>
         ))}
       </div>
@@ -67,7 +67,7 @@ function TextBlock({ agg }: { agg: Extract<QuestionAgg, { type: "text" | "paragr
           </li>
         ))}
         {agg.values.length > shown.length && (
-          <li className="text-xs text-zinc-400">
+          <li className="text-xs text-zinc-500 dark:text-zinc-400">
             …y {agg.values.length - shown.length} más (ver Sheet / CSV)
           </li>
         )}

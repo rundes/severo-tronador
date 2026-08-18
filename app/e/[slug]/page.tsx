@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cookies } from "next/headers";
 import { getEncuestaBySlug } from "@/lib/encuestas";
 import { SurveyRender } from "@/components/encuestas/survey-render";
@@ -24,8 +25,20 @@ function Shell({
     <div className="flex min-h-screen flex-col items-center bg-[oklch(98.5%_0.006_95)] px-4 py-8 sm:py-12">
       <main className="w-full max-w-xl overflow-hidden rounded-2xl border border-[oklch(91%_0.01_95)] bg-[oklch(99.5%_0.004_95)] shadow-[0_1px_2px_oklch(50%_0.03_265_/_0.08),0_10px_34px_oklch(50%_0.03_265_/_0.07)]">
         {cover && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-40 w-full object-cover sm:h-52" />
+          // next/image en vez de <img>: es la primera cosa que ve alguien que
+          // abre el link de la encuesta desde el teléfono, y sin optimizar se
+          // baja el original completo del bucket. `fill` + `sizes` porque la
+          // altura la fija el contenedor y el ancho es el del layout.
+          <div className="relative h-40 w-full sm:h-52">
+            <Image
+              src={cover}
+              alt=""
+              fill
+              sizes="(max-width: 640px) 100vw, 576px"
+              className="object-cover"
+              priority
+            />
+          </div>
         )}
         <div className="p-5 sm:p-6">{children}</div>
       </main>

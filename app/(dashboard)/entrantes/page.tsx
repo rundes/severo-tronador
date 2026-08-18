@@ -126,12 +126,12 @@ function InboundItem({ row }: { row: InboundRow }) {
             → respuesta de encuesta
           </span>
         )}
-        <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-400">
+        <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
           {ago(row.received_at)}
         </span>
       </div>
       <p className="mt-1 max-w-[75ch] text-sm text-zinc-700 dark:text-zinc-300">
-        {row.body || <span className="italic text-zinc-400">(sin texto)</span>}
+        {row.body || <span className="italic text-zinc-500 dark:text-zinc-400">(sin texto)</span>}
       </p>
     </li>
   );

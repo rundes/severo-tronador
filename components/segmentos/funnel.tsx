@@ -2,16 +2,7 @@
 // Server component — el cálculo viene server-side.
 import type { FunnelStep } from "@/lib/segments";
 import type { ChannelCost } from "@/lib/segments-cost";
-import type { Channel } from "@/lib/relationship";
-
-const CHANNEL_ICON: Record<Channel, string> = {
-  email: "📧",
-  whatsapp: "💬",
-  sms: "📱",
-  voice: "☎️",
-  telegram: "✈️",
-  "meta-ad": "📣",
-};
+import { channelEmoji } from "@/lib/channels";
 
 function pct(part: number, total: number): number {
   return total > 0 ? Math.round((part / total) * 100) : 0;
@@ -35,7 +26,7 @@ export function FunnelView({
   const rows = stepsWithDrop(total, steps);
   return (
     <div className="space-y-1 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Embudo de filtros
       </div>
       <div className="flex items-center justify-between text-sm">
@@ -50,10 +41,10 @@ export function FunnelView({
           <span className="flex-1 text-zinc-600 dark:text-zinc-300">
             ↳ {s.label}
           </span>
-          <span className="font-mono text-zinc-400">
+          <span className="font-mono text-zinc-500 dark:text-zinc-400">
             {s.drop > 0 ? `−${s.drop} (−${s.dropPct}%)` : "—"}
           </span>
-          <span className="w-12 text-right font-mono text-zinc-700 dark:text-zinc-300">
+          <span className="w-12 text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
             {s.count}
           </span>
         </div>
@@ -78,14 +69,14 @@ function stepsWithDrop(
 export function CostPreview({ costs }: { costs: ChannelCost[] }) {
   return (
     <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Costo estimado por canal
       </div>
       <div className="space-y-0.5">
         {costs.map((c) => (
           <div key={c.channel} className="flex items-center justify-between">
             <span className="text-zinc-600 dark:text-zinc-300">
-              {CHANNEL_ICON[c.channel]} {c.channel}
+              {channelEmoji(c.channel)} {c.channel}
             </span>
             <span className="font-mono text-zinc-700 dark:text-zinc-300">
               {c.willFit ? (
@@ -101,7 +92,7 @@ export function CostPreview({ costs }: { costs: ChannelCost[] }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 text-xs text-zinc-400">
+      <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Voz estimado a 2 min/llamada. Email/WhatsApp 0 USD dentro del free
         tier mensual; sobrepasarlo no está modelado hoy.
       </div>

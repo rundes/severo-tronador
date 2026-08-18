@@ -36,11 +36,42 @@ const cspReportOnly = [
   "report-uri /api/csp-report",
 ].join("; ");
 
+// Host de Supabase Storage, de donde salen las portadas de encuesta. next/image
+// exige declarar los hosts remotos: sin esto tira en runtime, no en build.
+// Se deriva de SUPABASE_URL para no hardcodear el proyecto.
+function supabaseImageHost(): string | null {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
 const nextConfig: NextConfig = {
   // Fija la raíz del workspace a este proyecto (hay otro lockfile en el home
   // del usuario que Next, si no, infiere como raíz).
   turbopack: {
     root: __dirname,
+  },
+  images: {
+    remotePatterns: [
+      ...(supabaseImageHost()
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: supabaseImageHost()!,
+              pathname: "/storage/v1/object/public/**",
+            },
+          ]
+        : []),
+      // Audio/imágenes de radio y assets de Google Cloud Storage.
+      {
+        protocol: "https" as const,
+        hostname: "storage.googleapis.com",
+      },
+    ],
   },
   async headers() {
     return [

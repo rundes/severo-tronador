@@ -40,7 +40,7 @@ export default async function OnboardingPage({
           minLength={2}
           maxLength={120}
           placeholder="Nombre del proyecto (ej. Relevamiento Maipú 2026)"
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900"
         />
         <SubmitButton pendingLabel="Creando…">Crear proyecto</SubmitButton>
       </form>

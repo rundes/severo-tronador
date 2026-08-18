@@ -65,7 +65,12 @@ export default async function ContactoPage({
   }
   if (!contact) notFound();
 
-  const fieldDefs = persist && projectId ? await listFieldDefs(projectId) : [];
+  // Los campos custom y las llamadas son independientes entre sí: en serie, la
+  // ficha esperaba una latencia de DB y después la otra.
+  const [fieldDefs, llamadas] = await Promise.all([
+    persist && projectId ? listFieldDefs(projectId) : Promise.resolve([]),
+    projectId ? listCallsFor(projectId, dni) : Promise.resolve([]),
+  ]);
   const cv =
     ((contact as unknown as Record<string, unknown>).custom as
       | Record<string, unknown>
@@ -80,7 +85,6 @@ export default async function ContactoPage({
   const historial = [...(raw?.events ?? [])].sort(
     (a, b) => +new Date(b.contactedAt) - +new Date(a.contactedAt),
   );
-  const llamadas = projectId ? await listCallsFor(projectId, dni) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -102,7 +106,7 @@ export default async function ContactoPage({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800 sm:grid-cols-3">
           {datosBase.map((f) => (
             <div key={f.key} className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-zinc-400">
+              <dt className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 {f.label}
               </dt>
               <dd className="truncate text-zinc-800 dark:text-zinc-200">
@@ -112,7 +116,7 @@ export default async function ContactoPage({
           ))}
           {fieldDefs.map((d) => (
             <div key={d.id} className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-zinc-400">
+              <dt className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 {d.label}
               </dt>
               <dd className="truncate text-zinc-800 dark:text-zinc-200">
@@ -167,16 +171,16 @@ export default async function ContactoPage({
       </dl>
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Historial
         </div>
         {historial.length === 0 ? (
-          <p className="text-sm text-zinc-400">Sin contactos previos.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Sin contactos previos.</p>
         ) : (
           <ul className="space-y-1 text-sm">
             {historial.map((e, i) => (
               <li key={i} className="flex items-center gap-2">
-                <span className="font-mono text-zinc-400">
+                <span className="font-mono text-zinc-500 dark:text-zinc-400">
                   {fmt(e.contactedAt)}
                 </span>
                 <span className="text-zinc-700 dark:text-zinc-300">
@@ -187,7 +191,7 @@ export default async function ContactoPage({
                 ) : e.complained ? (
                   <span className="text-red-600">· se quejó</span>
                 ) : (
-                  <span className="text-zinc-400">· sin respuesta</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">· sin respuesta</span>
                 )}
               </li>
             ))}
@@ -197,19 +201,19 @@ export default async function ContactoPage({
 
       {/* Registro manual de llamadas (encuestador llama desde su celular) */}
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Llamadas registradas
         </div>
         {llamadas.length > 0 && (
           <ul className="mb-3 space-y-1 text-sm">
             {llamadas.map((c, i) => (
               <li key={i} className="flex items-center gap-2">
-                <span className="font-mono text-zinc-400">{fmt(c.at)}</span>
+                <span className="font-mono text-zinc-500 dark:text-zinc-400">{fmt(c.at)}</span>
                 <span className="text-zinc-700 dark:text-zinc-300">
                   {OUTCOME_LABEL[c.outcome] ?? c.outcome}
                 </span>
                 {c.notes && (
-                  <span className="text-zinc-400">· {c.notes}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">· {c.notes}</span>
                 )}
               </li>
             ))}

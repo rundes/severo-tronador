@@ -196,10 +196,10 @@ export default async function ShareCampaignPage({
             <table className="w-full overflow-hidden rounded-lg border border-[oklch(80%_0.02_80)]/80 text-sm">
               <thead className="bg-[oklch(96%_0.012_80)] text-left text-[10px] uppercase tracking-wider text-[oklch(55%_0.04_250)]">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Variante</th>
-                  <th className="px-3 py-2 font-medium text-right">Enviados</th>
-                  <th className="px-3 py-2 font-medium text-right">Resp</th>
-                  <th className="px-3 py-2 font-medium text-right">RR</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Variante</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Enviados</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">Resp</th>
+                  <th scope="col" className="px-3 py-2 font-medium text-right">RR</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,11 +209,11 @@ export default async function ShareCampaignPage({
                       {v.id}
                       {v.label ? ` · ${v.label}` : ""}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">{v.sent}</td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{v.sent}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">
                       {v.responses}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">
                       {fmtPct(v.responseRate)}
                     </td>
                   </tr>
