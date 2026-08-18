@@ -286,7 +286,11 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 > - **`fecha_nac text` → `date`**: es migración de datos sobre una columna que
 >   hoy acepta cualquier formato de cualquier Sheet importado. Requiere decidir
 >   qué hacer con lo que no parsea antes de tocar nada.
-> - **`op = "remove"` del espejo a Sheets**: sigue marcando `unsupported`.
+> - ~~**`op = "remove"` del espejo a Sheets**: sigue marcando `unsupported`.~~
+>   **Cerrado post-F6**: los removes van como tombstone a la hoja `bajas`
+>   (el Sheet es un log append-only; el lector externo resta `bajas` de cada
+>   hoja). `appendRows` además auto-crea hojas faltantes con encabezados —
+>   la falta de la hoja `envios` tenía al espejo fallando 500 filas por tick.
 
 1. **Telnyx post-retiro**: webhook vivo aceptando entrantes SMS, conectores en el registry visibles en /conectores, env vars en `.env.example` — borrar ruta y registry (dejar `OUTREACH_BY_ID` para drenar cola legacy con fecha de expiración).
 2. **`.env.example` desincronizado**: faltan `TELEGRAM_WEBHOOK_SECRET`, `META_ACCESS_TOKEN`, `AUTH_SECRET`, `GOOGLE_PICKER_API_KEY`…; sobran `TELNYX_*`, `REDDIT_*`, claves que ya van por panel.

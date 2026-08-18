@@ -63,6 +63,7 @@ de consulta externa:
 | `respuestas` | Respuestas a encuestas/intercambios |
 | `opt_outs` | Bajas por canal y globales |
 | `llamadas` | Registro de llamadas de voz/IVR |
+| `bajas` | Tombstones de borrados (`op=remove`): el Sheet es un log append-only, el lector externo resta `bajas` de cada hoja |
 
 > Histórico: las primeras 7 hojas (`padron`…`opt_outs`) fueron el modelo
 > original; `llamadas` se sumó con F5. El estado de conectores, las cuotas y la

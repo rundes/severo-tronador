@@ -19,6 +19,7 @@ interface QueueRow {
   op: string;
   payload: Record<string, unknown>;
   attempts?: number | null;
+  created_at?: string | null;
 }
 
 export async function GET(req: Request) {
@@ -38,18 +39,48 @@ export async function GET(req: Request) {
     .select("*").eq("status", "pending").order("created_at").limit(BATCH);
   const rows = (data ?? []) as QueueRow[];
 
-  let done = 0, failed = 0, unsupported = 0;
+  let done = 0, failed = 0, removed = 0;
 
-  // "remove" no está implementado en Sheets (borrar exige buscar la fila).
-  // Antes se marcaba "done" sin tocar el Sheet: divergencia silenciosa. Status
-  // honesto hasta implementarlo.
+  // El lote entero vuelve a pending (o muere si ya agotó los intentos). No
+  // sabemos cuáles filas del append llegaron, así que el `_mirror_id` de cada
+  // fila es lo que permite deduplicar al reconciliar.
+  async function markBatchFailed(entity: string, group: QueueRow[], e: unknown) {
+    failed += group.length;
+    const msg = (e as Error).message;
+    log.warn("sheets.sync.batch_failed", { entity, rows: group.length, error: msg });
+    for (const r of group) {
+      const attempts = (r.attempts ?? 0) + 1;
+      await db.from("sheets_sync_queue").update({
+        status: attempts >= MAX_ATTEMPTS ? "error" : "pending",
+        attempts,
+        last_error: msg,
+      }).eq("id", r.id);
+    }
+  }
+
+  // Los "remove" van como tombstone a la hoja `bajas`: el Sheet es un log
+  // append-only (los upserts appendean versiones, no pisan filas), así que una
+  // baja tampoco borra — se anota, y el lector externo resta `bajas` de cada
+  // hoja. Antes se marcaban "unsupported" y el espejo divergía en silencio.
   const removes = rows.filter((r) => r.op !== "upsert");
   if (removes.length) {
-    await db
-      .from("sheets_sync_queue")
-      .update({ status: "unsupported" })
-      .in("id", removes.map((r) => r.id));
-    unsupported = removes.length;
+    try {
+      await appendRows(
+        "bajas",
+        removes.map((r) => rowFor("bajas", {
+          entity: r.entity,
+          entity_id: r.payload?.id ?? "",
+          removed_at: r.created_at ?? "",
+        }, r.id)),
+      );
+      await db
+        .from("sheets_sync_queue")
+        .update({ status: "done" })
+        .in("id", removes.map((r) => r.id));
+      removed = removes.length;
+    } catch (e) {
+      await markBatchFailed("bajas", removes, e);
+    }
   }
 
   // Un request a Sheets por ENTIDAD, no por fila. El orden dentro de cada
@@ -73,24 +104,11 @@ export async function GET(req: Request) {
         .in("id", group.map((r) => r.id));
       done += group.length;
     } catch (e) {
-      // El lote entero vuelve a pending (o muere si ya agotó los intentos). No
-      // sabemos cuáles filas del append llegaron, así que el `_mirror_id` de
-      // cada fila es lo que permite deduplicar al reconciliar.
-      failed += group.length;
-      const msg = (e as Error).message;
-      log.warn("sheets.sync.batch_failed", { entity, rows: group.length, error: msg });
-      for (const r of group) {
-        const attempts = (r.attempts ?? 0) + 1;
-        await db.from("sheets_sync_queue").update({
-          status: attempts >= MAX_ATTEMPTS ? "error" : "pending",
-          attempts,
-          last_error: msg,
-        }).eq("id", r.id);
-      }
+      await markBatchFailed(entity, group, e);
     }
   }
 
-  log.info("cron.sheets_sync.tick", { done, failed, unsupported, batch: rows.length });
-  await recordHeartbeat("sheets-sync", { done, failed, unsupported });
-  return NextResponse.json({ done, failed, unsupported });
+  log.info("cron.sheets_sync.tick", { done, failed, removed, batch: rows.length });
+  await recordHeartbeat("sheets-sync", { done, failed, removed });
+  return NextResponse.json({ done, failed, removed });
 }
