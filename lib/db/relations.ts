@@ -28,12 +28,20 @@ interface OptOutRow {
   reason: string | null;
 }
 
+// Cuánta historia mira la ficha de relación. Todo lo que deriva de acá
+// (cooldown, health score, último contacto) es sobre actividad reciente.
+export const RELATIONS_WINDOW_DAYS = 180;
+
 export async function loadRawRelationships(
   projectId: string,
   dnis: string[],
 ): Promise<Map<string, RawRelationship>> {
   const map = new Map<string, RawRelationship>();
   if (!dbConfigured() || dnis.length === 0) return map;
+
+  const sinceIso = new Date(
+    Date.now() - RELATIONS_WINDOW_DAYS * 86400_000,
+  ).toISOString();
 
   const db = getSupabase();
   // Filtramos por proyecto (NO por la lista de DNIs): con padrones grandes,
@@ -45,13 +53,16 @@ export async function loadRawRelationships(
     table: string,
     cols: string,
     order: string,
+    sinceCol?: string,
   ): Promise<T[]> {
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await db
+      let q = db
         .from(table)
         .select(cols)
-        .eq("project_id", projectId)
+        .eq("project_id", projectId);
+      if (sinceCol) q = q.gte(sinceCol, sinceIso);
+      const { data, error } = await q
         .order(order, { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw error;
@@ -63,22 +74,35 @@ export async function loadRawRelationships(
   }
 
   const [envios, respuestas, optouts] = await Promise.all([
-    fetchAll<EnvioRow>("envios", "campaign_id, dni, token, created_at, estado", "created_at"),
-    fetchAll<RespRow>("respuestas", "token, dni, created_at", "created_at"),
+    // Ventana de 180 días: la ficha de relación mide actividad reciente
+    // (cooldown, health score, último contacto), no la historia completa. Sin
+    // ventana, cada request paginaba TODOS los envíos y respuestas del
+    // proyecto — el costo crecía para siempre y no cambiaba el resultado.
+    fetchAll<EnvioRow>(
+      "envios",
+      "campaign_id, dni, token, created_at, estado",
+      "created_at",
+      "created_at",
+    ),
+    fetchAll<RespRow>("respuestas", "token, dni, created_at", "created_at", "created_at"),
+    // Las bajas NO se ventanean: son para siempre (ARCHITECTURE §5.5). Una
+    // baja de hace un año tiene que seguir apareciendo.
     fetchAll<OptOutRow>("opt_outs", "dni, at, reason", "dni"),
   ]);
 
   const campIds = Array.from(new Set(envios.map((e) => e.campaign_id)));
-  let channelById = new Map<string, Channel>();
-  if (campIds.length > 0) {
+  const channelById = new Map<string, Channel>();
+  // En lotes: un `.in()` con miles de ids arma una URL que el servidor rechaza
+  // con 414 antes de contestar.
+  for (let i = 0; i < campIds.length; i += 200) {
     const { data } = await db
       .from("campanas")
       .select("id, channel")
       .eq("project_id", projectId)
-      .in("id", campIds);
-    channelById = new Map(
-      (data ?? []).map((c) => [c.id as string, c.channel as Channel]),
-    );
+      .in("id", campIds.slice(i, i + 200));
+    for (const c of data ?? []) {
+      channelById.set(c.id as string, c.channel as Channel);
+    }
   }
 
   const respByToken = new Map(respuestas.map((r) => [r.token, r.created_at]));

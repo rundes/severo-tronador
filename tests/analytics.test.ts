@@ -59,10 +59,66 @@ function makeBuilder(table: string): Builder {
   return builder;
 }
 
+// Réplica en JS del RPC dashboard_stats: el dashboard ya no cuenta filas en el
+// proceso (PostgREST las truncaba a 1000 en silencio), así que el mock tiene que
+// agregar igual que la función SQL para que los tests midan lo mismo.
+interface EncuestaResp {
+  token: string | null;
+  created_at: string;
+}
+const encuestaRespuestas: EncuestaResp[] = [];
+
+function dashboardStats(since: string) {
+  const respondidos = new Set<string>([
+    ...fixtures.respuestas.filter((r) => r.created_at >= since).map((r) => r.token),
+    ...encuestaRespuestas
+      .filter((r) => r.token && r.created_at >= since)
+      .map((r) => r.token as string),
+  ]);
+  const enVentana = fixtures.envios.filter((e) => e.created_at >= since);
+  const byCampaign = new Map<
+    string,
+    { campaign_id: string; sent: number; failed: number; skipped: number; responses: number }
+  >();
+  const daily = new Map<string, { day: string; envios: number; responses: number }>();
+  for (const e of enVentana) {
+    const c = byCampaign.get(e.campaign_id) ?? {
+      campaign_id: e.campaign_id,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      responses: 0,
+    };
+    const respondido = Boolean(e.token && respondidos.has(e.token));
+    if (e.estado === "sent") c.sent++;
+    else if (e.estado === "failed") c.failed++;
+    else if (e.estado === "skipped") c.skipped++;
+    if (respondido) c.responses++;
+    byCampaign.set(e.campaign_id, c);
+
+    const day = e.created_at.slice(0, 10);
+    const d = daily.get(day) ?? { day, envios: 0, responses: 0 };
+    d.envios++;
+    if (respondido) d.responses++;
+    daily.set(day, d);
+  }
+  return {
+    byCampaign: [...byCampaign.values()],
+    daily: [...daily.values()].sort((a, b) => a.day.localeCompare(b.day)),
+    optOuts: fixtures.opt_outs.filter((o) => o.at >= since).length,
+  };
+}
+
 vi.mock("@/lib/db/supabase", () => ({
   dbConfigured: () => true,
   getSupabase: () => ({
     from: (t: string) => makeBuilder(t),
+    rpc: (fn: string, params: Record<string, unknown>) =>
+      Promise.resolve(
+        fn === "dashboard_stats"
+          ? { data: dashboardStats(params.p_since as string), error: null }
+          : { data: null, error: { message: `rpc ${fn}?` } },
+      ),
   }),
 }));
 
@@ -84,6 +140,7 @@ beforeEach(() => {
   fixtures.respuestas.length = 0;
   fixtures.opt_outs.length = 0;
   fixtures.campanas.length = 0;
+  encuestaRespuestas.length = 0;
 });
 
 describe("loadDashboard (Plan 03 F1)", () => {

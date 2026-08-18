@@ -153,30 +153,12 @@ export async function loadDashboard(
 
   const db = getSupabase();
 
-  // Fetch en paralelo (scopeado por proyecto).
-  const [enviosRes, respuestasRes, encuestaRespRes, optoutsRes, campanasRes] = await Promise.all([
-    db
-      .from("envios")
-      .select("campaign_id, estado, token, created_at")
-      .eq("project_id", projectId)
-      .gte("created_at", since),
-    db
-      .from("respuestas")
-      .select("token, created_at")
-      .eq("project_id", projectId)
-      .gte("created_at", since),
-    // Respuestas del módulo nuevo de encuestas, atribuibles a una campaña por
-    // token (las campañas "Encuesta:" guardan acá, no en `respuestas` legacy).
-    db
-      .from("encuesta_respuestas")
-      .select("token, created_at")
-      .eq("project_id", projectId)
-      .gte("created_at", since),
-    db
-      .from("opt_outs")
-      .select("dni, at")
-      .eq("project_id", projectId)
-      .gte("at", since),
+  // Los agregados se calculan en SQL (RPC dashboard_stats). Antes se traían las
+  // filas crudas de envios/respuestas/opt_outs y se contaban en JS: sin
+  // `.limit()` PostgREST corta en 1000 SIN error, así que pasadas las 1000
+  // filas en la ventana las métricas mentían y nadie se enteraba.
+  const [statsRes, campanasRes] = await Promise.all([
+    db.rpc("dashboard_stats", { p_project_id: projectId, p_since: since }),
     db
       .from("campanas")
       .select("id, nombre, channel, created_at")
@@ -186,13 +168,23 @@ export async function loadDashboard(
       .limit(100),
   ]);
 
-  type EnvioRow = {
+  interface CampaignStat {
     campaign_id: string;
-    estado: string;
-    token: string | null;
-    created_at: string;
-  };
-  type RespRow = { token: string; created_at: string };
+    sent: number;
+    failed: number;
+    skipped: number;
+    responses: number;
+  }
+  interface DailyStat {
+    day: string;
+    envios: number;
+    responses: number;
+  }
+  interface DashboardStats {
+    byCampaign: CampaignStat[];
+    daily: DailyStat[];
+    optOuts: number;
+  }
   type CampRow = {
     id: string;
     nombre: string;
@@ -200,64 +192,50 @@ export async function loadDashboard(
     created_at: string;
   };
 
-  const envios = (enviosRes.data ?? []) as EnvioRow[];
-  // Unimos respuestas legacy + las del módulo encuestas (ambas keyed por token).
-  const respuestas = [
-    ...((respuestasRes.data ?? []) as RespRow[]),
-    // Solo las que tienen token (atribuibles a una campaña); las públicas no.
-    ...((encuestaRespRes.data ?? []) as { token: string | null; created_at: string }[])
-      .filter((r) => r.token)
-      .map((r) => ({ token: r.token as string, created_at: r.created_at })),
-  ];
-  const optouts = optoutsRes.data ?? [];
+  const stats = (statsRes.data ?? {
+    byCampaign: [],
+    daily: [],
+    optOuts: 0,
+  }) as DashboardStats;
   const campanas = (campanasRes.data ?? []) as CampRow[];
 
-  // Index respuestas por token para join.
-  const respByToken = new Set(respuestas.map((r) => r.token));
   // Index canal por campaign_id.
   const channelById = new Map(campanas.map((c) => [c.id, c.channel]));
 
-  // ── KPIs globales ────────────────────────────────────────────────────────
-  const kpi = emptyKpi(window);
-  for (const e of envios) {
-    const ch = channelById.get(e.campaign_id) as Channel | undefined;
-    if (e.estado === "sent") {
-      kpi.sent++;
-      if (ch) kpi.byChannel[ch].sent++;
-    } else if (e.estado === "failed") {
-      kpi.failed++;
-    } else if (e.estado === "skipped") {
-      kpi.skipped++;
-    }
-    if (e.token && respByToken.has(e.token)) {
-      kpi.responses++;
-      if (ch) kpi.byChannel[ch].responses++;
-    }
-  }
-  kpi.optOuts = optouts.length;
-  kpi.responseRate = kpi.sent > 0 ? kpi.responses / kpi.sent : 0;
-  kpi.optOutRate = kpi.sent > 0 ? kpi.optOuts / kpi.sent : 0;
-  for (const channel of OUTREACH_CHANNELS) {
-    kpi.estCostUsd += costFor(channel, kpi.byChannel[channel].sent);
-  }
-
-  // ── Comparativa campañas ─────────────────────────────────────────────────
   const enviosByCamp = new Map<
     string,
     { sent: number; failed: number; skipped: number; responses: number }
   >();
-  for (const e of envios) {
-    const cur = enviosByCamp.get(e.campaign_id) ?? {
-      sent: 0,
-      failed: 0,
-      skipped: 0,
-      responses: 0,
-    };
-    if (e.estado === "sent") cur.sent++;
-    else if (e.estado === "failed") cur.failed++;
-    else if (e.estado === "skipped") cur.skipped++;
-    if (e.token && respByToken.has(e.token)) cur.responses++;
-    enviosByCamp.set(e.campaign_id, cur);
+  for (const c of stats.byCampaign ?? []) {
+    enviosByCamp.set(c.campaign_id, {
+      sent: Number(c.sent),
+      failed: Number(c.failed),
+      skipped: Number(c.skipped),
+      responses: Number(c.responses),
+    });
+  }
+
+  // ── KPIs globales ────────────────────────────────────────────────────────
+  // Suma de los agregados por campaña. El desglose por canal necesita el canal
+  // de cada campaña, que sale de `campanas`: los envíos de campañas fuera de
+  // esas 100 más recientes cuentan en el total pero no en el desglose.
+  const kpi = emptyKpi(window);
+  for (const [campaignId, m] of enviosByCamp) {
+    const ch = channelById.get(campaignId) as Channel | undefined;
+    kpi.sent += m.sent;
+    kpi.failed += m.failed;
+    kpi.skipped += m.skipped;
+    kpi.responses += m.responses;
+    if (ch) {
+      kpi.byChannel[ch].sent += m.sent;
+      kpi.byChannel[ch].responses += m.responses;
+    }
+  }
+  kpi.optOuts = Number(stats.optOuts ?? 0);
+  kpi.responseRate = kpi.sent > 0 ? kpi.responses / kpi.sent : 0;
+  kpi.optOutRate = kpi.sent > 0 ? kpi.optOuts / kpi.sent : 0;
+  for (const channel of OUTREACH_CHANNELS) {
+    kpi.estCostUsd += costFor(channel, kpi.byChannel[channel].sent);
   }
 
   const campaigns: CampaignRow[] = campanas.map((c) => {
@@ -282,18 +260,15 @@ export async function loadDashboard(
   });
 
   // ── Time-series ──────────────────────────────────────────────────────────
+  // La serie diaria también viene agregada del RPC. `responses` cuenta ahora el
+  // dia del ENVIO respondido, no el de la respuesta: es lo que hace comparables
+  // las dos curvas del grafico (de N envios de ese dia, cuantos respondieron).
   const dayMap = new Map<string, { envios: number; responses: number }>();
-  for (const e of envios) {
-    const d = e.created_at.slice(0, 10);
-    const cur = dayMap.get(d) ?? { envios: 0, responses: 0 };
-    cur.envios++;
-    dayMap.set(d, cur);
-  }
-  for (const r of respuestas) {
-    const d = r.created_at.slice(0, 10);
-    const cur = dayMap.get(d) ?? { envios: 0, responses: 0 };
-    cur.responses++;
-    dayMap.set(d, cur);
+  for (const d of stats.daily ?? []) {
+    dayMap.set(d.day, {
+      envios: Number(d.envios),
+      responses: Number(d.responses),
+    });
   }
   // Forzar todos los días en la ventana, incluso con 0.
   const points: DayPoint[] = [];

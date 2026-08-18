@@ -256,11 +256,18 @@ export async function readPadronPage(
   return (data ?? []) as Contact[];
 }
 
+// Total del padrón para la paginación de /contactos.
+//
+// `estimated` en vez de `exact`: el count exacto es un scan completo de la
+// tabla en cada carga del dashboard y de /contactos. Para decidir cuántas
+// páginas mostrar, la estimación del planner alcanza. PostgREST cae solo a un
+// count exacto cuando la tabla es chica, que es cuando la estimación sería
+// mala.
 export async function padronCount(projectId: string): Promise<number> {
   if (!dbConfigured()) return 0;
   const { count } = await getSupabase()
     .from("padron")
-    .select("*", { count: "exact", head: true })
+    .select("*", { count: "estimated", head: true })
     .eq("project_id", projectId);
   return count ?? 0;
 }
