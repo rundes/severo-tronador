@@ -147,3 +147,24 @@ async function readRow(userEmail: string): Promise<MemoryRow | null> {
 export function _clearMemoryForTests() {
   memory.clear();
 }
+
+// Dueño de una casilla @tronador. Sirve para atribuir un mail entrante al
+// proyecto correcto en vez de tirarlo todo al proyecto default.
+export async function ownerOfAddress(address: string): Promise<string | null> {
+  const addr = address.trim().toLowerCase();
+  if (!addr) return null;
+  if (!dbConfigured()) {
+    for (const row of memory.values()) {
+      if (row.mailbox_address.toLowerCase() === addr) return row.user_email;
+    }
+    return null;
+  }
+  const { data, error } = await getSupabase()
+    .from("mailbox_credentials")
+    .select("user_email")
+    .ilike("mailbox_address", addr)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as { user_email?: string } | null)?.user_email ?? null;
+}

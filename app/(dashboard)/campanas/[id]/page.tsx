@@ -340,7 +340,7 @@ export default async function CampanaPage({
   }
 
   // ── Outreach campaign (email / whatsapp / sms / voice / telegram) ────────
-  const template = await getTemplate(campaign.templateId);
+  const template = await getTemplate(campaign.templateId, projectId);
   const { metrics } = campaign;
   const respuestasList = await listResponses(projectId, campaign.id);
   const respuestas = respuestasList.length;

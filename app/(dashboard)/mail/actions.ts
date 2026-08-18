@@ -16,7 +16,8 @@ import { provisionMailbox } from "@/lib/mailbox/provision";
 import type { EmailAddress } from "@/lib/mailbox/types";
 import { dnisByEmails } from "@/lib/db/padron";
 import { optedOutSet } from "@/lib/optout";
-import { requireProject } from "@/lib/workspace";
+import { requireMember, requireProject } from "@/lib/workspace";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 function requireSession() {
   return auth().then((s) => {
@@ -27,9 +28,13 @@ function requireSession() {
 
 export async function provisionMyMailbox() {
   const userEmail = await requireSession();
+  // La casilla es del usuario, pero la auditoría vive por proyecto: se registra
+  // en el proyecto desde el que operó.
+  const { id: projectId } = await requireProject();
   const result = await provisionMailbox(userEmail);
   await logAudit({
     action: "mailbox.provision",
+    projectId,
     actor: userEmail,
     entity_type: "mailbox",
     entity_id: result.address,
@@ -96,6 +101,7 @@ function sanitizeLocalPart(raw: string): string {
 
 export async function updateMyMailboxAddress(formData: FormData) {
   const userEmail = await requireSession();
+  const { id: projectId } = await requireProject();
   const cred = await getCredentialFor(userEmail);
   if (!cred) redirect("/mail?error=no_mailbox");
 
@@ -115,6 +121,7 @@ export async function updateMyMailboxAddress(formData: FormData) {
   await updateAddress(userEmail, address);
   await logAudit({
     action: "mailbox.address.update",
+    projectId,
     actor: userEmail,
     entity_type: "mailbox",
     entity_id: address,
@@ -165,7 +172,15 @@ export async function sendMail(formData: FormData) {
   const creds = cred
     ? { address: cred.address, password: cred.password }
     : undefined;
-  const { id: projectId } = await requireProject();
+  // Enviar mail es escritura hacia afuera: viewer no.
+  const { id: projectId } = await requireMember("editor");
+
+  // Tope por operador: el compositor manda a destinatarios arbitrarios, así que
+  // sin límite es un relay de spam con las credenciales del sistema.
+  const limited = consumeRateLimit(`mail.send:${userEmail}`, 60, 60 * 60_000);
+  if (!limited.ok) {
+    redirect(`/mail/compose?error=rate&espera=${limited.retryAfterSeconds}`);
+  }
 
   // Opt-out: la baja es cross-channel y para siempre (ARCHITECTURE §5.5). El
   // compositor manual también la respeta — si no, un mail "uno a uno" era la
@@ -187,6 +202,7 @@ export async function sendMail(formData: FormData) {
 
   await logAudit({
     action: "mailbox.send",
+    projectId,
     actor: userEmail,
     entity_type: "mailbox",
     details: {

@@ -25,10 +25,12 @@ export async function guardarConfig(
   connectorId: string,
   fd: FormData,
 ): Promise<{ ok: boolean; message?: string }> {
-  await requireMember("owner"); // credenciales de conectores: sólo owners
+  // Credenciales de conectores: sólo owners, y siempre sobre el override del
+  // proyecto activo — la fila de organización es el fallback compartido.
+  const { id: projectId } = await requireMember("owner");
   if (!getConnector(connectorId)) return { ok: false, message: "Conector desconocido" };
   try {
-    await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+    await saveConnectorConfig(connectorId, projectId, valuesFromForm(connectorId, fd));
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
@@ -41,31 +43,31 @@ export async function probarConexion(
   connectorId: string,
   fd: FormData,
 ): Promise<{ ok: boolean; message: string }> {
-  await requireMember("owner");
+  const { id: projectId } = await requireMember("owner");
   const connector = getConnector(connectorId);
   if (!connector) return { ok: false, message: "Conector desconocido" };
   try {
-    await saveConnectorConfig(connectorId, valuesFromForm(connectorId, fd));
+    await saveConnectorConfig(connectorId, projectId, valuesFromForm(connectorId, fd));
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
-  const res = await connector.test(await getConnectorConfig(connectorId));
+  const res = await connector.test(await getConnectorConfig(connectorId, projectId));
   invalidateConnectorHealth(connectorId);
   revalidatePath("/conectores");
   return { ok: res.ok, message: res.message };
 }
 
 export async function toggleConector(connectorId: string, enabled: boolean) {
-  await requireMember("owner");
+  const { id: projectId } = await requireMember("owner");
   if (!getConnector(connectorId)) return;
-  await setEnabled(connectorId, enabled);
+  await setEnabled(connectorId, projectId, enabled);
   revalidatePath("/conectores");
 }
 
 export async function borrarConfig(connectorId: string) {
-  await requireMember("owner");
+  const { id: projectId } = await requireMember("owner");
   if (!getConnector(connectorId)) return;
-  await deleteConnectorConfig(connectorId);
+  await deleteConnectorConfig(connectorId, projectId);
   invalidateConnectorHealth(connectorId);
   revalidatePath("/conectores");
 }

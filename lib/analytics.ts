@@ -324,7 +324,7 @@ async function loadOverview(
 ): Promise<OverviewData> {
   const [segments, templates, encuestas] = await Promise.all([
     listSavedSegments(projectId).catch(() => []),
-    listTemplates().catch(() => []),
+    listTemplates(projectId).catch(() => []),
     listEncuestas(projectId).catch(() => []),
   ]);
 

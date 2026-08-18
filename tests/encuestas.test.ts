@@ -57,6 +57,30 @@ describe("encuestas · CRUD + publish", () => {
     expect(closed?.estado).toBe("cerrada");
   });
 
+  it("el slug público no se puede enumerar con comodines", async () => {
+    // La búsqueda era `.ilike(slug)`, y en LIKE `%` y `_` son comodines: pedir
+    // /encuesta/%25 devolvía la primera encuesta publicada de CUALQUIER
+    // proyecto, y con `_` se enumeraba de a un caracter.
+    const enc = await createEncuesta(P, { titulo: "Secreta" });
+    await updateEncuesta(P, enc.id, { preguntas: QS });
+    const pub = await publishEncuesta(P, enc.id);
+    expect(pub?.slug).toBeTruthy();
+
+    expect(await getEncuestaBySlug("%")).toBeNull();
+    expect(await getEncuestaBySlug("%%")).toBeNull();
+    expect(await getEncuestaBySlug("_".repeat(pub!.slug!.length))).toBeNull();
+    expect(await getEncuestaBySlug("secreta%")).toBeNull();
+    // El slug exacto sigue resolviendo.
+    expect((await getEncuestaBySlug(pub!.slug!))?.id).toBe(enc.id);
+  });
+
+  it("el slug es case-insensitive pero exacto", async () => {
+    const enc = await createEncuesta(P, { titulo: "Mayus" });
+    await updateEncuesta(P, enc.id, { preguntas: QS });
+    const pub = await publishEncuesta(P, enc.id);
+    expect((await getEncuestaBySlug(pub!.slug!.toUpperCase()))?.id).toBe(enc.id);
+  });
+
   it("publicar sin preguntas falla", async () => {
     const enc = await createEncuesta(P, { titulo: "Vacía" });
     await expect(publishEncuesta(P, enc.id)).rejects.toThrow(/al menos una pregunta/);

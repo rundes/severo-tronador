@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createTemplate, updateTemplate } from "@/lib/templates";
 import { NuevaPlantillaSchema, formToObject, isValidEmail } from "@/lib/schemas";
 import { auth } from "@/lib/auth";
-import { requireProject } from "@/lib/workspace";
+import { requireMember, requireProject } from "@/lib/workspace";
 import { resendConnector } from "@/lib/connectors/resend";
 import { renderCampaignEmailHtml } from "@/lib/email-render";
 import { interpolate } from "@/lib/templates";
@@ -18,7 +18,8 @@ export async function nuevaPlantilla(formData: FormData) {
   const parsed = NuevaPlantillaSchema.safeParse(formToObject(formData));
   if (!parsed.success) redirect("/templates?error=campos");
 
-  const { id: projectId } = await requireProject();
+  // Crear/editar plantillas es escritura: viewer no.
+  const { id: projectId } = await requireMember("editor");
   const id = String(formData.get("id") ?? "").trim();
   const payload = {
     channel: parsed.data.channel,
@@ -36,7 +37,7 @@ export async function nuevaPlantilla(formData: FormData) {
     redirect("/templates?ok=actualizada");
   }
 
-  await createTemplate(payload);
+  await createTemplate(projectId, payload);
   redirect("/templates?ok=creada");
 }
 

@@ -1,15 +1,21 @@
 // Plantillas de mensaje por canal. Variables tipo {{nombre}}, {{barrio}}.
 // Persistencia Supabase directa (mapea camelCase↔snake_case: la columna es
-// created_at, no createdAt) con fallback en memoria. Org-global (sin filtro de
-// proyecto en lectura; el project_id lo completa el default de la tabla).
+// created_at, no createdAt) con fallback en memoria.
+//
+// SCOPE POR PROYECTO, sin excepciones. Antes las lecturas eran org-globales y
+// las escrituras caían al DEFAULT de la columna project_id: cualquier plantilla
+// creada por un proyecto la veían todos. `projectId` es obligatorio en toda la
+// superficie pública para que ningún caller pueda olvidarlo.
 import type { Channel } from "@/lib/relationship";
 import type { Contact } from "@/lib/connectors/types";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { DEFAULT_PROJECT_ID } from "@/lib/projects";
 
 export type TemplateFormato = "texto" | "html" | "html_full";
 
 export interface Template {
   id: string;
+  projectId: string;
   channel: Channel;
   nombre: string;
   asunto?: string;
@@ -24,7 +30,9 @@ export interface Template {
   createdAt: string;
 }
 
-const SEED: Template[] = [
+type SeedTemplate = Omit<Template, "projectId">;
+
+const SEED: SeedTemplate[] = [
   {
     id: "tpl-invitacion",
     channel: "email",
@@ -91,6 +99,7 @@ const SEED: Template[] = [
 
 interface TemplateRow {
   id: string;
+  project_id: string;
   channel: Channel;
   nombre: string;
   asunto: string | null;
@@ -104,9 +113,28 @@ interface TemplateRow {
 const g = globalThis as unknown as { __templates?: Template[] };
 const mem = (g.__templates ??= []);
 
+// Los ids de las plantillas semilla son la PK de la tabla, así que no pueden
+// repetirse entre proyectos. El proyecto default conserva el id histórico
+// (`tpl-invitacion`) para no romper las campañas que ya lo referencian; el
+// resto lo lleva sufijado.
+function seedIdFor(baseId: string, projectId: string): string {
+  // El projectId entero, no un prefijo: la PK es text y un prefijo corto
+  // colisiona entre proyectos con nombres parecidos.
+  return projectId === DEFAULT_PROJECT_ID ? baseId : `${baseId}--${projectId}`;
+}
+
+function seedFor(projectId: string): Template[] {
+  return SEED.map((t) => ({
+    ...t,
+    id: seedIdFor(t.id, projectId),
+    projectId,
+  }));
+}
+
 function rowToTemplate(r: TemplateRow): Template {
   return {
     id: r.id,
+    projectId: r.project_id,
     channel: r.channel,
     nombre: r.nombre,
     asunto: r.asunto ?? undefined,
@@ -123,10 +151,11 @@ function rowToTemplate(r: TemplateRow): Template {
   };
 }
 
-// Fila para la DB: createdAt → created_at. Sin project_id (default de la tabla).
+// Fila para la DB: createdAt → created_at, projectId → project_id.
 function templateToRow(t: Template): TemplateRow {
   return {
     id: t.id,
+    project_id: t.projectId,
     channel: t.channel,
     nombre: t.nombre,
     asunto: t.asunto ?? null,
@@ -154,56 +183,78 @@ async function upsertTemplate(t: Template): Promise<Template> {
   return rowToTemplate(data as TemplateRow);
 }
 
-let seeded = false;
-async function ensureSeed() {
-  if (seeded) return;
+// Semilla POR PROYECTO: un proyecto nuevo arranca con las plantillas base, no
+// con las del vecino. El set de ya-sembrados es por proceso; el chequeo real es
+// el count por proyecto contra la DB.
+const seeded = new Set<string>();
+async function ensureSeed(projectId: string) {
+  if (seeded.has(projectId)) return;
   if (!dbConfigured()) {
-    if (mem.length === 0) mem.push(...SEED);
-    seeded = true;
+    if (!mem.some((t) => t.projectId === projectId)) {
+      mem.push(...seedFor(projectId));
+    }
+    seeded.add(projectId);
     return;
   }
   const { count, error } = await getSupabase()
     .from("templates")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
   if (error) throw error;
-  if ((count ?? 0) === 0) for (const t of SEED) await upsertTemplate(t);
-  seeded = true;
+  if ((count ?? 0) === 0) for (const t of seedFor(projectId)) await upsertTemplate(t);
+  seeded.add(projectId);
 }
 
-export async function listTemplates(channel?: Channel): Promise<Template[]> {
-  await ensureSeed();
+export async function listTemplates(
+  projectId: string,
+  channel?: Channel,
+): Promise<Template[]> {
+  await ensureSeed(projectId);
   if (!dbConfigured()) {
-    return channel ? mem.filter((t) => t.channel === channel) : [...mem];
+    return mem.filter(
+      (t) => t.projectId === projectId && (!channel || t.channel === channel),
+    );
   }
-  const { data, error } = await getSupabase().from("templates").select("*");
+  let q = getSupabase()
+    .from("templates")
+    .select("*")
+    .eq("project_id", projectId);
+  if (channel) q = q.eq("channel", channel);
+  const { data, error } = await q;
   if (error) throw error;
-  const all = (data as TemplateRow[]).map(rowToTemplate);
-  return channel ? all.filter((t) => t.channel === channel) : all;
+  return (data as TemplateRow[]).map(rowToTemplate);
 }
 
-// Busca una plantilla por id. Si se pasa `projectId`, la limita a ese proyecto
-// (anti-IDOR cross-tenant): una plantilla de otro proyecto se trata como
-// inexistente. Sin projectId, mantiene el comportamiento global (callers que
-// ya operan sobre ids de su propio contexto, ej. envío de campañas).
+// Busca una plantilla por id DENTRO de un proyecto (anti-IDOR cross-tenant):
+// una plantilla de otro proyecto se trata como inexistente. `projectId` es
+// obligatorio a propósito — cuando era opcional, el path de envío de campañas
+// no lo pasaba y podía resolver la plantilla de otro tenant.
 export async function getTemplate(
   id: string,
-  projectId?: string,
+  projectId: string,
 ): Promise<Template | undefined> {
-  await ensureSeed();
-  if (!dbConfigured()) return mem.find((t) => t.id === id);
-  let q = getSupabase().from("templates").select("*").eq("id", id);
-  if (projectId) q = q.eq("project_id", projectId);
-  const { data } = await q.maybeSingle();
+  await ensureSeed(projectId);
+  if (!dbConfigured()) {
+    return mem.find((t) => t.id === id && t.projectId === projectId);
+  }
+  const { data } = await getSupabase()
+    .from("templates")
+    .select("*")
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .maybeSingle();
   return data ? rowToTemplate(data as TemplateRow) : undefined;
 }
 
 export async function createTemplate(
-  input: Omit<Template, "id" | "createdAt" | "formato"> & {
+  projectId: string,
+  input: Omit<Template, "id" | "projectId" | "createdAt" | "formato"> & {
     formato?: TemplateFormato;
   },
 ): Promise<Template> {
   const tpl: Template = {
     ...input,
+    projectId,
     formato: input.formato ?? "texto",
     id: `tpl-${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
@@ -217,7 +268,7 @@ export async function createTemplate(
 export async function updateTemplate(
   id: string,
   projectId: string,
-  input: Omit<Template, "id" | "createdAt" | "formato"> & {
+  input: Omit<Template, "id" | "projectId" | "createdAt" | "formato"> & {
     formato?: TemplateFormato;
   },
 ): Promise<Template | undefined> {
@@ -226,6 +277,7 @@ export async function updateTemplate(
   const tpl: Template = {
     ...existing,
     ...input,
+    projectId,
     formato: input.formato ?? existing.formato,
     id,
     createdAt: existing.createdAt,

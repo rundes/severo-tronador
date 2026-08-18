@@ -64,7 +64,7 @@ export default async function ShareCampaignPage({
   const campaign = await getCampaign(pid, verify.payload.id);
   if (!campaign) notFound();
 
-  const template = await getTemplate(campaign.templateId);
+  const template = await getTemplate(campaign.templateId, pid);
   const respuestasList = await listResponses(pid, campaign.id);
   const responseTokens = new Set(respuestasList.map((r) => r.token));
   const responses = respuestasList.length;

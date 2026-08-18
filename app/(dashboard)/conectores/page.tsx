@@ -6,6 +6,7 @@ import {
 } from "@/lib/connectors/registry";
 import type { Connector } from "@/lib/connectors/types";
 import { configFieldStatus, getConnectorConfig, isEnabled } from "@/lib/connectors/config";
+import { requireProject } from "@/lib/workspace";
 import { curatedModels } from "@/lib/ai/nvidia-models";
 import { setupLink } from "@/lib/connectors/setup-links";
 import {
@@ -25,17 +26,17 @@ export const metadata = { title: "Conectores · Severo Tronador" };
 export const dynamic = "force-dynamic";
 
 // Resuelve estado + cuota + salud real + config de cada conector (server-side).
-async function resolve(connector: Connector) {
+async function resolve(connector: Connector, projectId: string) {
   const [status, quota, health, fields, enabled] = await Promise.all([
     connector.getStatus(),
-    connector.getQuota ? connector.getQuota() : Promise.resolve(null),
+    connector.getQuota ? connector.getQuota(projectId) : Promise.resolve(null),
     getConnectorHealth(connector.id),
-    configFieldStatus(connector.id),
-    isEnabled(connector.id),
+    configFieldStatus(connector.id, projectId),
+    isEnabled(connector.id, projectId),
   ]);
   // NVIDIA: poblar el selector de modelos (rápido/profundo) desde /v1/models.
   if (connector.id === "nvidia") {
-    const cfg = await getConnectorConfig("nvidia");
+    const cfg = await getConnectorConfig("nvidia", projectId);
     if (cfg.NVIDIA_API_KEY) {
       try {
         const models = await curatedModels(cfg.NVIDIA_API_KEY);
@@ -52,7 +53,8 @@ async function resolve(connector: Connector) {
 }
 
 export default async function ConectoresPage() {
-  const resolved = await Promise.all(connectors.map(resolve));
+  const { id: projectId } = await requireProject();
+  const resolved = await Promise.all(connectors.map((c) => resolve(c, projectId)));
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     cat,
     items: resolved.filter((r) => r.connector.category === cat),

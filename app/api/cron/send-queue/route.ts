@@ -155,7 +155,7 @@ export async function GET(req: Request) {
       return;
     }
     if ((inserted ?? []).length > 0) {
-      await enqueueSheetSync("envios", "upsert", envioRow);
+      await enqueueSheetSync(row.project_id, "envios", "upsert", envioRow);
     }
   }
 

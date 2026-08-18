@@ -68,7 +68,7 @@ export default async function EncuestaDetailPage({
         await Promise.all(
           SURVEY_SEND_CHANNELS.map(async (ch) => {
             if (!outreachConnectorFor(ch)) return null;
-            const tpls = await listTemplates(ch);
+            const tpls = await listTemplates(projectId, ch);
             if (!tpls.length) return null;
             return {
               id: ch,
@@ -97,6 +97,9 @@ export default async function EncuestaDetailPage({
     envio: `No se pudo enviar: ${sp.detalle ?? ""}`,
     prueba_datos: "Elegí una plantilla y escribí un destino de prueba.",
     prueba_destino: "El destino de prueba no tiene un formato válido (mail o teléfono según el canal).",
+    prueba_destino_ajeno:
+      "La prueba sólo se puede mandar a tu propia casilla, la de la sesión.",
+    prueba_rate: `Ya mandaste varias pruebas seguidas. Probá de nuevo en ${sp.espera ?? "unos"} segundos.`,
     prueba: `No se pudo enviar la prueba: ${sp.detalle ?? ""}`,
   };
   const okMsg = sp.ok ? okMap[sp.ok] ?? null : null;

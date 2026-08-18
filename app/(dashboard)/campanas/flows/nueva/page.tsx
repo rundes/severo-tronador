@@ -3,6 +3,7 @@ import { listTemplates } from "@/lib/templates";
 import { filterFromParams } from "@/lib/segments";
 import { decodeQuery } from "@/lib/segment-query";
 import { FlowBuilder } from "@/components/flows/flow-builder";
+import { requireProject } from "@/lib/workspace";
 import { crearFlow } from "../actions";
 
 export const metadata = { title: "Nuevo flow · Tronador" };
@@ -12,15 +13,16 @@ export default async function NuevoFlowPage({
 }: {
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
+  const { id: projectId } = await requireProject();
   const params = (await searchParams) ?? {};
   const filter = filterFromParams(params);
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   // Templates por canal — el cliente arma el form con todos juntos.
   const [emailT, waT, smsT, voiceT] = await Promise.all([
-    listTemplates("email"),
-    listTemplates("whatsapp"),
-    listTemplates("sms"),
-    listTemplates("voice"),
+    listTemplates(projectId, "email"),
+    listTemplates(projectId, "whatsapp"),
+    listTemplates(projectId, "sms"),
+    listTemplates(projectId, "voice"),
   ]);
   const templatesByChannel = {
     email: emailT.map((t) => ({ id: t.id, nombre: t.nombre })),

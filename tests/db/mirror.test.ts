@@ -6,7 +6,7 @@ describe("withMirror", () => {
     const enqueue = vi.fn(async () => {});
     const { withMirror } = await import("@/lib/db/mirror");
     const base = memoryRepo<{ id?: string; n: number }>("m");
-    const repo = withMirror(base, { entity: "m", enqueue });
+    const repo = withMirror(base, { entity: "m", projectId: "p1", enqueue });
     await repo.upsert({ id: "1", n: 1 });
     expect(enqueue).toHaveBeenCalledWith("m", "upsert", { id: "1", n: 1 });
   });

@@ -80,7 +80,7 @@ export async function addEncuestaResponse(
     if ((error as { code?: string }).code === "23505") return null;
     throw error;
   }
-  await enqueueSheetSync("encuesta_respuestas", "upsert", data);
+  await enqueueSheetSync(input.projectId, "encuesta_respuestas", "upsert", data);
   return rowToResponse(data as RespRow);
 }
 

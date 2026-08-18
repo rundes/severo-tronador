@@ -109,7 +109,7 @@ export const metaWaCloudConnector: OutreachConnector = {
       return { ok: false, error: "Teléfono inválido (E.164)" };
     }
 
-    const cfg = await getConnectorConfig(ID);
+    const cfg = await getConnectorConfig(ID, projectId);
 
     if (!(cfg.META_WA_PHONE_NUMBER_ID && cfg.META_WA_ACCESS_TOKEN)) {
       await incrementUsage(ID, 1, projectId);

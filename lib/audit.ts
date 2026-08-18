@@ -57,10 +57,11 @@ const mem = (g.__audit ??= []);
 
 export interface LogAuditInput {
   action: AuditAction;
-  // Proyecto al que pertenece la acción. Opcional: si se omite, la columna
-  // audit_log.project_id cae al DEFAULT (proyecto default) en Supabase. Los
-  // call sites scopeados (Fase 3+) lo pasan explícito.
-  projectId?: string;
+  // Proyecto al que pertenece la acción. OBLIGATORIO: mientras fue opcional, el
+  // que lo omitía caía al DEFAULT de la columna y su acción quedaba registrada
+  // en el proyecto default — auditoría de un tenant mezclada con la de otro.
+  // La migración 0054 saca ese DEFAULT, así que omitirlo ahora es un error.
+  projectId: string;
   actor?: string | null;
   entity_type?: string;
   entity_id?: string;
@@ -70,7 +71,7 @@ export interface LogAuditInput {
 // Fire-and-forget — no bloquea la action si falla el log.
 export async function logAudit(input: LogAuditInput): Promise<void> {
   const entry = {
-    ...(input.projectId ? { project_id: input.projectId } : {}),
+    project_id: input.projectId,
     actor: input.actor ?? null,
     action: input.action,
     entity_type: input.entity_type ?? null,

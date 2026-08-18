@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const [template, respuestasList] = await Promise.all([
-    getTemplate(campaign.templateId),
+    getTemplate(campaign.templateId, active.id),
     listResponses(active.id, campaign.id),
   ]);
   const responses = respuestasList.length;

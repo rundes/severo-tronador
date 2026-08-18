@@ -72,7 +72,7 @@ export async function crearCampanaMetaAd(formData: FormData) {
         `/campanas/nueva/meta-ad?error=db&detalle=${encodeURIComponent(error.message)}`,
       );
     }
-    await enqueueSheetSync("campanas", "upsert", row);
+    await enqueueSheetSync(projectId, "campanas", "upsert", row);
   }
   // En modo mock (sin Supabase) simplemente saltamos al detalle con el id
   // generado; no hay store en memoria para meta-ad, la página de detalle

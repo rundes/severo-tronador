@@ -9,6 +9,7 @@ import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { toCsv } from "@/lib/csv";
 import { listAudit } from "@/lib/audit";
 import { getActiveProject } from "@/lib/workspace";
+import { roleAllows } from "@/lib/projects";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -36,6 +37,11 @@ export async function GET(req: Request) {
   const active = await getActiveProject();
   if (!active) {
     return NextResponse.json({ error: "no_project" }, { status: 403 });
+  }
+  // Un export completo es PII saliendo del sistema: no es una lectura mas de
+  // panel. El rol viewer alcanzaba para descargarlo entero.
+  if (!roleAllows(active.role, "editor")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const db = getSupabase();

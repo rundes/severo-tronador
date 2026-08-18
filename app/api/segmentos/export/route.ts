@@ -6,6 +6,7 @@ import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { healthBand } from "@/lib/relationship";
 import { getActiveProject } from "@/lib/workspace";
+import { roleAllows } from "@/lib/projects";
 
 const COLS = [
   "dni",
@@ -37,6 +38,11 @@ export async function GET(req: Request) {
 
   const active = await getActiveProject();
   if (!active) return new Response("Sin proyecto activo", { status: 403 });
+  // El CSV del segmento son datos de contacto del padron: PII saliendo del
+  // sistema. Viewer puede mirar el segmento en pantalla, no descargarlo.
+  if (!roleAllows(active.role, "editor")) {
+    return new Response("Permiso insuficiente", { status: 403 });
+  }
 
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   const filter = advancedQuery ? {} : filterFromParams(params);

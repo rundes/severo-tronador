@@ -160,6 +160,7 @@ export async function importarCsv(formData: FormData) {
   const session = await auth();
   await logAudit({
     action: "campaign.create", // reuse existing enum; entity_type discriminates
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "contactos.csv",
     details: { rows: n },
@@ -171,6 +172,10 @@ export async function importarCsv(formData: FormData) {
 // Step 1 del sync: leer headers + sample rows. Redirige a /contactos
 // con preview encoded para que la UI muestre el mapper.
 export async function previewGoogleSheet() {
+  // Lee el Sheet del padron: es dato de contactos, no puede ser anonimo. Las
+  // server actions se despachan por action-id, asi que sin este guard era
+  // invocable desde cualquier ruta publica.
+  await requireMember("editor");
   if (!dbConfigured()) redirect("/contactos?error=no_db");
   try {
     const preview = await readPadronPreview(2);
@@ -221,6 +226,7 @@ export async function importarConMapeo(formData: FormData) {
     const session = await auth();
     await logAudit({
       action: "campaign.create",
+      projectId,
       actor: session?.user?.email ?? null,
       entity_type: "contactos.gsheet",
       details: { rows: n, fields: Object.keys(mapping) },
@@ -305,6 +311,7 @@ export async function importarConMapeoPicked(input: {
     const session = await auth();
     await logAudit({
       action: "campaign.create",
+      projectId,
       actor: session?.user?.email ?? null,
       entity_type: "contactos.gsheet_picker",
       details: { rows: n, fields: Object.keys(mapping) },
@@ -337,6 +344,7 @@ export async function eliminarTodosLosContactos(formData: FormData) {
     const session = await auth();
     await logAudit({
       action: "contact.delete_all",
+      projectId,
       actor: session?.user?.email ?? null,
       entity_type: "contactos",
       details: { deleted: n },
@@ -419,6 +427,7 @@ export async function eliminarContactosSeleccionados(
     const session = await auth();
     await logAudit({
       action: "contact.delete_all",
+      projectId,
       actor: session?.user?.email ?? null,
       entity_type: "contactos",
       details: { deleted: n, selection: true },
