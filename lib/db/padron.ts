@@ -193,6 +193,31 @@ export async function readPadronFromDb(
   return out;
 }
 
+// Los DNIs del proyecto que corresponden a una lista de emails. Query puntual
+// (`in`) en vez de traer el padrón entero: se usa en el compositor de mail, que
+// manda a un puñado de destinatarios. El match es case-insensitive por el lado
+// del input; padron.email se guarda en minúsculas al importar.
+export async function dnisByEmails(
+  projectId: string,
+  emails: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const wanted = emails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (!dbConfigured() || wanted.length === 0) return out;
+  const { data, error } = await getSupabase()
+    .from("padron")
+    .select("dni, email")
+    .eq("project_id", projectId)
+    .in("email", wanted);
+  if (error) {
+    throw new Error(`No se pudo resolver contactos por email: ${error.message}`);
+  }
+  for (const row of (data ?? []) as { dni: string; email: string | null }[]) {
+    if (row.email) out.set(row.email.trim().toLowerCase(), row.dni);
+  }
+  return out;
+}
+
 // Un contacto puntual por (proyecto, dni). Incluye la columna custom (jsonb).
 export async function readPadronContact(
   projectId: string,

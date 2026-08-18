@@ -21,6 +21,8 @@ function makeTables(): Record<string, MockTable> {
     sheets_sync_queue: { rows: [], inserted: [], updates: [] },
     // getOrgUsage (guard org-wide) consulta cuotas; vacío → orgUsed 0.
     cuotas: { rows: [], inserted: [], updates: [] },
+    // optedOutSet: el cron chequea bajas antes de tocar el connector.
+    opt_outs: { rows: [], inserted: [], updates: [] },
   };
 }
 
@@ -161,6 +163,7 @@ vi.mock("@/lib/campaigns", async (importOriginal) => {
 
 const PENDING_ROW = {
   id: "q1",
+  project_id: "proj-1",
   campaign_id: "cmp-1",
   channel: "email",
   connector_id: "resend",
@@ -369,5 +372,86 @@ describe("send-queue cron — procesamiento", () => {
     expect(sendCalls).toBe(0);
     const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
     expect(q0.status).toBe("pending");
+  });
+});
+
+describe("send-queue cron — opt-out en el despacho", () => {
+  it("no envía a un contacto dado de baja después de encolar", async () => {
+    // El chequeo al encolar no alcanza: la baja puede llegar entre el encolado
+    // y el despacho (o días después, en un flow con steps a futuro).
+    let sendCalls = 0;
+    connectorState.sendImpl = async () => {
+      sendCalls++;
+      return { ok: true };
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+    tables.opt_outs.rows.push({
+      project_id: "proj-1",
+      dni: "1",
+      at: "2020-06-01T00:00:00Z",
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as {
+      done: number;
+      skipped_by_opt_out: number;
+    };
+
+    expect(sendCalls).toBe(0);
+    expect(json.skipped_by_opt_out).toBe(1);
+    expect(json.done).toBe(0);
+    expect(tables.envios.inserted).toHaveLength(0);
+    const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
+    expect(q0.status).toBe("done");
+    expect(q0.last_error).toBe("opt_out_skipped");
+  });
+
+  it("la baja de un proyecto no frena el envío de otro", async () => {
+    let sendCalls = 0;
+    connectorState.sendImpl = async () => {
+      sendCalls++;
+      return { ok: true, providerMessageId: "m" };
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+    tables.opt_outs.rows.push({
+      project_id: "otro-proyecto",
+      dni: "1",
+      at: "2020-06-01T00:00:00Z",
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as {
+      done: number;
+      skipped_by_opt_out: number;
+    };
+
+    expect(sendCalls).toBe(1);
+    expect(json.skipped_by_opt_out).toBe(0);
+    expect(json.done).toBe(1);
+  });
+
+  it("lee las bajas una sola vez por proyecto en el tick", async () => {
+    // Sin cache serían N queries por batch. Contamos los select a opt_outs.
+    tables.envio_queue.rows.push({ ...PENDING_ROW, id: "q1" });
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "q2",
+      contact: { dni: "2", nombre: "Bea", apellido: "Ruiz", email: "b@x.com" },
+    });
+    let optOutReads = 0;
+    const original = supabaseStub.from;
+    const spied = { ...supabaseStub, from: (n: string) => {
+      if (n === "opt_outs") optOutReads++;
+      return original(n);
+    } };
+    vi.spyOn(supabaseStub, "from").mockImplementation(spied.from);
+
+    const GET = await getHandler();
+    await GET(makeReq());
+    vi.mocked(supabaseStub.from).mockRestore();
+
+    expect(optOutReads).toBe(1);
   });
 });

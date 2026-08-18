@@ -9,6 +9,8 @@
 // Sin Supabase corre en modo dry-run: parsea pero no persiste.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
+import { detectOptOut } from "@/lib/inbound";
+import { optOut } from "@/lib/optout";
 import type { EmailFull } from "./types";
 import { extractTokenFromAddress } from "./reply-address";
 
@@ -19,6 +21,7 @@ export interface RoutedReply {
     | "no_token"
     | "envio_not_found"
     | "duplicate"
+    | "opt_out"
     | "db_error";
   envioToken?: string;
   campaignId?: string;
@@ -37,6 +40,19 @@ interface EnvioRow {
 interface RespuestaRow {
   id: string;
   token: string;
+}
+
+// Primera línea con contenido del reply, ignorando texto citado (`>`) y la
+// firma. Un mail no es un SMS: el body trae el hilo citado abajo, así que
+// buscar la keyword sobre el body entero (match exacto) nunca daría. La
+// intención de baja viaja en lo primero que la persona escribe.
+export function firstMeaningfulLine(body: string): string {
+  for (const raw of (body ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith(">")) continue;
+    return line;
+  }
+  return "";
 }
 
 // Procesa UN mail. Idempotente: si ya existe respuesta para ese token
@@ -70,6 +86,32 @@ export async function routeReply(email: EmailFull): Promise<RoutedReply> {
   if (!row) {
     log.warn("mail.reply.envio_not_found", { token });
     return { ok: false, reason: "envio_not_found", envioToken: token };
+  }
+
+  // Opt-out por mail: "BAJA" respondiendo a una campaña se guardaba como
+  // respuesta cualitativa y la persona seguía recibiendo. La baja tiene
+  // prioridad sobre persistir la respuesta y va antes del dedupe (optOut es
+  // idempotente, así que un reenvío del proveedor la vuelve a aplicar sin daño).
+  const keyword = detectOptOut(firstMeaningfulLine(email.bodyText));
+  if (keyword) {
+    if (row.dni) {
+      await optOut(row.project_id, row.dni, `email ${keyword.toLowerCase()}`);
+      log.info("mail.reply.opt_out", {
+        token,
+        dni: row.dni,
+        campaign_id: row.campaign_id,
+      });
+    } else {
+      log.warn("mail.reply.opt_out.unmatched", { token, from: email.from.email });
+    }
+    return {
+      ok: true,
+      reason: "opt_out",
+      envioToken: token,
+      campaignId: row.campaign_id,
+      projectId: row.project_id,
+      dni: row.dni ?? undefined,
+    };
   }
 
   // Dedupe por (token + message_id si tenemos, sino por mismo body).

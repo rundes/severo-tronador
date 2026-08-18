@@ -20,6 +20,7 @@ import {
 import type { Channel } from "@/lib/relationship";
 import { enqueueSheetSync } from "@/lib/db/mirror";
 import { getOrgUsage } from "@/lib/quota";
+import { optedOutSet } from "@/lib/optout";
 import { log } from "@/lib/logger";
 import { shouldDispatch, type ConditionKind } from "@/lib/flows";
 import { isInWindow, nextWindowStart } from "@/lib/send-window";
@@ -107,6 +108,20 @@ export async function GET(req: Request) {
 
   let skippedByCondition = 0;
   let rescheduledByWindow = 0;
+  let skippedByOptOut = 0;
+
+  // Bajas por proyecto, leídas una vez por tick. El opt-out se chequea al
+  // ENCOLAR, pero una baja posterior (o un flow con steps a días vista) dejaba
+  // pasar envíos a gente ya dada de baja: acá está el último punto de control
+  // antes de tocar el connector.
+  const optOutCache = new Map<string, Set<string>>();
+  async function optedOutIn(projectId: string): Promise<Set<string>> {
+    const cached = optOutCache.get(projectId);
+    if (cached) return cached;
+    const set = await optedOutSet(projectId);
+    optOutCache.set(projectId, set);
+    return set;
+  }
 
   // Cache de send-window por flow_id para no consultar N veces.
   const windowCache = new Map<
@@ -139,6 +154,22 @@ export async function GET(req: Request) {
   const orgUsedCache = new Map<string, number>();
 
   for (const row of pending) {
+    // Opt-out: última barrera antes del connector. Terminal (no reintenta) y
+    // sin fila en `envios`, así que no cuenta como enviado ni como fallo.
+    if ((await optedOutIn(row.project_id)).has(row.contact.dni)) {
+      await db
+        .from("envio_queue")
+        .update({
+          status: "done",
+          last_error: "opt_out_skipped",
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      skippedByOptOut++;
+      touchedCampaigns.add(row.campaign_id);
+      continue;
+    }
+
     // Send-window del flow: si está fuera, reschedule al próximo inicio.
     if (row.flow_id) {
       const win = await getWindow(row.flow_id);
@@ -335,6 +366,7 @@ export async function GET(req: Request) {
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
+    skipped_by_opt_out: skippedByOptOut,
     batch: pending.length,
     campaigns_touched: touchedCampaigns.size,
   });
@@ -344,6 +376,7 @@ export async function GET(req: Request) {
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
+    skipped_by_opt_out: skippedByOptOut,
     batch: pending.length,
   });
 }

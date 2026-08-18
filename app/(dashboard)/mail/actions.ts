@@ -14,6 +14,8 @@ import {
 import { sendMail as jmapSend } from "@/lib/mailbox/jmap-client";
 import { provisionMailbox } from "@/lib/mailbox/provision";
 import type { EmailAddress } from "@/lib/mailbox/types";
+import { dnisByEmails } from "@/lib/db/padron";
+import { optedOutSet } from "@/lib/optout";
 import { requireProject } from "@/lib/workspace";
 
 function requireSession() {
@@ -131,6 +133,23 @@ function parseRecipients(raw: string): EmailAddress[] {
     .map((email) => ({ email }));
 }
 
+// Devuelve las direcciones de la lista que pertenecen a un contacto del padrón
+// dado de baja. Las direcciones que no están en el padrón no se bloquean: el
+// compositor también se usa para escribirle a gente ajena al padrón.
+async function blockedByOptOut(
+  projectId: string,
+  recipients: readonly EmailAddress[],
+): Promise<string[]> {
+  const emails = recipients.map((r) => r.email);
+  const byEmail = await dnisByEmails(projectId, emails);
+  if (byEmail.size === 0) return [];
+  const optedOut = await optedOutSet(projectId);
+  return emails.filter((e) => {
+    const dni = byEmail.get(e.trim().toLowerCase());
+    return dni != null && optedOut.has(dni);
+  });
+}
+
 export async function sendMail(formData: FormData) {
   const userEmail = await requireSession();
   const to = parseRecipients(String(formData.get("to") ?? ""));
@@ -147,6 +166,19 @@ export async function sendMail(formData: FormData) {
     ? { address: cred.address, password: cred.password }
     : undefined;
   const { id: projectId } = await requireProject();
+
+  // Opt-out: la baja es cross-channel y para siempre (ARCHITECTURE §5.5). El
+  // compositor manual también la respeta — si no, un mail "uno a uno" era la
+  // puerta de atrás para escribirle a alguien que pidió no ser contactado.
+  const blocked = await blockedByOptOut(projectId, [...to, ...cc]);
+  if (blocked.length > 0) {
+    redirect(
+      `/mail/compose?error=opt_out&msg=${encodeURIComponent(
+        blocked.join(", ").slice(0, 200),
+      )}`,
+    );
+  }
+
   const result = await jmapSend(
     { to, cc: cc.length ? cc : undefined, subject, bodyText },
     creds,

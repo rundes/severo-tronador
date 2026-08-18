@@ -117,6 +117,30 @@ describe("ingestInbound", () => {
     expect(addResponse).not.toHaveBeenCalled();
   });
 
+  it("baja de un remitente no matcheado: queda marcada para revisión manual", async () => {
+    // No hay dni al que aplicarle la baja, pero la intención no se descarta:
+    // la fila cruda queda con is_opt_out para que la bandeja la muestre.
+    const { optOut } = mockDeps({ contacts: [], token: null });
+    const { ingestInbound } = await import("@/lib/inbound");
+    const res = await ingestInbound({
+      channel: "sms",
+      senderExternalId: "5490000000001",
+      body: "BAJA",
+      providerMessageId: "tx-orphan",
+      projectId: "proj-3",
+    });
+    expect(res.stored).toBe(true);
+    expect(res.dni).toBeNull();
+    expect(res.optOut).toBe(false);
+    expect(optOut).not.toHaveBeenCalled();
+
+    const { listInbound } = await import("@/lib/inbound-store");
+    const rows = await listInbound({ projectId: "proj-3" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].is_opt_out).toBe(true);
+    expect(rows[0].dni).toBeNull();
+  });
+
   it("idempotencia: mismo provider_message_id no duplica ni reprocesa", async () => {
     const { addResponse } = mockDeps({
       contacts: [{ dni: "30111222", telefono: "5491122223333" }],
