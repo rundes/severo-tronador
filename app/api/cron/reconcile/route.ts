@@ -14,6 +14,7 @@ import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { reconcileResendDeliveries } from "@/lib/reconcile";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 // Solo emitimos warn si la divergencia supera este ratio.
 const WARN_RATIO = 0.02;
@@ -72,5 +73,6 @@ export async function GET(req: Request) {
   if (alert) log.warn(event, payload);
   else log.info(event, payload);
 
+  await recordHeartbeat("reconcile", { alert });
   return NextResponse.json({ ...payload, alert });
 }

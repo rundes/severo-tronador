@@ -126,7 +126,43 @@ El riesgo legal/reputacional más alto del producto:
 5. **Payload por lotes**: `survey_tokens` se insertan en un solo insert de miles de filas sin chequear error → mails con links rotos si falla (`lib/survey.ts:75,114`). Batch de 500 + check de error. Igual `enqueueSheetSync` (`lib/db/mirror.ts:6`) ignora error.
 6. **Sheets API**: append por fila sin backoff en 429; orden de columnas por `Object.values` (agregar un campo desplaza el histórico) → mapa explícito de columnas + `batchUpdate`.
 
-## F4 — Observabilidad y CI (semana 4)
+## F4 — Observabilidad y CI (semana 4) — ✅ hecho
+
+> Entregado en la rama `ops/observabilidad-ci`. Migración a aplicar antes del
+> deploy: `0057_cron_heartbeats.sql`. Variable nueva y opcional:
+> `ERROR_WEBHOOK_URL`.
+>
+> Desvíos respecto de lo planeado, con su razón:
+> - **Sin Sentry**: el sink (`lib/error-sink.ts`) es zero-dep y postea a
+>   cualquier endpoint que reciba JSON. Meter un SDK es una decisión de
+>   dependencia que no hace falta tomar para dejar de perder los errores;
+>   cambiar a `@sentry/nextjs` después es reemplazar una función.
+> - **Alerting por issue de GitHub**: no había canal de notificación
+>   configurado y un run en rojo vive en una pestaña que nadie mira. Un issue
+>   sí notifica por los canales que el equipo ya tiene. Se reutiliza un issue
+>   por job en vez de abrir uno por tick — un cron cada 5 minutos caído
+>   generaría cientos.
+> - **`npm audit` no bloquea** (`continue-on-error`): las vulnerabilidades de
+>   dependencias se atienden en su propio ciclo, no frenando un fix no
+>   relacionado.
+> - **Umbral de cobertura calibrado sobre lo que hay** (statements 48%,
+>   branches 40%, functions 58%, lines 50%), no sobre el 80% de la regla
+>   general: sirve para que CI falle ante una regresión, no para exigir un
+>   salto de golpe. Sube a medida que F6 cubra los módulos que faltan.
+> - **Deploy gating**: el `next build` en CI es la mitad que se puede hacer
+>   desde el repo. La otra mitad —marcar el check como required en la
+>   protección de rama de main— es configuración de GitHub, no código.
+> - **Zod en los bordes**: se cubrieron las rutas con cuerpo JSON propio
+>   (radio-ingest y mail-in) más el helper `parseJsonBody`. Los webhooks de
+>   Meta, Telegram y Telnyx reciben esquemas del proveedor con muchísimos
+>   campos opcionales; validarlos con un esquema estricto rompería con cada
+>   cambio de su lado. Sus handlers ya navegan el payload de forma defensiva.
+>
+> Nota para quien toque `lib/schemas.ts`: `parseJsonBody` es genérico sobre el
+> SCHEMA (`S extends z.ZodTypeAny` + `z.infer<S>`), no sobre el tipo de salida
+> (`z.ZodType<T>`). Esa segunda forma hace explotar la memoria del type-checker:
+> `next build` moría con heap out of memory mientras `tsc --noEmit` suelto
+> pasaba.
 
 1. **Alerting de crons**: 7 workflows críticos fallan en silencio; GitHub deshabilita `schedule` tras 60 días sin actividad → la cola se para sin señal. Fix: step `if: failure()` con notificación + heartbeat (dead-man's switch sobre `/api/version` o cron-job.org).
 2. **Error tracking**: sin Sentry ni `onRequestError` en `instrumentation.ts`. Agregar sink de errores agregado.
@@ -167,7 +203,7 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 | ✅ F1 pipeline envío | ~1 semana | Envíos a bajas (legal), duplicados, pérdida de envíos |
 | ✅ F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
 | ✅ F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
-| F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
+| ✅ F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
 | F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |
 | F6 higiene | continuo | Deuda acumulada |
 

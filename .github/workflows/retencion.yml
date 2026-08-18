@@ -43,3 +43,13 @@ jobs:
             echo "::error::endpoint devolvió $code"
             exit 1
           fi
+
+  alerta:
+    needs: trigger
+    if: failure()
+    uses: ./.github/workflows/cron-alert.yml
+    with:
+      job: retencion
+    permissions:
+      contents: read
+      issues: write

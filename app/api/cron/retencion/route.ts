@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 export const maxDuration = 60;
 
@@ -30,5 +31,6 @@ export async function GET(req: Request) {
   }
   const deleted = (data ?? {}) as Record<string, number>;
   log.info("cron.retencion.tick", deleted);
+  await recordHeartbeat("retencion", deleted);
   return NextResponse.json({ deleted });
 }

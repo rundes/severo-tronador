@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reporte HTML de cobertura: código generado por el reporter, no del
+    // proyecto. Ya está en .gitignore; sin esto, lintea igual en local.
+    "coverage/**",
   ]),
 ]);
 

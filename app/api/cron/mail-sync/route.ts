@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { syncReplies } from "@/lib/mailbox/mail-sync";
 import { log } from "@/lib/logger";
+import { recordHeartbeat } from "@/lib/heartbeat";
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
@@ -19,6 +20,7 @@ export async function GET(req: Request) {
   const t0 = Date.now();
   try {
     const summary = await syncReplies(50);
+    await recordHeartbeat("mail-sync", { ...summary });
     return NextResponse.json({ ok: true, ms: Date.now() - t0, ...summary });
   } catch (e) {
     log.error("mail.sync.failed", { error: (e as Error).message });

@@ -13,6 +13,7 @@ import { ownerOfAddress } from "@/lib/mailbox/credentials";
 import { DEFAULT_PROJECT_ID, listProjectsForEmail } from "@/lib/projects";
 import { dbConfigured } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
+import { MailInboundSchema, summarizeZodError } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 
@@ -32,15 +33,21 @@ export async function POST(req: Request) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  let payload: { raw?: string; to?: string; from?: string };
+  // El HMAC autentica el ORIGEN, no el contenido. Validamos forma aparte.
+  let rawJson: unknown;
   try {
-    payload = JSON.parse(bodyText) as typeof payload;
+    rawJson = JSON.parse(bodyText);
   } catch {
     return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
-  if (!payload.raw) {
-    return NextResponse.json({ ok: false, error: "no_raw" }, { status: 400 });
+  const parsed = MailInboundSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: summarizeZodError(parsed.error) },
+      { status: 400 },
+    );
   }
+  const payload = parsed.data;
 
   const email = await parseRawEmail(payload.raw);
   // Si el Worker mandó la dirección To explícita (Cloudflare la expone

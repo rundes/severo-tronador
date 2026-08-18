@@ -225,3 +225,73 @@ export function summarizeZodError(error: z.ZodError): string {
     .map((i) => `${i.path.join(".") || "campo"}: ${i.message}`)
     .join(", ");
 }
+
+// ── Bordes de API: cuerpos de request ─────────────────────────────────────
+//
+// Ninguna de las rutas API validaba forma. En los webhooks el HMAC autentica el
+// ORIGEN, no el contenido: un proveedor comprometido —o un cambio de formato de
+// su lado— entraba igual y explotaba adentro con un TypeError. Validar acá
+// convierte eso en un 400 con motivo.
+
+// POST /api/cron/radio-ingest — transcript de un programa, desde el runner.
+export const RadioSegmentSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+  text: z.string(),
+});
+
+export const RadioIngestSchema = z.object({
+  projectId: z.string().min(1),
+  station: z.string().min(1),
+  isoStart: z.string().min(1),
+  runId: z.string().optional(),
+  programa: z.string().optional(),
+  transcript: z.string().optional(),
+  segments: z.array(RadioSegmentSchema).optional(),
+  audioObject: z.string().optional(),
+  durationSec: z.number().optional(),
+  failed: z.boolean().optional(),
+});
+
+// POST /api/webhooks/mail-in — mail crudo desde el Worker de Cloudflare.
+export const MailInboundSchema = z.object({
+  raw: z.string().min(1),
+  to: z.string().optional(),
+  from: z.string().optional(),
+});
+
+// Parsea y valida el cuerpo JSON de un request. Devuelve el error como Response
+// listo para retornar, así el caller no repite el manejo en cada ruta.
+//
+// Genérico sobre el SCHEMA (`S extends z.ZodTypeAny` + `z.infer<S>`), no sobre
+// el tipo de salida (`z.ZodType<T>`): esa segunda forma obliga a TypeScript a
+// inferir T unificando contra la estructura interna de Zod y hace explotar la
+// memoria del type-checker — `next build` moría con heap out of memory en el
+// worker de TS mientras `tsc --noEmit` suelto pasaba.
+export async function parseJsonBody<S extends z.ZodTypeAny>(
+  req: Request,
+  schema: S,
+): Promise<
+  { ok: true; data: z.infer<S> } | { ok: false; response: Response }
+> {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return {
+      ok: false,
+      response: Response.json({ ok: false, error: "json inválido" }, { status: 400 }),
+    };
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      response: Response.json(
+        { ok: false, error: summarizeZodError(parsed.error) },
+        { status: 400 },
+      ),
+    };
+  }
+  return { ok: true, data: parsed.data };
+}
