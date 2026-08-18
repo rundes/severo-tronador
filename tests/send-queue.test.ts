@@ -34,16 +34,22 @@ interface Filters {
   id?: string;
   estado?: string;
   scheduled_at_lte?: string;
+  status_in?: string[];
 }
 
 function makeBuilder(name: string, op: "select" | "update" | "insert" | "delete") {
   const filters: Filters = {};
   let updatePayload: Row | null = null;
+  let upsertRows: Row[] | null = null;
   let countMode: "exact" | null = null;
   let headMode = false;
   const builder = {
     eq(key: string, val: string) {
       (filters as Record<string, string>)[key] = val;
+      return builder;
+    },
+    in(key: string, vals: string[]) {
+      if (key === "status") filters.status_in = vals;
       return builder;
     },
     lte(key: string, val: string) {
@@ -67,6 +73,27 @@ function makeBuilder(name: string, op: "select" | "update" | "insert" | "delete"
       tables[name].rows.push(...arr);
       return Promise.resolve({ data: arr, error: null });
     },
+    // El route registra en `envios` con upsert + ignoreDuplicates para apoyarse
+    // en el unique (campaign_id, token). Replicamos esa semántica: las filas
+    // que chocan no se insertan y NO vuelven en el select.
+    upsert(
+      payload: Row | Row[],
+      opts?: { onConflict?: string; ignoreDuplicates?: boolean },
+    ) {
+      const arr = Array.isArray(payload) ? payload : [payload];
+      const keys = (opts?.onConflict ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const fresh = arr.filter((row) => {
+        if (keys.length === 0 || !opts?.ignoreDuplicates) return true;
+        return !tables[name].rows.some((r) => keys.every((k) => r[k] === row[k]));
+      });
+      tables[name].inserted.push(...fresh);
+      tables[name].rows.push(...fresh);
+      upsertRows = fresh;
+      return builder;
+    },
     update(payload: Row) {
       updatePayload = payload;
       return builder;
@@ -77,6 +104,9 @@ function makeBuilder(name: string, op: "select" | "update" | "insert" | "delete"
     },
     then(resolve: (v: unknown) => unknown) {
       // Terminal: ejecuta según operación.
+      if (upsertRows) {
+        return resolve({ data: upsertRows, error: null });
+      }
       if (op === "update" && updatePayload) {
         for (const r of tables[name].rows) {
           if (matchRow(r)) Object.assign(r, updatePayload);
@@ -98,11 +128,44 @@ function makeBuilder(name: string, op: "select" | "update" | "insert" | "delete"
         if (typeof rv === "string" && rv > (v as string)) return false;
         continue;
       }
+      if (k === "status_in") {
+        if (!(v as string[]).includes(r["status"] as string)) return false;
+        continue;
+      }
       if (r[k] !== v) return false;
     }
     return true;
   }
   return builder;
+}
+
+// Réplica en JS del RPC claim_envio_queue: toma hasta p_limit filas tomables
+// del conector, las marca 'processing' con attempts+1 y las devuelve. Es la
+// pieza que evita el doble envío, así que los tests corren contra su semántica
+// (claim + mutación) y no contra un simple select.
+const CLAIM_STALE_MS = 15 * 60_000;
+function claimEnvioQueue(connectorId: string, limit: number): Row[] {
+  const nowIso = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+  const claimable = tables.envio_queue.rows
+    .filter((r) => {
+      if (r.connector_id !== connectorId) return false;
+      const sched = r.scheduled_at;
+      if (typeof sched === "string" && sched > nowIso) return false;
+      if (r.status === "pending") return true;
+      return (
+        r.status === "processing" &&
+        typeof r.claimed_at === "string" &&
+        r.claimed_at < staleBefore
+      );
+    })
+    .slice(0, limit);
+  for (const r of claimable) {
+    r.status = "processing";
+    r.attempts = ((r.attempts as number) ?? 0) + 1;
+    r.claimed_at = nowIso;
+  }
+  return claimable.map((r) => ({ ...r }));
 }
 
 const supabaseStub = {
@@ -111,8 +174,24 @@ const supabaseStub = {
       select: (cols?: string, opts?: { count?: "exact"; head?: boolean }) =>
         makeBuilder(name, "select").select(cols, opts),
       insert: (p: Row | Row[]) => makeBuilder(name, "insert").insert(p),
+      upsert: (
+        p: Row | Row[],
+        o?: { onConflict?: string; ignoreDuplicates?: boolean },
+      ) => makeBuilder(name, "insert").upsert(p, o),
       update: (p: Row) => makeBuilder(name, "update").update(p),
     };
+  },
+  rpc(fn: string, params: Record<string, unknown>) {
+    if (fn === "claim_envio_queue") {
+      return Promise.resolve({
+        data: claimEnvioQueue(
+          params.p_connector_id as string,
+          params.p_limit as number,
+        ),
+        error: null,
+      });
+    }
+    return Promise.resolve({ data: null, error: { message: `rpc ${fn}?` } });
   },
 };
 
@@ -453,5 +532,152 @@ describe("send-queue cron — opt-out en el despacho", () => {
     vi.mocked(supabaseStub.from).mockRestore();
 
     expect(optOutReads).toBe(1);
+  });
+});
+
+describe("send-queue cron — sin doble envío", () => {
+  it("la fila ya está tomada ('processing') cuando se llama al proveedor", async () => {
+    // Es la propiedad que elimina la ventana de doble envío: el estado se
+    // escribe ANTES del send, no después. Si se leyera con un select común, la
+    // fila seguiría 'pending' durante toda la llamada al proveedor.
+    let statusDuranteSend: unknown;
+    let attemptsDuranteSend: unknown;
+    connectorState.sendImpl = async () => {
+      const q0 = tables.envio_queue.rows[0] as Row;
+      statusDuranteSend = q0.status;
+      attemptsDuranteSend = q0.attempts;
+      return { ok: true, providerMessageId: "m" };
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 0 });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    expect(statusDuranteSend).toBe("processing");
+    expect(attemptsDuranteSend).toBe(1);
+  });
+
+  it("una fila tomada por un tick no la vuelve a tomar el siguiente", async () => {
+    // El bug: el cron leía `pending` y recién actualizaba DESPUÉS de enviar, así
+    // que dos ticks solapados mandaban el mismo mensaje dos veces.
+    let sendCalls = 0;
+    connectorState.sendImpl = async () => {
+      sendCalls++;
+      // Simula un tick que muere después del send, antes de cerrar la fila:
+      // la fila queda 'processing' y el siguiente tick NO debe reenviarla.
+      throw new Error("boom");
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+    // El catch la dejó pending con backoff a futuro → el siguiente tick no la
+    // toma (ni por scheduled_at ni por claim).
+    await GET(makeReq());
+
+    expect(sendCalls).toBe(1);
+  });
+
+  it("recupera una fila que quedó 'processing' por un proceso muerto", async () => {
+    // Sin recuperación, un corte de la función (maxDuration=60) dejaba la fila
+    // trabada para siempre.
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      status: "processing",
+      attempts: 1,
+      claimed_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as { done: number };
+
+    expect(json.done).toBe(1);
+    expect((tables.envio_queue.rows[0] as Row).status).toBe("done");
+  });
+
+  it("no recupera una fila 'processing' recién tomada", async () => {
+    let sendCalls = 0;
+    connectorState.sendImpl = async () => {
+      sendCalls++;
+      return { ok: true };
+    };
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      status: "processing",
+      attempts: 1,
+      claimed_at: new Date().toISOString(),
+    });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    expect(sendCalls).toBe(0);
+  });
+
+  it("si falla el registro en envios, la fila NO vuelve a pending", async () => {
+    // El proveedor ya aceptó el mensaje: reprogramar acá lo reenviaría. El
+    // rollback lógico del catch era la segunda causa de duplicados.
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+    const originalFrom = supabaseStub.from;
+    vi.spyOn(supabaseStub, "from").mockImplementation((n: string) => {
+      if (n === "envios") {
+        return {
+          ...originalFrom(n),
+          upsert: () => ({
+            select: () =>
+              Promise.resolve({ data: null, error: { message: "boom db" } }),
+          }),
+        } as unknown as ReturnType<typeof originalFrom>;
+      }
+      return originalFrom(n);
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    vi.mocked(supabaseStub.from).mockRestore();
+    const json = (await res.json()) as { done: number; rescheduled: number };
+
+    expect(json.done).toBe(1);
+    expect(json.rescheduled).toBe(0);
+    const q0 = tables.envio_queue.rows[0] as Row;
+    expect(q0.status).toBe("done");
+  });
+
+  it("un registro ya existente para (campaign_id, token) no se duplica ni se re-espeja", async () => {
+    const { enqueueSheetSync } = await import("@/lib/db/mirror");
+    vi.mocked(enqueueSheetSync).mockClear();
+    // Registro previo del mismo envío (lo que dejaría un tick anterior).
+    tables.envios.rows.push({
+      campaign_id: "cmp-1",
+      token: "tk1",
+      estado: "sent",
+    });
+    tables.envio_queue.rows.push({ ...PENDING_ROW });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    expect(tables.envios.inserted).toHaveLength(0);
+    expect(tables.envios.rows).toHaveLength(1);
+    expect(enqueueSheetSync).not.toHaveBeenCalled();
+  });
+
+  it("reprogramar por cuota devuelve el intento que consumió el claim", async () => {
+    connectorState.quota = {
+      used: 10,
+      limit: 10,
+      unit: "messages",
+      period: "month",
+      resetAt: null,
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 0 });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    const q0 = tables.envio_queue.rows[0] as Row;
+    expect(q0.status).toBe("pending");
+    expect(q0.attempts).toBe(0);
   });
 });
