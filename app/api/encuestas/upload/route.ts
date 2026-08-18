@@ -17,6 +17,31 @@ const EXT: Record<string, string> = {
   "image/jpg": "jpg",
 };
 
+// Firma real del archivo, no el content-type que declara el cliente.
+//
+// `file.type` viene del navegador y es trivial de falsear: un .html renombrado
+// con content-type image/png pasaba el chequeo y quedaba servido desde un bucket
+// PÚBLICO. Los magic bytes están en el contenido.
+//   PNG:  89 50 4E 47 0D 0A 1A 0A
+//   JPEG: FF D8 FF
+function sniffImage(bytes: Uint8Array): "png" | "jpg" | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a &&
+    bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) {
+    return "png";
+  }
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  ) {
+    return "jpg";
+  }
+  return null;
+}
+
 let bucketReady = false;
 async function ensureBucket() {
   if (bucketReady) return;
@@ -41,20 +66,32 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "sin_archivo" }, { status: 400 });
   }
-  const ext = EXT[file.type];
-  if (!ext) {
+  // Descarte temprano por lo que declara el cliente: barato y filtra el 99% de
+  // los errores honestos. La validación REAL es la firma del archivo, más abajo.
+  if (!EXT[file.type]) {
     return NextResponse.json({ error: "tipo_invalido" }, { status: 415 });
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "demasiado_grande" }, { status: 413 });
   }
 
-  await ensureBucket();
-  const path = `${projectId}/${randomUUID()}.${ext}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
+  const sniffed = sniffImage(bytes);
+  if (!sniffed) {
+    log.warn("encuestas.upload.rechazado_por_firma", {
+      declarado: file.type,
+      size: file.size,
+    });
+    return NextResponse.json({ error: "tipo_invalido" }, { status: 415 });
+  }
+
+  await ensureBucket();
+  // Extensión y content-type salen de la firma real, no de lo declarado.
+  const realType = sniffed === "png" ? "image/png" : "image/jpeg";
+  const path = `${projectId}/${randomUUID()}.${sniffed}`;
   const sb = getSupabase();
   const { error } = await sb.storage.from(BUCKET).upload(path, bytes, {
-    contentType: file.type,
+    contentType: realType,
     upsert: false,
   });
   if (error) {

@@ -9,6 +9,10 @@ import {
   padronPrefilterFor,
 } from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
+// El mismo escape que el resto de los exports: había una copia local sin el
+// prefijo anti formula-injection, así que este CSV —el que sale con nombres y
+// teléfonos del padrón— era el único sin la protección.
+import { csvEscape } from "@/lib/csv";
 import { healthBand } from "@/lib/relationship";
 import { getActiveProject } from "@/lib/workspace";
 import { roleAllows } from "@/lib/projects";
@@ -28,13 +32,6 @@ const COLS = [
   "preferred_channel",
   "status",
 ];
-
-function csvEscape(value: unknown): string {
-  if (value == null) return "";
-  const s = String(value);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);

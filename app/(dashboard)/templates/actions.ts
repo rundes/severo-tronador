@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { requireMember, requireProject } from "@/lib/workspace";
 import { resendConnector } from "@/lib/connectors/resend";
 import { renderCampaignEmailHtml } from "@/lib/email-render";
-import { interpolate } from "@/lib/templates";
+import { interpolateExtended } from "@/lib/interpolate-vars";
 import { logAudit } from "@/lib/audit";
 import type { Contact } from "@/lib/connectors/types";
 import { generateAssist } from "@/lib/ai/generate";
@@ -184,7 +184,7 @@ export async function enviarPruebaTemplate(
     contact,
     { surveyUrl: sampleUrl, preheader: asunto || undefined },
   );
-  const subject = `[PRUEBA] ${asunto ? interpolate(asunto, contact) : "Plantilla sin asunto"}`;
+  const subject = `[PRUEBA] ${asunto ? interpolateExtended(asunto, contact) : "Plantilla sin asunto"}`;
 
   const result = await resendConnector.send(
     { subject, body: html },

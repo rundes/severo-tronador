@@ -5,8 +5,6 @@ const ANCHOR: Record<string, string> = {
   "google-sheets-archive": "#2-google-sheets-datos",
   resend: "#3-resend-email",
   "meta-wa-cloud": "#4-meta-cloud-api-whatsapp",
-  "telnyx-sms": "#5-telnyx-sms",
-  "telnyx-voice": "#6-telnyx-voz--ivr",
   "claude-api": "#7-claude-api-análisis",
   gdelt: "#8-gdelt-listening",
   "x-api": "#9-x-api-listening",

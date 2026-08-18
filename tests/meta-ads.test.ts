@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import {
   AD_FORMATS,
-  type AdFormat,
   computeAdMetrics,
   type InsightsRow,
   buildCreativeSpec,

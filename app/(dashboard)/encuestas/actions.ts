@@ -24,7 +24,7 @@ import {
 } from "@/lib/campaigns";
 import { getSavedSegment } from "@/lib/segments-store";
 import { listGrupos, grupoExiste } from "@/lib/grupos";
-import { getTemplate, interpolate } from "@/lib/templates";
+import { getTemplate } from "@/lib/templates";
 import { renderCampaignEmailHtml } from "@/lib/email-render";
 import { interpolateExtended } from "@/lib/interpolate-vars";
 import type { Contact } from "@/lib/connectors/types";
@@ -251,7 +251,9 @@ export async function probarEnvioEncuesta(formData: FormData) {
     channel === "email"
       ? renderCampaignEmailHtml(tpl, contact, { surveyUrl })
       : interpolateExtended(tpl.cuerpo, contact, { surveyUrl });
-  const subject = tpl.asunto ? `[PRUEBA] ${interpolate(tpl.asunto, contact)}` : undefined;
+  const subject = tpl.asunto
+    ? `[PRUEBA] ${interpolateExtended(tpl.asunto, contact, { surveyUrl })}`
+    : undefined;
 
   let result: { ok: boolean; error?: string };
   try {
