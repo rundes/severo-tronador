@@ -370,7 +370,7 @@ describe("send-queue cron — procesamiento", () => {
     expect(q0.last_error).toBe("network down");
   });
 
-  it("3 errores consecutivos → status failed permanente", async () => {
+  it("3 errores consecutivos → dead-letter (nos rendimos nosotros)", async () => {
     connectorState.sendImpl = async () => {
       throw new Error("boom");
     };
@@ -379,7 +379,7 @@ describe("send-queue cron — procesamiento", () => {
     await GET(makeReq());
     const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
     expect(q0.attempts).toBe(3);
-    expect(q0.status).toBe("failed");
+    expect(q0.status).toBe("dead");
     expect(q0.processed_at).toBeTruthy();
   });
 
@@ -414,14 +414,14 @@ describe("send-queue cron — procesamiento", () => {
     expect(q0.last_error).toBe("Resend HTTP 429");
   });
 
-  it("send ok=false retryable en el último intento → failed permanente", async () => {
+  it("send ok=false retryable en el último intento → dead-letter", async () => {
     connectorState.sendResult = { ok: false, retryable: true, error: "Resend HTTP 429" };
     tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 2 });
     const GET = await getHandler();
     await GET(makeReq());
     const q0 = tables.envio_queue.rows[0] as Record<string, unknown>;
     expect(q0.attempts).toBe(3);
-    expect(q0.status).toBe("failed");
+    expect(q0.status).toBe("dead");
   });
 
   it("throttle: espacia con sleep una vez por envío", async () => {
@@ -539,6 +539,73 @@ describe("send-queue cron — opt-out en el despacho", () => {
     vi.mocked(supabaseStub.from).mockRestore();
 
     expect(optOutReads).toBe(1);
+  });
+});
+
+describe("send-queue cron — dead-letter", () => {
+  it("distingue el rechazo del proveedor de nuestra rendición", async () => {
+    // Un rechazo ('failed') no se reintenta: el email es inválido y va a serlo
+    // siempre. Una fila 'dead' sí es candidata a reintento manual una vez
+    // resuelta la caída del proveedor.
+    connectorState.sendResult = { ok: false, error: "email inválido" };
+    tables.envio_queue.rows.push({ ...PENDING_ROW, id: "q1" });
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "q2",
+      attempts: 2,
+      contact: { dni: "2", nombre: "Bea", apellido: "Ruiz", email: "b@x.com" },
+    });
+    connectorState.sendImpl = async (_m, c) =>
+      (c as { dni: string }).dni === "1"
+        ? { ok: false, error: "email inválido" }
+        : { ok: false, error: "503", retryable: true };
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as { failed: number; dead: number };
+
+    expect(json.failed).toBe(1);
+    expect(json.dead).toBe(1);
+    const byId = Object.fromEntries(
+      (tables.envio_queue.rows as Row[]).map((r) => [r.id, r.status]),
+    );
+    expect(byId.q1).toBe("failed");
+    expect(byId.q2).toBe("dead");
+  });
+
+  it("una fila dead deja registro en envios (no desaparece de las métricas)", async () => {
+    connectorState.sendResult = {
+      ok: false,
+      retryable: true,
+      error: "Resend HTTP 503",
+    };
+    tables.envio_queue.rows.push({ ...PENDING_ROW, attempts: 2 });
+
+    const GET = await getHandler();
+    await GET(makeReq());
+
+    expect(tables.envios.inserted).toHaveLength(1);
+    expect(tables.envios.inserted[0].estado).toBe("failed");
+    expect(tables.envios.inserted[0].reason).toBe("Resend HTTP 503");
+  });
+
+  it("reporta el backlog acumulado de la dead-letter", async () => {
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "viejo-1",
+      status: "dead",
+    });
+    tables.envio_queue.rows.push({
+      ...PENDING_ROW,
+      id: "viejo-2",
+      status: "dead",
+    });
+
+    const GET = await getHandler();
+    const res = await GET(makeReq());
+    const json = (await res.json()) as { dead_backlog: number };
+
+    expect(json.dead_backlog).toBe(2);
   });
 });
 

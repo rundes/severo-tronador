@@ -6,7 +6,12 @@ Fuente: revisión a fondo con 5 auditorías paralelas (seguridad, datos/DB, cone
 
 ---
 
-## F0 — Hotfixes (esta semana, ~1 día)
+## F0 — Hotfixes (esta semana, ~1 día) — ✅ hecho
+
+> Entregado en `f66da89` + `1081d34`. El `values.batchUpdate` del punto 3 y la
+> implementación real de `op === "remove"` quedaron para F3 (§6 Sheets API): el
+> hotfix cortó el backlog (workflow cada 15 min, BATCH 200) y dejó `remove`
+> marcado `unsupported` en vez de `done`, que era la divergencia silenciosa.
 
 Bugs activos en producción, cada uno ≤30 líneas:
 
@@ -17,7 +22,28 @@ Bugs activos en producción, cada uno ≤30 líneas:
 5. **Allowlist fail-open**: `lib/auth-guards.ts:29` — con `ALLOWED_EMAILS` vacío en prod, cualquier cuenta Google entra (solo warn). Fix: throw fail-closed como `assertAuthConfiguredInProd`.
 6. **Doble click = doble campaña**: botón de lanzamiento (`app/(dashboard)/campanas/nueva/page.tsx:322`) y submit de encuesta pública sin estado pending. Fix: `SubmitButton` existente + idempotency key.
 
-## F1 — Integridad del pipeline de envío (semana 1-2)
+## F1 — Integridad del pipeline de envío (semana 1-2) — ✅ hecho
+
+> Entregado en la rama `fix/pipeline-envio-integridad`, un commit por punto.
+> Migraciones a aplicar antes del deploy: `0050_send_queue_claim.sql`,
+> `0051_quota_org_sum.sql`, `0052_envio_queue_dead_letter.sql`.
+>
+> Desvíos respecto de lo planeado, con su razón:
+> - **Sin `callWithRetry` dentro del connector** (punto 3). Reintentar en
+>   proceso un POST que ya pudo haber salido reintroduce el doble envío que el
+>   punto 2 elimina. El reintento vive donde puede ser idempotente: el cron,
+>   con la fila de la cola como unidad. Lo que sí se unificó es la
+>   clasificación (`lib/connectors/send-http.ts`) y el timeout.
+> - **Sin columna `period_key`** (punto 4). El desajuste de clave se resolvió
+>   exponiendo `quotaKey()` en `OutreachConnector`: el que contabiliza es quien
+>   sabe bajo qué clave lo hace. Sin migración de datos y sin tocar
+>   `increment_quota`.
+> - **Reserva de cuota**: no se reserva antes del send porque el connector ya
+>   incrementa con el RPC atómico al salir el envío — reservar además contaría
+>   doble. Lo que se arregló es que el contador del tick dejara de sumar
+>   intentos y reintentos.
+> - **Extra**: una fila que muere en la dead-letter ahora deja registro en
+>   `envios`, si no el envío desaparecía de las métricas de la campaña.
 
 El riesgo legal/reputacional más alto del producto:
 
@@ -90,8 +116,8 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 
 | Fase | Esfuerzo | Riesgo que elimina |
 |------|----------|--------------------|
-| F0 hotfixes | ~1 día | Crons rotos, acceso anónimo, doble campaña |
-| F1 pipeline envío | ~1 semana | Envíos a bajas (legal), duplicados, pérdida de envíos |
+| ✅ F0 hotfixes | ~1 día | Crons rotos, acceso anónimo, doble campaña |
+| ✅ F1 pipeline envío | ~1 semana | Envíos a bajas (legal), duplicados, pérdida de envíos |
 | F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
 | F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
 | F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |

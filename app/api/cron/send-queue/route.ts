@@ -104,6 +104,7 @@ export async function GET(req: Request) {
 
   let done = 0;
   let failed = 0;
+  let dead = 0;
   let rescheduled = 0;
   const touchedCampaigns = new Set<string>();
 
@@ -115,6 +116,49 @@ export async function GET(req: Request) {
   // ENCOLAR, pero una baja posterior (o un flow con steps a días vista) dejaba
   // pasar envíos a gente ya dada de baja: acá está el último punto de control
   // antes de tocar el connector.
+  // Registro del envío (lo que ve el dashboard de la campaña). Idempotente por
+  // el unique (campaign_id, token): si una corrida anterior ya lo registró, el
+  // upsert no hace nada y no se duplica el espejo a Sheets.
+  async function recordEnvio(row: PendingRow, result: SendResult) {
+    const envioRow = {
+      project_id: row.project_id,
+      campaign_id: row.campaign_id,
+      dni: row.contact.dni,
+      nombre: `${row.contact.nombre} ${row.contact.apellido}`,
+      destino:
+        row.channel === "email"
+          ? row.contact.email ?? "—"
+          : row.contact.telefono ?? "—",
+      estado: result.ok ? "sent" : "failed",
+      reason: result.error ?? null,
+      provider_message_id: result.providerMessageId ?? null,
+      delivery: null,
+      token: row.token,
+      variant_id: row.variant_id ?? null,
+      created_at: new Date().toISOString(),
+    };
+    const { data: inserted, error } = await db
+      .from("envios")
+      .upsert(envioRow, {
+        onConflict: "campaign_id,token",
+        ignoreDuplicates: true,
+      })
+      .select("id");
+    if (error) {
+      // No se puede reintentar el envío, así que se deja rastro y se sigue: la
+      // fila de la cola guarda el provider_message_id para reconciliar.
+      log.error("cron.send_queue.envio_persist_failed", {
+        queue_id: row.id,
+        campaign_id: row.campaign_id,
+        error: error.message,
+      });
+      return;
+    }
+    if ((inserted ?? []).length > 0) {
+      await enqueueSheetSync("envios", "upsert", envioRow);
+    }
+  }
+
   const optOutCache = new Map<string, Set<string>>();
   async function optedOutIn(projectId: string): Promise<Set<string>> {
     const cached = optOutCache.get(projectId);
@@ -323,7 +367,11 @@ export async function GET(req: Request) {
       await db
         .from("envio_queue")
         .update({
-          status: isFinal ? "failed" : "pending",
+          // 'dead', no 'failed': el proveedor nunca rechazó el mensaje, nos
+          // rendimos nosotros tras agotar los reintentos. Separarlos permite
+          // encontrar y reintentar a mano lo que se cayó por una caída del
+          // proveedor, sin mezclarlo con los rechazos legítimos.
+          status: isFinal ? "dead" : "pending",
           claimed_at: null,
           last_error: result.error ?? "retryable",
           scheduled_at: isFinal
@@ -333,8 +381,11 @@ export async function GET(req: Request) {
         })
         .eq("id", row.id);
       if (isFinal) {
-        failed++;
+        dead++;
         touchedCampaigns.add(row.campaign_id);
+        // Sin esto el envío desaparecía de las métricas de la campaña: ni
+        // enviado ni fallido, sólo una fila muerta en la cola.
+        await recordEnvio(row, result);
       } else {
         rescheduled++;
       }
@@ -370,44 +421,7 @@ export async function GET(req: Request) {
       orgUsedCache.set(orgKey, orgUsed + 1);
     }
 
-    // Registro del envío (lo que ve el dashboard de la campaña). Idempotente
-    // por el unique (campaign_id, token): si una corrida anterior ya lo
-    // registró, el upsert no hace nada y no se duplica el espejo a Sheets.
-    const envioRow = {
-      project_id: row.project_id,
-      campaign_id: row.campaign_id,
-      dni: row.contact.dni,
-      nombre: `${row.contact.nombre} ${row.contact.apellido}`,
-      destino:
-        row.channel === "email"
-          ? row.contact.email ?? "—"
-          : row.contact.telefono ?? "—",
-      estado: result.ok ? "sent" : "failed",
-      reason: result.error ?? null,
-      provider_message_id: result.providerMessageId ?? null,
-      delivery: null,
-      token: row.token,
-      variant_id: row.variant_id ?? null,
-      created_at: new Date().toISOString(),
-    };
-    const { data: envioInserted, error: envErr } = await db
-      .from("envios")
-      .upsert(envioRow, {
-        onConflict: "campaign_id,token",
-        ignoreDuplicates: true,
-      })
-      .select("id");
-    if (envErr) {
-      // No se puede reintentar el envío, así que se deja rastro y se sigue: la
-      // fila de la cola guarda el provider_message_id para reconciliar.
-      log.error("cron.send_queue.envio_persist_failed", {
-        queue_id: row.id,
-        campaign_id: row.campaign_id,
-        error: envErr.message,
-      });
-    } else if ((envioInserted ?? []).length > 0) {
-      await enqueueSheetSync("envios", "upsert", envioRow);
-    }
+    await recordEnvio(row, result);
 
     // Espaciar el próximo envío para respetar el rate limit del proveedor.
     await sleep(SEND_DELAY_MS);
@@ -419,9 +433,18 @@ export async function GET(req: Request) {
     await refreshCampaignState(db, campaignId);
   }
 
+  // Backlog de la dead-letter: sin este número, las filas agotadas se acumulan
+  // sin que nadie se entere. Es la señal para mirar y reintentar a mano.
+  const { count: deadBacklog } = await db
+    .from("envio_queue")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "dead");
+
   log.info("cron.send_queue.tick", {
     done,
     failed,
+    dead,
+    dead_backlog: deadBacklog ?? 0,
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
@@ -432,6 +455,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     done,
     failed,
+    dead,
+    dead_backlog: deadBacklog ?? 0,
     rescheduled,
     rescheduled_by_window: rescheduledByWindow,
     skipped_by_condition: skippedByCondition,
