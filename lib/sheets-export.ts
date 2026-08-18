@@ -7,6 +7,7 @@ const SHEET_BY_ENTITY: Record<string, string> = {
   campanas: "campañas", envios: "envios", respuestas: "respuestas",
   opt_outs: "opt_outs", llamadas: "llamadas",
   encuestas: "encuestas", encuesta_respuestas: "encuesta_respuestas",
+  bajas: "bajas",
 };
 
 // Orden EXPLÍCITO de columnas por entidad.
@@ -41,6 +42,10 @@ const COLUMNS_BY_ENTITY: Record<string, string[]> = {
     "answers", "created_at",
   ],
   opt_outs: ["_mirror_id", "id", "project_id", "dni", "at", "reason"],
+  // Tombstones de op=remove: el Sheet es un log append-only, así que una baja
+  // no borra filas — se anota acá y el lector externo resta `bajas` de cada
+  // hoja para reconstruir el estado vigente.
+  bajas: ["_mirror_id", "entity", "entity_id", "removed_at"],
 };
 
 function sheetsClient() {
@@ -86,6 +91,37 @@ function isRetryable(err: unknown): boolean {
 
 const RETRY_DELAYS_MS = [1_000, 4_000, 10_000];
 
+// ¿El error es "la hoja no existe"? Sheets responde 400 con "Unable to parse
+// range: <hoja>!A1" cuando el range apunta a una hoja que no está en el
+// spreadsheet.
+function isMissingSheet(err: unknown): boolean {
+  const code = (err as { code?: number; status?: number })?.code
+    ?? (err as { status?: number })?.status;
+  return code === 400 && String((err as Error)?.message ?? "").includes("Unable to parse range");
+}
+
+// Crea la hoja en el spreadsheet y le escribe la fila de encabezados si la
+// entidad tiene columnas declaradas. Existe para que hojas nuevas (`bajas`) no
+// exijan un paso manual en el Sheet de cada proyecto.
+async function createSheet(entity: string, sheet: string): Promise<void> {
+  const client = sheetsClient();
+  const spreadsheetId = process.env.SHEETS_PRESERVATION_SHEET_ID!;
+  await client.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: sheet } } }] },
+  });
+  const header = COLUMNS_BY_ENTITY[entity];
+  if (header) {
+    await client.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheet}!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [header] },
+    });
+  }
+  log.info("sheets.sheet_created", { sheet });
+}
+
 // Append de VARIAS filas a la hoja de la entidad, en un solo request.
 //
 // La API de Sheets tiene cuota por minuto: un append por fila hacía un request
@@ -98,6 +134,7 @@ export async function appendRows(
   const sheet = SHEET_BY_ENTITY[entity];
   if (!sheet || rows.length === 0) return;
 
+  let sheetCreated = false;
   for (let attempt = 0; ; attempt++) {
     try {
       await sheetsClient().spreadsheets.values.append({
@@ -108,6 +145,14 @@ export async function appendRows(
       });
       return;
     } catch (err) {
+      // La hoja no existe todavía (p. ej. `bajas` en un Sheet viejo): crearla
+      // una sola vez y reintentar sin consumir un intento de backoff.
+      if (isMissingSheet(err) && !sheetCreated) {
+        sheetCreated = true;
+        await createSheet(entity, sheet);
+        attempt--;
+        continue;
+      }
       if (attempt >= RETRY_DELAYS_MS.length || !isRetryable(err)) throw err;
       const wait = RETRY_DELAYS_MS[attempt];
       log.warn("sheets.append.retry", {

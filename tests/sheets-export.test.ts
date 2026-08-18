@@ -63,3 +63,21 @@ describe("rowFor · orden explícito de columnas", () => {
     expect(row).toEqual(["m1", "1", "Ana"]);
   });
 });
+
+describe("rowFor · tombstones de la hoja bajas", () => {
+  // Los op=remove del espejo se registran como tombstone en la hoja `bajas`
+  // (el Sheet es un log append-only: no se borran filas, se anota la baja).
+  it("arma la fila con _mirror_id, entity, entity_id y removed_at en orden", () => {
+    const row = rowFor(
+      "bajas",
+      { entity: "segmentos", entity_id: "s1", removed_at: "2026-08-18T00:00:00Z" },
+      "m9",
+    );
+    expect(row).toEqual(["m9", "segmentos", "s1", "2026-08-18T00:00:00Z"]);
+  });
+
+  it("los campos ausentes quedan vacíos sin correr el resto", () => {
+    const row = rowFor("bajas", { entity: "templates", entity_id: "t1" }, "m2");
+    expect(row).toEqual(["m2", "templates", "t1", ""]);
+  });
+});

@@ -121,8 +121,15 @@ export function Sidebar({
   function isSectionOpen(section: string): boolean {
     return section in sections ? sections[section] : section === activeSec;
   }
+  // Acordeón: abrir una sección cierra las demás. Se escribe el estado de
+  // TODAS las secciones (no sólo la tocada) para pisar el fallback de
+  // "abierta la de la ruta activa" en las que nunca se tocaron.
   function toggleSection(section: string) {
-    setSections((s) => ({ ...s, [section]: !isSectionOpen(section) }));
+    const willOpen = !isSectionOpen(section);
+    const next: Record<string, boolean> = {};
+    for (const g of nav) next[g.section] = false;
+    next[section] = willOpen;
+    setSections(next);
   }
 
   function itemActive(href: string): boolean {
@@ -169,7 +176,7 @@ export function Sidebar({
         } ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
         {/* Brand */}
-        <Link href="/" className="block shrink-0 px-4 pb-3 pt-6">
+        <Link href="/" className="block shrink-0 px-4 pb-1.5 pt-3">
           {rail ? (
             <Image
               src="/brand/tronador-mark.jpeg"
