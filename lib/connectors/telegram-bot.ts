@@ -135,8 +135,10 @@ export const telegramBotConnector: OutreachConnector = {
     recipient: Contact,
     projectId: string = DEFAULT_PROJECT_ID,
   ): Promise<SendResult> {
-    // Necesita opt-in del usuario. Sin chat_id no podemos mandar.
-    const chat = await getChatByDni(recipient.dni);
+    // Necesita opt-in del usuario. Sin chat_id no podemos mandar. El proyecto es
+    // obligatorio acá: sin él, un mismo DNI presente en dos proyectos resolvía
+    // al chat del otro y el mensaje se iba al contacto equivocado.
+    const chat = await getChatByDni(recipient.dni, projectId);
     if (!chat || chat.opted_out_at) {
       return {
         ok: false,
@@ -144,7 +146,7 @@ export const telegramBotConnector: OutreachConnector = {
       };
     }
 
-    const cfg = await getConnectorConfig(ID);
+    const cfg = await getConnectorConfig(ID, projectId);
     if (!cfg.TELEGRAM_BOT_TOKEN) {
       await incrementUsage(ID, 1, projectId);
       return {

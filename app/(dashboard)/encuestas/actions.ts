@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { requireMember } from "@/lib/workspace";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import {
   createEncuesta,
   updateEncuesta,
@@ -212,7 +213,22 @@ export async function probarEnvioEncuesta(formData: FormData) {
   const okFormato = channel === "email" ? EMAIL_RE.test(destino) : PHONE_RE.test(destino);
   if (!okFormato) redirect(`/encuestas/${id}?error=prueba_destino`);
 
-  const tpl = await getTemplate(templateId);
+  // El destino era libre: una "prueba" servía para mandarle un mail o un
+  // WhatsApp a cualquier dirección desde la infraestructura del sistema. Una
+  // prueba se manda a la casilla del propio operador.
+  const actor = await actorEmail();
+  if (channel === "email" && destino.toLowerCase() !== (actor ?? "").toLowerCase()) {
+    redirect(`/encuestas/${id}?error=prueba_destino_ajeno`);
+  }
+
+  // Y aun a la casilla propia, con tope: si no, el botón de prueba es un
+  // generador de volumen contra la cuota del proveedor.
+  const limited = consumeRateLimit(`survey.test:${actor ?? projectId}`, 5, 60 * 60_000);
+  if (!limited.ok) {
+    redirect(`/encuestas/${id}?error=prueba_rate&espera=${limited.retryAfterSeconds}`);
+  }
+
+  const tpl = await getTemplate(templateId, projectId);
   if (!tpl) redirect(`/encuestas/${id}?error=prueba_datos`);
 
   // Para email, respeta el proveedor elegido (resend/brevo); resto, default.
@@ -247,7 +263,7 @@ export async function probarEnvioEncuesta(formData: FormData) {
   await logAudit({
     action: "survey.send",
     projectId,
-    actor: await actorEmail(),
+    actor,
     entity_type: "survey",
     entity_id: id,
     details: { prueba: true, channel, destino, ok: result.ok, reason: result.ok ? null : result.error },

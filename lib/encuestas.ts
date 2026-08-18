@@ -103,16 +103,27 @@ export async function getEncuesta(
   return data ? rowToEncuesta(data as EncuestaRow) : null;
 }
 
-// Público (path sin cookie): el slug es único global, no se filtra por proyecto.
+// Forma de los slugs que emite slugify(): minusculas, digitos y guiones. Sirve
+// de whitelist en la lectura publica.
+const SLUG_RE = /^[a-z0-9-]{1,64}$/;
+
+// Publico (path sin cookie): el slug es unico global, no se filtra por proyecto.
+//
+// La busqueda era `.ilike(slug)`, y en LIKE los caracteres `%` y `_` son
+// comodines: pedir /encuesta/%25 devolvia la primera encuesta publicada de
+// CUALQUIER proyecto, y con `_` se podia ir enumerando de a un caracter. El
+// slug entra ahora por whitelist y se compara exacto.
 export async function getEncuestaBySlug(slug: string): Promise<Encuesta | null> {
+  const clean = (slug ?? "").trim().toLowerCase();
+  if (!SLUG_RE.test(clean)) return null;
   if (!dbConfigured()) {
-    const r = mem.find((x) => x.slug?.toLowerCase() === slug.toLowerCase());
+    const r = mem.find((x) => x.slug?.toLowerCase() === clean);
     return r ? rowToEncuesta(r) : null;
   }
   const { data } = await getSupabase()
     .from("encuestas")
     .select("*")
-    .ilike("slug", slug)
+    .eq("slug", clean)
     .maybeSingle();
   return data ? rowToEncuesta(data as EncuestaRow) : null;
 }

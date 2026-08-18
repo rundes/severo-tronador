@@ -112,3 +112,23 @@ export async function listRecentRuns(projectId: string, limit = 30): Promise<Rad
     .limit(limit);
   return (data ?? []).map((r) => toRun(r as RunRow));
 }
+
+// ¿Este objeto de GCS es de una grabación de ESTE proyecto? La firma de una URL
+// de lectura no puede aceptar un path arbitrario: con el bucket compartido,
+// firmar lo que venga del cliente entrega cualquier audio de cualquier proyecto
+// (y cualquier otro objeto del bucket) a quien sepa pedirlo.
+export async function projectOwnsAudio(
+  projectId: string,
+  audioObject: string,
+): Promise<boolean> {
+  if (!audioObject) return false;
+  if (!dbConfigured()) return false;
+  const { data } = await getSupabase()
+    .from("radio_runs")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("audio_object", audioObject)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+const P = "proyecto-test";
+
 vi.mock("@/lib/db/supabase", () => ({
   dbConfigured: () => false,
   getSupabase: () => {
@@ -16,6 +18,7 @@ describe("audit (memory path)", () => {
   it("logAudit guarda entry con timestamp", async () => {
     const { logAudit, listAudit } = await import("@/lib/audit");
     await logAudit({
+      projectId: P,
       action: "campaign.create",
       actor: "u@x.com",
       entity_type: "campaign",
@@ -31,11 +34,11 @@ describe("audit (memory path)", () => {
 
   it("listAudit ordena desc por at + cap por limit", async () => {
     const { logAudit, listAudit } = await import("@/lib/audit");
-    await logAudit({ action: "flow.create", actor: "a" });
+    await logAudit({ projectId: P, action: "flow.create", actor: "a" });
     await new Promise((r) => setTimeout(r, 5));
-    await logAudit({ action: "flow.start", actor: "b" });
+    await logAudit({ projectId: P, action: "flow.start", actor: "b" });
     await new Promise((r) => setTimeout(r, 5));
-    await logAudit({ action: "flow.delete", actor: "c" });
+    await logAudit({ projectId: P, action: "flow.delete", actor: "c" });
     const list = await listAudit({ limit: 2 });
     expect(list).toHaveLength(2);
     expect(list.map((e) => e.actor)).toEqual(["c", "b"]);
@@ -43,8 +46,8 @@ describe("audit (memory path)", () => {
 
   it("listAudit filtra por action", async () => {
     const { logAudit, listAudit } = await import("@/lib/audit");
-    await logAudit({ action: "campaign.create" });
-    await logAudit({ action: "flow.create" });
+    await logAudit({ projectId: P, action: "campaign.create" });
+    await logAudit({ projectId: P, action: "flow.create" });
     const list = await listAudit({ action: "flow.create" });
     expect(list).toHaveLength(1);
     expect(list[0].action).toBe("flow.create");
@@ -52,8 +55,8 @@ describe("audit (memory path)", () => {
 
   it("listAudit filtra por actor", async () => {
     const { logAudit, listAudit } = await import("@/lib/audit");
-    await logAudit({ action: "campaign.create", actor: "ana@x.com" });
-    await logAudit({ action: "campaign.create", actor: "bob@x.com" });
+    await logAudit({ projectId: P, action: "campaign.create", actor: "ana@x.com" });
+    await logAudit({ projectId: P, action: "campaign.create", actor: "bob@x.com" });
     const list = await listAudit({ actor: "ana@x.com" });
     expect(list).toHaveLength(1);
     expect(list[0].actor).toBe("ana@x.com");
@@ -61,7 +64,7 @@ describe("audit (memory path)", () => {
 
   it("logAudit con campos opcionales vacíos no rompe", async () => {
     const { logAudit, listAudit } = await import("@/lib/audit");
-    await logAudit({ action: "campaign.create" });
+    await logAudit({ projectId: P, action: "campaign.create" });
     const list = await listAudit();
     expect(list[0].actor).toBeNull();
     expect(list[0].entity_id).toBeNull();

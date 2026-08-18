@@ -9,7 +9,9 @@ import { verifyHmacSha256 } from "@/lib/crypto";
 import { parseRawEmail } from "@/lib/mailbox/inbound-parser";
 import { routeReply } from "@/lib/mailbox/reply-routing";
 import { storeInbound } from "@/lib/mailbox/inbox-store";
-import { DEFAULT_PROJECT_ID } from "@/lib/projects";
+import { ownerOfAddress } from "@/lib/mailbox/credentials";
+import { DEFAULT_PROJECT_ID, listProjectsForEmail } from "@/lib/projects";
+import { dbConfigured } from "@/lib/db/supabase";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -50,13 +52,34 @@ export async function POST(req: Request) {
   const result = await routeReply(email);
 
   // Guardar el entrante en la bandeja in-app (modo Cloudflare+Resend).
-  // Si fue un reply de campaña usamos su proyecto; si no, el default.
+  //
+  // Atribución del proyecto, en orden: el del envío al que responde; si no, el
+  // del dueño de la casilla @tronador destinataria. Antes todo lo que no fuera
+  // un reply de campaña caía al proyecto default: el mail de un tenant
+  // aterrizaba en la bandeja de otro. Si no se puede atribuir a nadie, no se
+  // guarda — mejor perder un mail sin dueño que mostrárselo al equipo
+  // equivocado; queda el warn para investigarlo.
+  const toAddress = email.to[0]?.email ?? payload.to ?? null;
+  const projectId =
+    result.projectId ??
+    (toAddress ? await projectForAddress(toAddress) : null) ??
+    // Sin Supabase no hay casillas ni membresías que consultar: es el modo dev
+    // en memoria, donde el único proyecto es el default.
+    (dbConfigured() ? null : DEFAULT_PROJECT_ID);
+  if (!projectId) {
+    log.warn("mail.inbound.unattributed", {
+      to: toAddress,
+      from: email.from.email,
+    });
+    return NextResponse.json({ ok: false, reason: "unattributed" });
+  }
+
   await storeInbound({
-    projectId: result.projectId ?? DEFAULT_PROJECT_ID,
+    projectId,
     messageId: email.id,
     fromEmail: email.from.email,
     fromName: email.from.name ?? null,
-    toEmail: email.to[0]?.email ?? payload.to ?? null,
+    toEmail: toAddress,
     subject: email.subject,
     bodyText: email.bodyText,
     bodyHtml: email.bodyHtml ?? null,
@@ -74,4 +97,14 @@ export async function POST(req: Request) {
     reason: result.reason ?? null,
     respuestaId: result.respuestaId ?? null,
   });
+}
+
+// Proyecto al que pertenece una casilla @tronador: el primero de su dueño. Un
+// operador con varios proyectos recibe en el primero, que es el mismo criterio
+// que usa el panel al elegir proyecto activo por defecto.
+async function projectForAddress(address: string): Promise<string | null> {
+  const owner = await ownerOfAddress(address);
+  if (!owner) return null;
+  const projects = await listProjectsForEmail(owner);
+  return projects[0]?.id ?? null;
 }

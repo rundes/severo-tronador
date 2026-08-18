@@ -230,10 +230,10 @@ export async function startFlow(
 
   // Validar steps antes de enqueue: template existe, conector existe + enabled.
   for (const step of flow.steps) {
-    const template = await getTemplate(step.template_id);
+    const template = await getTemplate(step.template_id, projectId);
     if (!template) return { ok: false, reason: "step_missing_template", step: step.position };
     const connector = outreachConnectorFor(step.channel);
-    if (!connector || !(await isEnabled(connector.id)))
+    if (!connector || !(await isEnabled(connector.id, projectId)))
       return { ok: false, reason: "step_no_connector", step: step.position };
   }
 
@@ -252,7 +252,7 @@ export async function startFlow(
   const queueRows: Record<string, unknown>[] = [];
 
   for (const step of flow.steps) {
-    const template = await getTemplate(step.template_id);
+    const template = await getTemplate(step.template_id, projectId);
     if (!template) continue; // ya validado arriba
     const connector = outreachConnectorFor(step.channel)!;
     const scheduledAt = new Date(startedAt + step.delay_days * 86400000).toISOString();

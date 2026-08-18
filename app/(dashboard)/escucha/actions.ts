@@ -14,11 +14,21 @@ import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
 import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
 import { listDescartes, toggleDescarte } from "@/lib/escucha-descartes";
 import { signedReadUrl } from "@/lib/gcs";
+import { projectOwnsAudio } from "@/lib/radio-runs";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
+//
+// El path llega del cliente, así que se verifica que corresponda a una
+// grabación del proyecto activo antes de firmar: el bucket es compartido y sin
+// esa verificación cualquier miembro de cualquier proyecto podía pedir la firma
+// de un objeto arbitrario y bajarse el audio de otro.
 export async function firmarAudioRadio(audioObject: string): Promise<{ url: string | null }> {
-  await requireMember("viewer");
+  const { id: projectId } = await requireMember("viewer");
   if (!audioObject) return { url: null };
+  if (!(await projectOwnsAudio(projectId, audioObject))) {
+    log.warn("escucha.audio.forbidden", { projectId, audioObject });
+    return { url: null };
+  }
   return { url: await signedReadUrl(audioObject, 3600) };
 }
 

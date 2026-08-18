@@ -483,9 +483,10 @@ export async function executeCampaign(
   const connector = resolveOutreachConnector(input.channel, input.emailProvider);
   if (!connector) return { ok: false, reason: "no_connector" };
   // No enviar por un conector desactivado desde el panel.
-  if (!(await isEnabled(connector.id))) return { ok: false, reason: "no_connector" };
+  if (!(await isEnabled(connector.id, projectId)))
+    return { ok: false, reason: "no_connector" };
 
-  const baseTemplate = await getTemplate(input.templateId);
+  const baseTemplate = await getTemplate(input.templateId, projectId);
   if (!baseTemplate) return { ok: false, reason: "no_template" };
   type Tpl = NonNullable<typeof baseTemplate>;
   const safeBase: Tpl = baseTemplate;
@@ -498,7 +499,7 @@ export async function executeCampaign(
   variantTemplates.set(input.templateId, safeBase);
   for (const v of variants) {
     if (!variantTemplates.has(v.template_id)) {
-      const t = await getTemplate(v.template_id);
+      const t = await getTemplate(v.template_id, projectId);
       if (!t) return { ok: false, reason: "no_template" };
       variantTemplates.set(v.template_id, t);
     }
@@ -692,7 +693,7 @@ export async function executeCampaign(
     .from("campanas")
     .insert(campanaRow);
   if (campErr) throw campErr;
-  await enqueueSheetSync("campanas", "upsert", campanaRow);
+  await enqueueSheetSync(projectId, "campanas", "upsert", campanaRow);
 
   // Persistir los skipped (opt-out + cooldown) en envios. Las filas reales
   // (sent/failed) las crea el cron al despachar el queue.
@@ -703,7 +704,7 @@ export async function executeCampaign(
     const { error: envErr } = await getSupabase().from("envios").insert(envioRows);
     if (envErr) throw envErr;
     for (const row of envioRows) {
-      await enqueueSheetSync("envios", "upsert", row);
+      await enqueueSheetSync(projectId, "envios", "upsert", row);
     }
   }
 

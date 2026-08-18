@@ -51,7 +51,7 @@ export default async function NuevaCampanaPage({
 
   const connector = outreachConnectorFor(channel)!;
   const quota = await connector.getQuota();
-  const templates = await listTemplates(channel);
+  const templates = await listTemplates(projectId, channel);
   // Encuestas ya publicadas: se pueden enlazar a la campaña (cualquier canal).
   const encuestas = (await listEncuestas(projectId)).filter((e) => e.estado === "publicada");
   // Preview por canal: leemos la plantilla preseleccionada vía
@@ -59,7 +59,7 @@ export default async function NuevaCampanaPage({
   // usamos la primera disponible para mostrar algo accionable.
   const previewTemplateId = params.templateId || templates[0]?.id;
   const previewTemplate = previewTemplateId
-    ? await getTemplate(previewTemplateId)
+    ? await getTemplate(previewTemplateId, projectId)
     : null;
 
   const filterEntries = Object.entries(filter).filter(

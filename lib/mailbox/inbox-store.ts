@@ -76,10 +76,12 @@ async function store(input: StoreInboundInput, direction: Direction): Promise<vo
     mem.unshift({ id: crypto.randomUUID(), ...row });
     return;
   }
-  // Dedupe por message_id (índice único). Ignoramos conflicto.
+  // Dedupe por (proyecto, message_id). Era solo por message_id, global: un
+  // tercero que conociera (o adivinara) el Message-ID de un mail ajeno podia
+  // insertarlo primero en su propio proyecto y suprimir la copia real del otro.
   const { error } = await getSupabase()
     .from("inbound_emails")
-    .upsert(row, { onConflict: "message_id", ignoreDuplicates: true });
+    .upsert(row, { onConflict: "project_id,message_id", ignoreDuplicates: true });
   if (error) log.warn("inbox.store_failed", { error: error.message });
 }
 

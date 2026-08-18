@@ -104,6 +104,7 @@ export async function crearFlow(formData: FormData) {
   });
   await logAudit({
     action: "flow.create",
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "flow",
     entity_id: flow.id,
@@ -124,6 +125,7 @@ export async function iniciarFlow(formData: FormData) {
   const session = await auth();
   await logAudit({
     action: "flow.start",
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "flow",
     entity_id: id,
@@ -141,6 +143,7 @@ export async function borrarFlow(formData: FormData) {
   const session = await auth();
   await logAudit({
     action: "flow.delete",
+    projectId,
     actor: session?.user?.email ?? null,
     entity_type: "flow",
     entity_id: id,

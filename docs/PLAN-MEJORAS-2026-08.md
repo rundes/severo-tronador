@@ -60,7 +60,28 @@ El riesgo legal/reputacional más alto del producto:
 4. **Cuota**: `quota.used++` en memoria del tick (no el RPC atómico), se cuenta antes del envío y en cada retry; guard org-wide de Brevo siempre ve 0 por el mismatch de clave `brevo:YYYY-MM-DD` vs `brevo` (`lib/connectors/brevo.ts:107` + `route.ts:218`); `getOrgUsage` sin limit se trunca a 1000 filas. Fix: reservar vía RPC `increment_quota` antes del send; `sum()` en SQL; columna `period_key`.
 5. **Dead-letter**: filas `failed` agotadas quedan mezcladas para siempre en `envio_queue` sin métrica ni reintento manual. Fix: `status='dead'` + índice parcial + conteo por tick en logs.
 
-## F2 — Aislamiento multi-tenant (semana 2-3)
+## F2 — Aislamiento multi-tenant (semana 2-3) — ✅ hecho
+
+> Entregado en la rama `fix/aislamiento-multitenant`. Migraciones a aplicar
+> antes del deploy: `0053_conector_config_por_proyecto.sql`,
+> `0054_aislamiento_multitenant.sql`.
+>
+> Desvíos respecto de lo planeado, con su razón:
+> - **`llamadas` (punto 3)** ya se había resuelto en los hotfixes de F0.
+> - **Credenciales (punto 2)**: de las dos opciones que planteaba la auditoría
+>   —scope por proyecto o restringir a un superadmin— se eligió una tercera que
+>   las combina: la fila de organización sobrevive como fallback (la cuenta de
+>   Resend/Meta es una sola y es de la org) pero desde el panel es de sólo
+>   lectura, y lo único que se escribe es el override del proyecto. Así nadie
+>   pisa credenciales ajenas sin obligar a cada proyecto a tener su propia
+>   cuenta en cada proveedor.
+> - **Mail entrante sin atribuir**: además de dejar de caer al proyecto
+>   default, directamente no se guarda. Guardarlo en cualquier bandeja es
+>   mostrarle el mail de alguien al equipo equivocado; queda el warn.
+> - **Extra**: `lib/rate-limit.ts` (ventana deslizante en memoria) para los
+>   topes del punto 7. No es distribuido — en serverless el techo real es
+>   N_instancias × límite — y alcanza para lo que tiene que frenar: que una
+>   acción de envío puntual se convierta en un canal de spam desde el panel.
 
 1. **Templates cross-tenant** (fuga activa): `listTemplates()` sin filtro de proyecto, `createTemplate` sin `project_id` (cae al DEFAULT del proyecto 0001 y la ve todo el mundo), `getTemplate` con projectId opcional que el path de envío no pasa (`lib/templates.ts:173,200` + `lib/campaigns.ts:488` + `lib/flows.ts:233`). Fix: `projectId` obligatorio en las tres.
 2. **Credenciales org-globales**: `conector_config` sin `project_id` → el owner de cualquier proyecto sobrescribe las API keys (Resend, Meta, Anthropic…) de todos (`lib/connectors/config.ts`). Decidir: scope por proyecto (PK compuesta) o restringir a un rol de superadmin.
@@ -118,7 +139,7 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 |------|----------|--------------------|
 | ✅ F0 hotfixes | ~1 día | Crons rotos, acceso anónimo, doble campaña |
 | ✅ F1 pipeline envío | ~1 semana | Envíos a bajas (legal), duplicados, pérdida de envíos |
-| F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
+| ✅ F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
 | F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
 | F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
 | F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |

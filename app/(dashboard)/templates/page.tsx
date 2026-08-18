@@ -39,7 +39,7 @@ export default async function TemplatesPage({
 }) {
   const params = (await searchParams) ?? {};
   const { id: projectId } = await requireProject();
-  const templates = await listTemplates();
+  const templates = await listTemplates(projectId);
   const session = await auth();
   const userEmail = session?.user?.email ?? undefined;
 

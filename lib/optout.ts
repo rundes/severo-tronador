@@ -45,7 +45,7 @@ export async function optOut(
       .select()
       .single();
     if (error) throw error;
-    await enqueueSheetSync("opt_outs", "upsert", data);
+    await enqueueSheetSync(projectId, "opt_outs", "upsert", data);
     return data as OptOut;
   }
   const existing = await mem().get(memId(projectId, dni));

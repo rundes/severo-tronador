@@ -25,6 +25,7 @@ export default async function ComposePage({
     no_subject: "El asunto no puede estar vacío.",
     no_body: "El cuerpo del mensaje no puede estar vacío.",
     opt_out: `No se envió: estos destinatarios pidieron la baja — ${sp.msg ?? ""}`,
+    rate: `Alcanzaste el tope de mails por hora. Probá de nuevo en ${sp.espera ?? "unos"} segundos.`,
     send: `Error enviando: ${sp.msg ?? ""}`,
   };
   const errMsg = sp.error ? errMap[sp.error] ?? sp.error : null;

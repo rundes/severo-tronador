@@ -104,7 +104,7 @@ export const resendConnector: OutreachConnector = {
       return { ok: false, error: "Email inválido (formato)" };
     }
 
-    const cfg = await getConnectorConfig(ID);
+    const cfg = await getConnectorConfig(ID, projectId);
 
     if (!cfg.RESEND_API_KEY) {
       // Mock: simula un envío exitoso y consume cuota igual.
