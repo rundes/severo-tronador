@@ -1,0 +1,45 @@
+name: Trigger retención cron
+
+# Borra los datos con retención vencida (escucha >90d, cola del espejo ya
+# drenada >30d, eventos de email >180d, cola de envíos terminada >30d). La
+# política vive en el RPC prune_retencion; esto sólo lo dispara.
+#
+# Existe además del agendado por pg_cron porque no todos los proyectos Supabase
+# tienen la extensión. Correrlo dos veces no hace daño.
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retencion
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/retencion
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://severo-tronador.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret no configurado en el repo"
+            exit 1
+          fi
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/retencion")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "::error::endpoint devolvió $code"
+            exit 1
+          fi

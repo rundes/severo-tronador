@@ -10,7 +10,12 @@ import { telnyxSmsConnector } from "@/lib/connectors/telnyx-sms";
 import { telnyxVoiceConnector } from "@/lib/connectors/telnyx-voice";
 import { telegramBotConnector } from "@/lib/connectors/telegram-bot";
 import type { Contact, OutreachConnector } from "@/lib/connectors/types";
-import { applySegment, loadContacts, type SegmentFilter } from "@/lib/segments";
+import {
+  applySegment,
+  loadContacts,
+  padronPrefilterFor,
+  type SegmentFilter,
+} from "@/lib/segments";
 import { applyQuery, type SegmentQuery } from "@/lib/segment-query";
 import { channelAvailable, type Channel } from "@/lib/relationship";
 import { getTemplate, interpolate } from "@/lib/templates";
@@ -506,7 +511,14 @@ export async function executeCampaign(
   }
 
   const campaignId = `cmp-${Date.now().toString(36)}`;
-  const all = await loadContacts(projectId);
+  // El prefiltro empuja a SQL lo que se puede resolver como columna (barrio,
+  // grupo, contactabilidad…): con un padrón grande, traerlo entero a memoria
+  // para descartar el 95% en JS es el techo de crecimiento del sistema. El
+  // filtro completo se aplica igual abajo, así que el resultado no cambia.
+  const all = await loadContacts(
+    projectId,
+    input.segmentQuery ? undefined : padronPrefilterFor(input.segmentFilter ?? {}),
+  );
 
   // Helper local: resuelve template + variantId para un contacto.
   function resolveFor(dni: string): { tpl: Tpl; variantId?: string } {

@@ -11,6 +11,7 @@ const tables: Record<string, Row[]> = {
 interface Builder {
   select: () => Builder;
   eq: (col: string, val: unknown) => Builder;
+  gte: (col: string, val: string) => Builder;
   in: (col: string, vals: unknown[]) => Builder;
   order: (col: string, opts?: unknown) => Builder;
   range: (from: number, to: number) => Builder;
@@ -19,12 +20,18 @@ interface Builder {
 
 function makeBuilder(name: string): Builder {
   let inFilter: { col: string; vals: unknown[] } | null = null;
+  let sinceFilter: { col: string; val: string } | null = null;
   let ranged = false;
   const builder: Builder = {
     select: () => builder,
     // project_id scoping: no-op en el mock (el aislamiento por proyecto se
     // cubre en otros tests); mantiene la cadena fluida.
     eq: () => builder,
+    // Ventana de 180 días sobre envios/respuestas (las bajas no se ventanean).
+    gte(col, val) {
+      sinceFilter = { col, val };
+      return builder;
+    },
     in(col, vals) {
       inFilter = { col, vals };
       return builder;
@@ -38,9 +45,13 @@ function makeBuilder(name: string): Builder {
     then(resolve) {
       if (ranged) return resolve({ data: [], error: null });
       const all = tables[name] ?? [];
-      const matched = inFilter
+      let matched = inFilter
         ? all.filter((r) => inFilter!.vals.includes(r[inFilter!.col]))
         : all;
+      if (sinceFilter) {
+        const f = sinceFilter;
+        matched = matched.filter((r) => String(r[f.col] ?? "") >= f.val);
+      }
       return resolve({ data: matched, error: null });
     },
   };
@@ -153,3 +164,36 @@ describe("loadRawRelationships", () => {
     expect(channels).toHaveLength(5);
   });
 });
+
+describe("loadRawRelationships · ventana temporal", () => {
+  it("ignora actividad más vieja que la ventana", async () => {
+    // Antes se paginaba TODO el historial del proyecto en cada request: el
+    // costo crecía para siempre sin cambiar el resultado (la ficha mide
+    // actividad reciente).
+    const viejo = new Date(Date.now() - 400 * 86400_000).toISOString();
+    const reciente = new Date(Date.now() - 10 * 86400_000).toISOString();
+    tables.campanas.push({ id: "c1", channel: "email" });
+    tables.envios.push({
+      campaign_id: "c1", dni: "1", token: "t-viejo",
+      created_at: viejo, estado: "sent",
+    });
+    tables.envios.push({
+      campaign_id: "c1", dni: "1", token: "t-nuevo",
+      created_at: reciente, estado: "sent",
+    });
+
+    const map = await load(["1"]);
+    const events = map.get("1")!.events;
+    expect(events).toHaveLength(1);
+    expect(events[0].contactedAt).toBe(reciente);
+  });
+
+  it("las bajas NO se ventanean: son para siempre", async () => {
+    const hace2anios = new Date(Date.now() - 730 * 86400_000).toISOString();
+    tables.opt_outs.push({ dni: "1", at: hace2anios, reason: "baja" });
+
+    const map = await load(["1"]);
+    expect(map.get("1")!.optOuts.length).toBeGreaterThan(0);
+  });
+});
+

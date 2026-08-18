@@ -2,7 +2,12 @@
 // Combina cada contacto con su ficha de relación derivada para poder filtrar
 // también por salud y disponibilidad.
 import { dbConfigured } from "@/lib/db/supabase";
-import { readPadronFromDb } from "@/lib/db/padron";
+import {
+  hasPadronPrefilter,
+  readPadronFiltered,
+  readPadronFromDb,
+  type PadronPrefilter,
+} from "@/lib/db/padron";
 import { loadRawRelationships } from "@/lib/db/relations";
 import { mockPadron } from "@/lib/mock/padron";
 import { getRawRelationship } from "@/lib/mock/relaciones";
@@ -64,8 +69,17 @@ export function edadDe(fechaNac?: string, now = Date.now()): number | null {
   return age;
 }
 
+// Padrón + ficha de relación derivada.
+//
+// `prefilter` es una optimización, no un filtro: los predicados que se pueden
+// resolver como columna (barrio, sexo, grupo, contactabilidad…) se empujan a
+// SQL para no traer el padrón entero a memoria y derivar la relación de gente
+// que el segmento va a descartar igual. El filtro COMPLETO se sigue aplicando
+// después con applySegment/applyQuery, así que pasar o no pasar el prefiltro da
+// exactamente el mismo resultado.
 export async function loadContacts(
   projectId: string,
+  prefilter?: PadronPrefilter,
 ): Promise<ContactWithRelationship[]> {
   if (!dbConfigured()) {
     return mockPadron.map((contact) => ({
@@ -75,7 +89,9 @@ export async function loadContacts(
     }));
   }
   // Path real: padron + ficha de relación derivada de envios/respuestas/opt_outs.
-  const contacts = await readPadronFromDb(projectId);
+  const contacts = hasPadronPrefilter(prefilter)
+    ? await readPadronFiltered(projectId, prefilter!)
+    : await readPadronFromDb(projectId);
   const rels = await loadRawRelationships(
     projectId,
     contacts.map((c) => c.dni),
@@ -85,6 +101,24 @@ export async function loadContacts(
     rel: deriveRelationship(contact.dni, rels.get(contact.dni)),
     edad: edadDe(contact.fecha_nac),
   }));
+}
+
+// Traduce un SegmentFilter a los predicados que sabe resolver la DB. Los que no
+// están acá (edad, salud, actividad, canal preferido) se evalúan en memoria.
+export function padronPrefilterFor(filter: SegmentFilter): PadronPrefilter {
+  return {
+    sexo: filter.sexo,
+    barrio: filter.barrio,
+    circuito: filter.circuito,
+    mesa: filter.mesa,
+    grupoId: filter.grupoId,
+    afiliacion: filter.afiliacion,
+    hasEmail: filter.hasEmail,
+    hasTelefono: filter.hasTelefono,
+    // Sólo cuando la lista es el criterio único: combinada con `emails`, un
+    // contacto puede entrar por su email sin estar en `dnis`.
+    dnis: filter.emails && filter.emails.length > 0 ? undefined : filter.dnis,
+  };
 }
 
 export function applySegment(

@@ -72,7 +72,7 @@ export async function createToken(
     tokMem.set(token, { campaignId, dni, projectId, encuestaId });
     return token;
   }
-  await getSupabase()
+  const { error } = await getSupabase()
     .from("survey_tokens")
     .insert({
       token,
@@ -81,6 +81,9 @@ export async function createToken(
       dni,
       encuesta_id: encuestaId ?? null,
     });
+  // Sin token persistido, el link de la encuesta que va en el mensaje no
+  // resuelve: el destinatario recibe un link roto. Falla ruidoso.
+  if (error) throw new Error(`No se pudo crear el token de encuesta: ${error.message}`);
   return token;
 }
 
@@ -111,7 +114,19 @@ export async function createTokens(
     }
     return out;
   }
-  if (rows.length) await getSupabase().from("survey_tokens").insert(rows);
+  // En lotes de 500 y con chequeo de error: era UN insert de miles de filas
+  // cuyo resultado no se miraba. Si fallaba (payload demasiado grande, timeout),
+  // la campaña salía igual con links de encuesta rotos para todo el mundo.
+  const BATCH = 500;
+  const sb = getSupabase();
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await sb.from("survey_tokens").insert(rows.slice(i, i + BATCH));
+    if (error) {
+      throw new Error(
+        `No se pudieron crear los tokens de encuesta (lote ${i / BATCH + 1}): ${error.message}`,
+      );
+    }
+  }
   return out;
 }
 

@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
 import { constantTimeEqual } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
-import { appendRow, canExportSheets } from "@/lib/sheets-export";
+import { appendRows, canExportSheets, rowFor } from "@/lib/sheets-export";
+import { log } from "@/lib/logger";
 
-// 200 por tick: con el workflow de GH cada 15 min drena hasta ~19k filas/día.
-// Con el BATCH anterior (50) y un solo tick diario de Vercel, una campaña de
-// 1.300 envíos tardaba ~26 días en espejarse.
-const BATCH = 200;
+// 500 por tick: el drenaje ya no hace un request a Sheets por fila, sino uno
+// por entidad presente en el lote, así que el techo lo pone el maxDuration y no
+// la cuota por minuto de Google. Con el workflow de GH cada 15 min son ~48k
+// filas/día. (Con el BATCH original de 50 y un solo tick diario de Vercel, una
+// campaña de 1.300 envíos tardaba ~26 días en espejarse.)
+const BATCH = 500;
 const MAX_ATTEMPTS = 5;
+
+interface QueueRow {
+  id: string;
+  entity: string;
+  op: string;
+  payload: Record<string, unknown>;
+  attempts?: number | null;
+}
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
@@ -22,33 +33,62 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: "no db o no sheets" });
   }
   const db = getSupabase();
-  const { data: rows } = await db.from("sheets_sync_queue")
+  const { data } = await db.from("sheets_sync_queue")
     .select("*").eq("status", "pending").order("created_at").limit(BATCH);
+  const rows = (data ?? []) as QueueRow[];
+
   let done = 0, failed = 0, unsupported = 0;
-  for (const row of rows ?? []) {
+
+  // "remove" no está implementado en Sheets (borrar exige buscar la fila).
+  // Antes se marcaba "done" sin tocar el Sheet: divergencia silenciosa. Status
+  // honesto hasta implementarlo.
+  const removes = rows.filter((r) => r.op !== "upsert");
+  if (removes.length) {
+    await db
+      .from("sheets_sync_queue")
+      .update({ status: "unsupported" })
+      .in("id", removes.map((r) => r.id));
+    unsupported = removes.length;
+  }
+
+  // Un request a Sheets por ENTIDAD, no por fila. El orden dentro de cada
+  // entidad se conserva (la query viene ordenada por created_at).
+  const byEntity = new Map<string, QueueRow[]>();
+  for (const r of rows.filter((r) => r.op === "upsert")) {
+    const list = byEntity.get(r.entity) ?? [];
+    list.push(r);
+    byEntity.set(r.entity, list);
+  }
+
+  for (const [entity, group] of byEntity) {
     try {
-      if (row.op === "upsert") {
-        await appendRow(row.entity, row.payload, row.id);
-        await db.from("sheets_sync_queue").update({ status: "done" }).eq("id", row.id);
-        done++;
-      } else {
-        // "remove" no está implementado en Sheets (borrar exige buscar la
-        // fila). Antes se marcaba "done" sin tocar el Sheet: divergencia
-        // silenciosa. Status honesto hasta implementarlo (plan F3).
-        await db.from("sheets_sync_queue").update({ status: "unsupported" }).eq("id", row.id);
-        unsupported++;
-      }
+      await appendRows(
+        entity,
+        group.map((r) => rowFor(entity, r.payload, r.id)),
+      );
+      await db
+        .from("sheets_sync_queue")
+        .update({ status: "done" })
+        .in("id", group.map((r) => r.id));
+      done += group.length;
     } catch (e) {
-      failed++;
-      const attempts = (row.attempts ?? 0) + 1;
-      // Fila envenenada tras MAX_ATTEMPTS → status error, no bloquea la cola.
-      await db.from("sheets_sync_queue").update({
-        status: attempts >= MAX_ATTEMPTS ? "error" : "pending",
-        attempts,
-        last_error: (e as Error).message,
-      }).eq("id", row.id);
-      break; // backoff: cortar el batch ante el primer error, reintenta al próximo tick
+      // El lote entero vuelve a pending (o muere si ya agotó los intentos). No
+      // sabemos cuáles filas del append llegaron, así que el `_mirror_id` de
+      // cada fila es lo que permite deduplicar al reconciliar.
+      failed += group.length;
+      const msg = (e as Error).message;
+      log.warn("sheets.sync.batch_failed", { entity, rows: group.length, error: msg });
+      for (const r of group) {
+        const attempts = (r.attempts ?? 0) + 1;
+        await db.from("sheets_sync_queue").update({
+          status: attempts >= MAX_ATTEMPTS ? "error" : "pending",
+          attempts,
+          last_error: msg,
+        }).eq("id", r.id);
+      }
     }
   }
+
+  log.info("cron.sheets_sync.tick", { done, failed, unsupported, batch: rows.length });
   return NextResponse.json({ done, failed, unsupported });
 }

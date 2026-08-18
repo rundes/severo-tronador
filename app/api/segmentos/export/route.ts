@@ -2,7 +2,12 @@
 //
 // GET /api/segmentos/export?<filter-params>
 // Auth: middleware redirige a signin sin sesión.
-import { applySegment, filterFromParams, loadContacts } from "@/lib/segments";
+import {
+  applySegment,
+  filterFromParams,
+  loadContacts,
+  padronPrefilterFor,
+} from "@/lib/segments";
 import { applyQuery, decodeQuery } from "@/lib/segment-query";
 import { healthBand } from "@/lib/relationship";
 import { getActiveProject } from "@/lib/workspace";
@@ -46,7 +51,10 @@ export async function GET(req: Request) {
 
   const advancedQuery = params.q ? decodeQuery(params.q) : null;
   const filter = advancedQuery ? {} : filterFromParams(params);
-  const all = await loadContacts(active.id);
+  const all = await loadContacts(
+    active.id,
+    advancedQuery ? undefined : padronPrefilterFor(filter),
+  );
   const matched = advancedQuery
     ? applyQuery(all, advancedQuery)
     : applySegment(all, filter);

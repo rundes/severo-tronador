@@ -91,7 +91,33 @@ El riesgo legal/reputacional más alto del producto:
 6. **Red de seguridad estructural**: dropear el `DEFAULT '…0001'` de `project_id` en las 19 tablas (migración 0019) — hoy un write que olvida project_id contamina silenciosamente el tenant default en vez de fallar. Agregar FKs faltantes (`escucha_marcas`, `radio_runs`, `padron_field_defs`, `inbound_messages` → projects).
 7. **Roles**: exports masivos de PII y envío de mail con rol viewer (`api/dashboard/export`, `api/segmentos/export`, `mail/actions.ts:149`, `templates/actions.ts`) → subir a editor/owner; envíos de prueba con `to` arbitrario → restringir a la propia casilla + rate limit.
 
-## F3 — Escala de datos (semana 3-4)
+## F3 — Escala de datos (semana 3-4) — ✅ hecho
+
+> Entregado en la rama `perf/escala-datos`. Migraciones a aplicar antes del
+> deploy: `0055_dashboard_agregados.sql`, `0056_retencion.sql`.
+>
+> Desvíos respecto de lo planeado, con su razón:
+> - **Filtros de segmento a SQL (punto 1)**: se empujan a la DB los predicados
+>   que son columna (barrio, sexo, grupo, afiliación, contactabilidad, lista de
+>   DNIs corta). Los que dependen de la ficha de relación —health score,
+>   actividad, canal preferido— y la edad —que se calcula sobre `fecha_nac`,
+>   que es `text`— siguen en memoria: traducirlos exigiría materializar la
+>   relación en SQL, que es un rediseño, no una optimización. El prefiltro es
+>   estrictamente una optimización: el filtro completo se sigue aplicando
+>   después, así que pasarlo o no da el mismo resultado.
+> - **Sin keyset pagination**: con la ventana de 180 días sobre la actividad y
+>   el prefiltro sobre el padrón, el volumen por request ya no crece con la
+>   antigüedad del proyecto. La paginación por keyset queda para cuando el
+>   padrón de un solo proyecto no entre en una respuesta.
+> - **HTML por fila de `envio_queue`**: no se cambió el modelo (guardar
+>   `template_id` + variables e interpolar al despachar). En su lugar, la
+>   retención borra las filas terminadas a los 30 días, que ataca el mismo
+>   problema —tabla que sólo crece— sin tocar el path de envío recién
+>   estabilizado en F1. El cambio de modelo queda anotado como deuda.
+> - **`op = "remove"` del espejo**: sigue sin implementarse (marca
+>   `unsupported`). Borrar una fila en Sheets exige buscarla primero; con el
+>   `_mirror_id` ya escrito es factible, pero es una feature del espejo, no un
+>   problema de escala.
 
 1. **Full-table a memoria** (el límite duro de crecimiento actual): `loadContacts` trae el padrón entero y filtra en JS en cada dashboard/segmento/campaña (`lib/campaigns.ts:508`, `lib/db/padron.ts:155`); `loadRawRelationships` pagina TODOS los envios+respuestas+opt_outs por request (`lib/db/relations.ts:44`). Fix: filtros de segmento a SQL (RPC), ventana temporal de 180 días para relaciones, keyset pagination.
 2. **KPIs truncados en silencio**: `loadDashboard` sin `.limit()` → PostgREST corta en 1000 filas sin error; con >1000 envíos las métricas mienten (`lib/analytics.ts:159`). Fix: agregados vía RPC SQL (`count(*) filter (…)`).
@@ -140,7 +166,7 @@ El sistema está definido (DESIGN.md) pero sin usar: `Card` tiene 0 imports y su
 | ✅ F0 hotfixes | ~1 día | Crons rotos, acceso anónimo, doble campaña |
 | ✅ F1 pipeline envío | ~1 semana | Envíos a bajas (legal), duplicados, pérdida de envíos |
 | ✅ F2 multi-tenant | ~1 semana | Fugas cross-tenant, credenciales pisables |
-| F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
+| ✅ F3 escala | ~1 semana | Timeouts/OOM al crecer padrón, KPIs falsos |
 | F4 observabilidad/CI | ~3 días | Fallos invisibles, deploy sin gate |
 | F5 frontend/DS | ~2 semanas | A11y, consistencia, bundles |
 | F6 higiene | continuo | Deuda acumulada |
