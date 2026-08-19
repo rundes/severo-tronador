@@ -232,13 +232,25 @@ def _hover_deferred_links(page) -> None:
             continue
 
 
+# Texto que delata que el "post" es chrome del perfil (el panel Photos, la
+# cabecera con followers, contact info) y no un post del feed. Los thumbnails
+# de la caja Photos también llevan href /photo/?fbid=…, así que el permalink
+# solo no alcanza para distinguirlos.
+CHROME_MARKERS = (
+    "followers •", "seguidores •",
+    "Personal details", "Detalles personales",
+    "Contact info", "Información de contacto",
+    "See all photos", "Ver todas las fotos",
+)
+
+
 def extract_feed_posts(page, limit: int) -> list[dict]:
     """Posts visibles: [{text, url}] partiendo de los permalinks de la página."""
     pairs = page.evaluate(_COLLECT_JS)
     if not pairs:
         _hover_deferred_links(page)
         pairs = page.evaluate(_COLLECT_JS)
-    out, seen = [], set()
+    out, seen, seen_text = [], set(), set()
     for p in pairs:
         href = canonical_permalink(p.get("href") or "")
         if not href or "comment_id" in href or href in seen:
@@ -246,7 +258,14 @@ def extract_feed_posts(page, limit: int) -> list[dict]:
         text = clean_text(p.get("text") or "")
         if len(text) < 30:
             continue
+        if any(m in text for m in CHROME_MARKERS):
+            continue
+        # Un set de fotos genera N fbid distintos con el mismo texto: uno solo.
+        tkey = text[:80]
+        if tkey in seen_text:
+            continue
         seen.add(href)
+        seen_text.add(tkey)
         out.append({"text": text[:400], "url": href})
         if len(out) >= limit:
             break
