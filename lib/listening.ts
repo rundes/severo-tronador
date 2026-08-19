@@ -100,13 +100,15 @@ export interface ListeningResult {
   feed: FeedItem[];
 }
 
-// Filtro de connectors para leer la cache del feed. La radio se ingesta aparte
-// (agenda) con connector_id "radio" y NO es una `fuente` togglable, así que sus
-// menciones deben verse siempre: cuando hay fuentes seleccionadas, sumamos
-// "radio" para que no queden ocultas. Sin fuentes → undefined (lee todo).
+// Filtro de connectors para leer la cache del feed. La radio (agenda,
+// connector_id "radio") y las páginas de Facebook (infra/fb-worker,
+// connector_id "fb-pages") se ingestan por fuera del pull y NO son `fuentes`
+// togglables, así que sus menciones deben verse siempre: cuando hay fuentes
+// seleccionadas las sumamos para que no queden ocultas. Sin fuentes →
+// undefined (lee todo).
 export function cacheConnectorFilter(fuentes: string[]): string[] | undefined {
   if (fuentes.length === 0) return undefined;
-  return Array.from(new Set([...fuentes, "radio"]));
+  return Array.from(new Set([...fuentes, "radio", "fb-pages"]));
 }
 
 export async function runListening(
