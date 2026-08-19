@@ -173,52 +173,84 @@ def canonical_permalink(href: str) -> str | None:
     return f"https://www.facebook.com{u.path}" + (f"?{q}" if q else "")
 
 
-def find_post_permalink(art) -> str | None:
-    """Permalink de un article del feed.
+# Extracción a nivel PÁGINA: el layout 2026 ya no envuelve los posts del feed
+# en div[role=article] de forma confiable (los que quedan suelen ser
+# comentarios). En vez de adivinar el contenedor, se parte de los <a> cuyo
+# href es un permalink de post y se sube hasta un ancestro con texto
+# suficiente — eso ES el post, tenga el role que tenga.
+_COLLECT_JS = """
+() => {
+  const pat = /\\/(posts|permalink|videos|reel)\\/|\\/share\\/p\\/|photo\\.php|\\/photo\\/?\\?|pfbid|story_fbid/;
+  const out = [];
+  const seen = new Set();
+  for (const a of document.querySelectorAll('a[href]')) {
+    const href = a.getAttribute('href') || '';
+    if (!pat.test(href) || /comment_id/.test(href)) continue;
+    let node = a.parentElement;
+    let hops = 0;
+    while (node && hops < 14) {
+      const t = node.innerText || '';
+      if (t.length >= 60) break;
+      node = node.parentElement;
+      hops++;
+    }
+    const text = node ? (node.innerText || '') : '';
+    if (seen.has(href)) continue;
+    seen.add(href);
+    out.push({ href, text: text.slice(0, 1500) });
+    if (out.length >= 80) break;
+  }
+  return out;
+}
+"""
 
-    1) Regex sobre el inner_html: cubre todos los <a> de una pasada sin el
-       costo de iterar locators.
-    2) Fallback con hover: FB difiere el href real de los timestamps (deja
-       "#" hasta hover) para molestar scrapers; hovereamos los primeros links
-       y re-leemos.
-    """
+
+def _hover_deferred_links(page) -> None:
+    """FB difiere el href real de algunos timestamps (deja '#'/'' hasta
+    hover). Hoverear los links del feed fuerza a que el href aparezca."""
     try:
-        html = art.inner_html(timeout=2000)
-    except PWTimeout:
-        html = ""
-    for raw in HREF_IN_HTML_PAT.findall(html):
-        cand = canonical_permalink(raw)
-        if cand and "comment_id" not in cand:
-            return cand
-    for a in art.locator("a[role='link']").all()[:10]:
+        links = page.locator("a[role='link']").all()[:40]
+    except Exception:
+        return
+    for a in links:
         try:
-            a.hover(timeout=1000)
-            a.page.wait_for_timeout(250)
-            cand = canonical_permalink(a.get_attribute("href") or "")
-            if cand and "comment_id" not in cand:
-                return cand
+            href = a.get_attribute("href") or ""
+            if href in ("", "#"):
+                a.hover(timeout=800)
+                page.wait_for_timeout(150)
         except Exception:
             continue
-    return None
 
 
 def extract_feed_posts(page, limit: int) -> list[dict]:
-    """Posts visibles: [{text, url}] desde div[role=article] del feed."""
+    """Posts visibles: [{text, url}] partiendo de los permalinks de la página."""
+    pairs = page.evaluate(_COLLECT_JS)
+    if not pairs:
+        _hover_deferred_links(page)
+        pairs = page.evaluate(_COLLECT_JS)
     out, seen = [], set()
-    for art in page.locator('div[role="article"]').all()[: limit * 3]:
-        try:
-            text = clean_text(art.inner_text(timeout=2000))
-            if len(text) < 30:
-                continue
-            href = find_post_permalink(art)
-            if not href or href in seen:
-                continue
-            seen.add(href)
-            out.append({"text": text[:400], "url": href})
-            if len(out) >= limit:
-                break
-        except PWTimeout:
+    for p in pairs:
+        href = canonical_permalink(p.get("href") or "")
+        if not href or "comment_id" in href or href in seen:
             continue
+        text = clean_text(p.get("text") or "")
+        if len(text) < 30:
+            continue
+        seen.add(href)
+        out.append({"text": text[:400], "url": href})
+        if len(out) >= limit:
+            break
+    if not out:
+        # Instrumentación: qué anchors vio realmente la página, para iterar
+        # el patrón sin adivinar.
+        try:
+            hrefs = page.evaluate(
+                "() => Array.from(document.querySelectorAll('a[href]'))"
+                ".map(a => a.getAttribute('href')).filter(h => h && h.length > 1).slice(0, 40)"
+            )
+            print(f"  debug hrefs ({len(hrefs)}): {hrefs}", file=sys.stderr)
+        except Exception:
+            pass
     return out
 
 
