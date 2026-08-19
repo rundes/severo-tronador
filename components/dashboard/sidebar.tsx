@@ -22,7 +22,11 @@ interface ProjectOption {
 }
 
 const MODE_KEY = "nav:mode";
-const SECTIONS_KEY = "nav:sections";
+// Acordeón: se persiste UNA sección abierta (o "" = ninguna). La clave vieja
+// "nav:sections" guardaba un mapa con varias abiertas — se ignora y se borra
+// para que ese estado no reviva el menú todo desplegado.
+const OPEN_KEY = "nav:open";
+const LEGACY_SECTIONS_KEY = "nav:sections";
 
 // Resuelve un ícono del mapa explícito de la navegación; cae a Circle si el
 // nombre no está. Ver nav-icons.ts: el `import *` de lucide traía la librería
@@ -53,9 +57,11 @@ export function Sidebar({
   const pathname = usePathname();
   const activeSec = activeSection(pathname ?? "", nav);
 
-  // Estado desktop: modo (expandido/riel) + qué secciones están abiertas.
+  // Estado desktop: modo (expandido/riel) + LA sección abierta (acordeón).
+  // `undefined` = sin elección del usuario todavía (sigue a la ruta activa);
+  // null = todas cerradas; string = esa sección abierta.
   const [mode, setMode] = useState<"expanded" | "rail">("expanded");
-  const [sections, setSections] = useState<Record<string, boolean>>({});
+  const [openSec, setOpenSec] = useState<string | null | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
 
   // Hidratar de localStorage post-montaje (no en el initializer) para evitar
@@ -65,10 +71,11 @@ export function Sidebar({
     try {
       const m = localStorage.getItem(MODE_KEY);
       if (m === "rail" || m === "expanded") setMode(m);
-      const s = localStorage.getItem(SECTIONS_KEY);
-      if (s) setSections(JSON.parse(s) as Record<string, boolean>);
+      const o = localStorage.getItem(OPEN_KEY);
+      if (o !== null) setOpenSec(o === "" ? null : o);
+      localStorage.removeItem(LEGACY_SECTIONS_KEY);
     } catch {
-      // ignore (storage no disponible / JSON inválido)
+      // ignore (storage no disponible)
     }
     setLoaded(true);
   }, []);
@@ -78,11 +85,11 @@ export function Sidebar({
     if (!loaded) return;
     try {
       localStorage.setItem(MODE_KEY, mode);
-      localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections));
+      if (openSec !== undefined) localStorage.setItem(OPEN_KEY, openSec ?? "");
     } catch {
       // ignore
     }
-  }, [loaded, mode, sections]);
+  }, [loaded, mode, openSec]);
 
   // Cerrar drawer al navegar (mobile).
   const prevPath = useRef<string | null>(null);
@@ -116,20 +123,14 @@ export function Sidebar({
 
   const rail = mode === "rail";
 
-  // ¿Sección abierta? Override explícito en estado; si no, abierta solo la de
-  // la ruta activa.
+  // Acordeón estructural: el estado ES una sola sección abierta, así que no
+  // hay forma de que queden varias desplegadas — ni desde storage viejo.
+  // Sin elección del usuario, abierta solo la de la ruta activa.
   function isSectionOpen(section: string): boolean {
-    return section in sections ? sections[section] : section === activeSec;
+    return openSec === undefined ? section === activeSec : openSec === section;
   }
-  // Acordeón: abrir una sección cierra las demás. Se escribe el estado de
-  // TODAS las secciones (no sólo la tocada) para pisar el fallback de
-  // "abierta la de la ruta activa" en las que nunca se tocaron.
   function toggleSection(section: string) {
-    const willOpen = !isSectionOpen(section);
-    const next: Record<string, boolean> = {};
-    for (const g of nav) next[g.section] = false;
-    next[section] = willOpen;
-    setSections(next);
+    setOpenSec(isSectionOpen(section) ? null : section);
   }
 
   function itemActive(href: string): boolean {
@@ -176,7 +177,7 @@ export function Sidebar({
         } ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
         {/* Brand */}
-        <Link href="/" className="block shrink-0 px-4 pb-1.5 pt-3">
+        <Link href="/" className="block shrink-0 px-4 pb-1 pt-2">
           {rail ? (
             <Image
               src="/brand/tronador-mark.jpeg"
@@ -193,7 +194,7 @@ export function Sidebar({
             width={180}
             height={180}
             priority
-            className={`h-auto w-full ${rail ? "md:hidden" : ""}`}
+            className={`mx-auto h-auto w-[70%] ${rail ? "md:hidden" : ""}`}
           />
         </Link>
 
