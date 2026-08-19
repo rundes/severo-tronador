@@ -142,6 +142,9 @@ def load_cookies() -> list[dict]:
 
 def clean_text(s: str) -> str:
     s = re.sub(r"\s+", " ", s or "").strip()
+    # El textContent del contenedor arrastra el link de Messenger de la página
+    # ("m.me/<usuario>") pegado al inicio del texto, sin espacio.
+    s = re.sub(r"^m\.me[\w.\-/]*\s*", "", s)
     # El innerText de un article arrastra chrome de UI; corta sufijos típicos.
     for marker in ("Me gusta Comentar", "Like Comment", "Todas las reacciones"):
         i = s.find(marker)
