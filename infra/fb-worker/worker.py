@@ -321,9 +321,19 @@ def extract_comments(page, limit: int) -> list[dict]:
     for c in page.locator(sel).all()[: limit * 2]:
         try:
             label = c.get_attribute("aria-label") or ""
-            # aria-label: 'Comentario de <autor> hace N h' / 'Comment by <name>'
+            # aria-label: 'Comentario de <autor> hace N h' / 'Comment by <name>
+            # a week ago'. El corte por '\s+hace|\s+\d' no cubría los relativos
+            # en inglés sin dígito ("a week ago", "an hour ago", "yesterday") y
+            # el autor quedaba con el timestamp pegado.
             m = re.search(r"(?:de|by)\s+(.+?)(?:\s+hace|\s+\d|$)", label)
             author = (m.group(1).strip() if m else "")[:80]
+            author = re.sub(
+                r"\s+(?:an?\s+(?:few\s+)?(?:second|minute|hour|day|week|month|year)s?\s+ago"
+                r"|yesterday|just\s+now|ayer|reci[eé]n)\b.*$",
+                "",
+                author,
+                flags=re.IGNORECASE,
+            ).strip()
             text = clean_text(c.inner_text(timeout=2000))
             if author and text.startswith(author):
                 text = text[len(author):].strip()
