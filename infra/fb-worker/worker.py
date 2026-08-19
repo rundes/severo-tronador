@@ -357,6 +357,11 @@ def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> lis
             page.screenshot(path=f"debug-{ident}.png")
         except Exception:
             pass
+    # Sin published_at: la fecha real del post no se scrapea (por ahora) y un
+    # NULL deja el item fuera de toda ventana del feed. Se OMITE la columna
+    # para que aplique el default now() de la DB en el insert — y para que el
+    # upsert de corridas siguientes no la pise (merge-duplicates solo toca las
+    # columnas presentes en el payload).
     rows = [
         {
             "project_id": project_id,
@@ -364,7 +369,6 @@ def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> lis
             "source": f"facebook/{ident}",
             "text": p["text"],
             "url": p["url"],
-            "published_at": None,
             "author": ident,
             "kind": "post",
             "parent_url": None,
@@ -384,7 +388,6 @@ def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> lis
                         "source": f"facebook/{ident}",
                         "text": c["text"],
                         "url": c["url"] or f"{p['url']}#c-{abs(hash(c['text'])) % 10**10}",
-                        "published_at": None,
                         "author": c["author"],
                         "kind": "comment",
                         "parent_url": p["url"],
