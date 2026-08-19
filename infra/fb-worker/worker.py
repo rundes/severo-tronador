@@ -186,19 +186,29 @@ _COLLECT_JS = """
   for (const a of document.querySelectorAll('a[href]')) {
     const href = a.getAttribute('href') || '';
     if (!pat.test(href) || /comment_id/.test(href)) continue;
+    if (seen.has(href)) continue;
+    seen.add(href);
+    // textContent, no innerText: innerText fuerza layout y sobre ancestros
+    // grandes del DOM de FB tarda segundos — con 80 anchors x 14 niveles la
+    // corrida se colgaba (>20 min). textContent es O(subtree) sin layout.
     let node = a.parentElement;
     let hops = 0;
     while (node && hops < 14) {
-      const t = node.innerText || '';
-      if (t.length >= 60) break;
+      const len = (node.textContent || '').length;
+      if (len >= 80) break;
       node = node.parentElement;
       hops++;
     }
-    const text = node ? (node.innerText || '') : '';
-    if (seen.has(href)) continue;
-    seen.add(href);
+    // innerText solo sobre el contenedor chico ya elegido (una llamada por
+    // anchor); si el climb no cerro en un nodo acotado, textContent y listo.
+    let text = '';
+    if (node && hops < 14 && (node.textContent || '').length < 4000) {
+      text = node.innerText || node.textContent || '';
+    } else if (node) {
+      text = node.textContent || '';
+    }
     out.push({ href, text: text.slice(0, 1500) });
-    if (out.length >= 80) break;
+    if (out.length >= 40) break;
   }
   return out;
 }
