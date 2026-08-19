@@ -150,18 +150,56 @@ def clean_text(s: str) -> str:
     return s.strip()
 
 
-PERMALINK_PAT = re.compile(r"/(posts|permalink|videos|reel)/|pfbid|story_fbid|comment_id")
+# Formatos de permalink que FB usa hoy: /posts/, /permalink/, /videos/, /reel/,
+# fotos (/photo/?fbid=… y photo.php?fbid=…), share-links (/share/p/…) y los ids
+# pfbid/story_fbid. Los posts de FOTO — la mayoría en páginas municipales —
+# solo llevan el formato /photo/, que el patrón viejo no cubría: por eso el
+# worker veía articles y descartaba todos.
+PERMALINK_PAT = re.compile(
+    r"/(posts|permalink|videos|reel)/|/share/p/|photo\.php|/photo/?\?|pfbid|story_fbid|comment_id"
+)
+HREF_IN_HTML_PAT = re.compile(r'href="([^"]+)"')
 
 
 def canonical_permalink(href: str) -> str | None:
     if not href:
         return None
+    href = href.replace("&amp;", "&")
     if not PERMALINK_PAT.search(href):
         return None
     u = urlparse(href if href.startswith("http") else f"https://www.facebook.com{href}")
-    keep = {k: v for k, v in parse_qs(u.query).items() if k in ("story_fbid", "id", "comment_id")}
+    keep = {k: v for k, v in parse_qs(u.query).items() if k in ("story_fbid", "id", "fbid", "comment_id")}
     q = "&".join(f"{k}={v[0]}" for k, v in sorted(keep.items()))
     return f"https://www.facebook.com{u.path}" + (f"?{q}" if q else "")
+
+
+def find_post_permalink(art) -> str | None:
+    """Permalink de un article del feed.
+
+    1) Regex sobre el inner_html: cubre todos los <a> de una pasada sin el
+       costo de iterar locators.
+    2) Fallback con hover: FB difiere el href real de los timestamps (deja
+       "#" hasta hover) para molestar scrapers; hovereamos los primeros links
+       y re-leemos.
+    """
+    try:
+        html = art.inner_html(timeout=2000)
+    except PWTimeout:
+        html = ""
+    for raw in HREF_IN_HTML_PAT.findall(html):
+        cand = canonical_permalink(raw)
+        if cand and "comment_id" not in cand:
+            return cand
+    for a in art.locator("a[role='link']").all()[:10]:
+        try:
+            a.hover(timeout=1000)
+            a.page.wait_for_timeout(250)
+            cand = canonical_permalink(a.get_attribute("href") or "")
+            if cand and "comment_id" not in cand:
+                return cand
+        except Exception:
+            continue
+    return None
 
 
 def extract_feed_posts(page, limit: int) -> list[dict]:
@@ -172,12 +210,7 @@ def extract_feed_posts(page, limit: int) -> list[dict]:
             text = clean_text(art.inner_text(timeout=2000))
             if len(text) < 30:
                 continue
-            href = None
-            for a in art.locator("a[href]").all()[:25]:
-                cand = canonical_permalink(a.get_attribute("href") or "")
-                if cand and "comment_id" not in cand:
-                    href = cand
-                    break
+            href = find_post_permalink(art)
             if not href or href in seen:
                 continue
             seen.add(href)
@@ -230,6 +263,16 @@ def scrape_source(page, kind: str, ident: str, url: str, project_id: str) -> lis
     page.wait_for_timeout(4000)
     if "login" in page.url or "checkpoint" in page.url:
         raise RuntimeError(f"sesión rechazada en {page.url[:80]}")
+    if kind == "group":
+        # Un grupo privado no muestra feed (y no debería scrapearse: expectativa
+        # de privacidad). Sin este chequeo el grupo aparece como "0 posts" y
+        # nadie entiende por qué.
+        body = page.locator("body").inner_text(timeout=5000)
+        if "Private group" in body or "Grupo privado" in body:
+            raise RuntimeError(
+                "grupo PRIVADO — no accesible (sacarlo de las fuentes o esperar "
+                "aprobación de membresía de la cuenta del worker)"
+            )
     for _ in range(SCROLLS):
         page.mouse.wheel(0, 2500)
         page.wait_for_timeout(1500)
@@ -312,7 +355,8 @@ def main() -> None:
             try:
                 rows = scrape_source(page, kind, ident, url, project_id)
                 upsert_items(rows)
-                ok += 1
+                if rows:
+                    ok += 1
                 n_com = sum(1 for r in rows if r["kind"] == "comment")
                 print(f"[{i}/{len(sources)}] {label}: {len(rows) - n_com} posts + {n_com} comentarios")
             except Exception as e:
