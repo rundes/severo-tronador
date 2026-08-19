@@ -140,17 +140,42 @@ def load_cookies() -> list[dict]:
     return cookies
 
 
+# Botones/labels de la UI que quedan pegados al FINAL del texto de posts y
+# comentarios: timestamps ("1w", "3 h"), acciones (Like/Reply/Share y sus
+# variantes en español) y "See translation". Se recortan iterativamente de
+# atrás hacia adelante — "texto 1w Like Reply See translation" cae en 4
+# pasadas. Números sueltos (conteo de reacciones) NO se tocan: un texto
+# legítimo puede terminar en número ("Fiesta 2026").
+_UI_TAIL = re.compile(
+    r"\s*(?:\d+\s?(?:h|d|w|m|min|sem|a)\b\.?"
+    r"|Like|Reply|Comment|Share|See translation|See more|Edited|Author|Top fan"
+    r"|Me gusta|Responder|Comentar|Compartir|Ver traducci[oó]n|Ver m[aá]s|Editado"
+    r"|Todas las reacciones|All reactions|Most relevant|M[aá]s relevantes)\s*$",
+    re.IGNORECASE,
+)
+
+
+def strip_ui_tail(s: str) -> str:
+    prev = None
+    while prev != s:
+        prev = s
+        s = _UI_TAIL.sub("", s)
+    return s.strip()
+
+
 def clean_text(s: str) -> str:
     s = re.sub(r"\s+", " ", s or "").strip()
     # El textContent del contenedor arrastra el link de Messenger de la página
     # ("m.me/<usuario>") pegado al inicio del texto, sin espacio.
     s = re.sub(r"^m\.me[\w.\-/]*\s*", "", s)
+    # Badges que preceden al autor en comentarios.
+    s = re.sub(r"^(?:Top fan|Fan destacado|Author|Autor)\s+", "", s, flags=re.IGNORECASE)
     # El innerText de un article arrastra chrome de UI; corta sufijos típicos.
     for marker in ("Me gusta Comentar", "Like Comment", "Todas las reacciones"):
         i = s.find(marker)
         if i > 40:
             s = s[:i]
-    return s.strip()
+    return strip_ui_tail(s.strip())
 
 
 # Formatos de permalink que FB usa hoy: /posts/, /permalink/, /videos/, /reel/,
