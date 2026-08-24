@@ -24,7 +24,9 @@ concurrency:
 jobs:
   pull:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Peor caso por lote ≈ 90 s gap + 60 + 120 s backoff + 3 fetches ≈ 5.5 min;
+    # 7 lotes (Ibicuy 1 + Maipú 6) ≈ 38 min. Con 30 se cancelaba a mitad.
+    timeout-minutes: 60
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
