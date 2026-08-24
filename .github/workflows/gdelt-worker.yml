@@ -1,0 +1,65 @@
+name: GDELT worker (prensa online → listening_items)
+
+# Ingesta GDELT desde un runner con IP propia: desde Vercel GDELT responde
+# 429 al primer request (límite de 1 req / 5 s por IP de egreso compartida).
+# Ver infra/gdelt-worker/README.md. El cron listening-pull salta gdelt.
+#
+# Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (ya existen).
+
+on:
+  schedule:
+    # Cada 6 h, offset de listening-pull (:00/:05) y de fb-worker (11:37/23:37).
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gdelt-worker
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MAX_RECORDS: "250"
+      GAP_SECONDS: "6"
+    steps:
+      - name: Verificar secrets
+        id: gate
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "SUPABASE_URL no configurado — skip."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: infra/gdelt-worker/requirements.txt
+
+      - name: Instalar dependencias
+        if: steps.gate.outputs.run == 'true'
+        working-directory: infra/gdelt-worker
+        run: pip install -r requirements.txt
+
+      - name: Tests
+        if: steps.gate.outputs.run == 'true'
+        working-directory: infra/gdelt-worker
+        run: python test_worker.py
+
+      - name: Correr worker
+        if: steps.gate.outputs.run == 'true'
+        working-directory: infra/gdelt-worker
+        run: python -u worker.py

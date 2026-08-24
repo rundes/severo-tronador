@@ -106,6 +106,8 @@ export interface ListeningResult {
 // togglables, así que sus menciones deben verse siempre: cuando hay fuentes
 // seleccionadas las sumamos para que no queden ocultas. Sin fuentes →
 // undefined (lee todo).
+export { EXTERNALLY_INGESTED, isExternallyIngested } from "@/lib/listening-external";
+
 export function cacheConnectorFilter(fuentes: string[]): string[] | undefined {
   if (fuentes.length === 0) return undefined;
   return Array.from(new Set([...fuentes, "radio", "fb-pages"]));

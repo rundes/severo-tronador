@@ -36,6 +36,16 @@ describe("listening-cache (no db configurado)", () => {
       expect(v.upserted).toBe(0);
     }
   });
+
+  it("pullAllSources salta gdelt: se ingesta en infra/gdelt-worker (Actions)", async () => {
+    const { pullAllSources } = await import("@/lib/listening-cache");
+    const { isExternallyIngested } = await import("@/lib/listening-external");
+    expect(isExternallyIngested("gdelt")).toBe(true);
+    expect(isExternallyIngested("rss-medios")).toBe(false);
+    const summary = await pullAllSources("p1");
+    expect(summary.bySource).not.toHaveProperty("gdelt");
+    expect(summary.bySource).toHaveProperty("rss-medios");
+  });
 });
 
 describe("cron route listening-pull · auth gate", () => {

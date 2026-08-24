@@ -8,6 +8,7 @@ import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import type { ListenItem, ListeningConnector } from "@/lib/connectors/types";
 import { connectors } from "@/lib/connectors/registry";
 import { getListeningConfig } from "@/lib/listening-config";
+import { isExternallyIngested } from "@/lib/listening-external";
 import { log } from "@/lib/logger";
 
 interface ListeningRow {
@@ -275,6 +276,8 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
 
   for (const l of listeners) {
     if (cfg.fuentes.length > 0 && !cfg.fuentes.includes(l.id)) continue;
+    // gdelt: ingesta en infra/gdelt-worker (Actions); acá siempre da 429.
+    if (isExternallyIngested(l.id)) continue;
     const diagnostics: { source: string; detail: string }[] = [];
     try {
       const items = await l.fetch({
