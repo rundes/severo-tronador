@@ -141,16 +141,19 @@ def load_cookies() -> list[dict]:
 
 
 # Botones/labels de la UI que quedan pegados al FINAL del texto de posts y
-# comentarios: timestamps ("1w", "3 h"), acciones (Like/Reply/Share y sus
-# variantes en español) y "See translation". Se recortan iterativamente de
-# atrás hacia adelante — "texto 1w Like Reply See translation" cae en 4
-# pasadas. Números sueltos (conteo de reacciones) NO se tocan: un texto
-# legítimo puede terminar en número ("Fiesta 2026").
-_UI_TAIL = re.compile(
-    r"\s*(?:\d+\s?(?:h|d|w|m|min|sem|a)\b\.?"
+# comentarios: timestamps ("1w", "3 h", "2y"), acciones (Like/Reply/Share y
+# sus variantes en español) y "See translation". Tras la última acción suele
+# venir el conteo de reacciones ("… Like Reply See translation 5"): ese
+# número SOLO se recorta si va precedido por un token de UI. Un número final
+# sin UI antes ("Fiesta 2026") es texto legítimo y no se toca.
+_UI_TOKEN = (
+    r"\d+\s?(?:h|d|w|m|y|min|sem|a)\b\.?"
     r"|Like|Reply|Comment|Share|See translation|See more|Edited|Author|Top fan"
     r"|Me gusta|Responder|Comentar|Compartir|Ver traducci[oó]n|Ver m[aá]s|Editado"
-    r"|Todas las reacciones|All reactions|Most relevant|M[aá]s relevantes)\s*$",
+    r"|Todas las reacciones|All reactions|Most relevant|M[aá]s relevantes"
+)
+_UI_TAIL = re.compile(
+    rf"(?:\s*(?:{_UI_TOKEN}))+(?:\s+\d+)?\s*$",
     re.IGNORECASE,
 )
 
@@ -243,17 +246,28 @@ _COLLECT_JS = """
 """
 
 
+# href que FB deja como placeholder hasta que el mouse pasa por el link del
+# timestamp: vacío, "#", o SOLO la query de tracking sin path
+# ("?__cft__[0]=…&__tn__=%2CO%2CP-R#?jfb"). Visto en municipalidad.ibicuyof
+# (posts de video): la página rendereaba 3 posts y el worker veía 0 porque
+# ninguno de esos href matcheaba PERMALINK_PAT ni el chequeo ''/'#'.
+def _is_deferred_href(href: str) -> bool:
+    if href in ("", "#"):
+        return True
+    return href.startswith("?") or (href.startswith("#") and "__tn__" in href)
+
+
 def _hover_deferred_links(page) -> None:
-    """FB difiere el href real de algunos timestamps (deja '#'/'' hasta
-    hover). Hoverear los links del feed fuerza a que el href aparezca."""
+    """FB difiere el href real de algunos timestamps hasta hover. Hoverear
+    los links del feed fuerza a que el href real aparezca en el DOM."""
     try:
-        links = page.locator("a[role='link']").all()[:40]
+        links = page.locator("a[role='link']").all()[:60]
     except Exception:
         return
     for a in links:
         try:
             href = a.get_attribute("href") or ""
-            if href in ("", "#"):
+            if _is_deferred_href(href):
                 a.hover(timeout=800)
                 page.wait_for_timeout(150)
         except Exception:
@@ -275,7 +289,9 @@ CHROME_MARKERS = (
 def extract_feed_posts(page, limit: int) -> list[dict]:
     """Posts visibles: [{text, url}] partiendo de los permalinks de la página."""
     pairs = page.evaluate(_COLLECT_JS)
-    if not pairs:
+    # Antes solo se hovereaba con 0 pares; una página con 2 posts de foto y 8
+    # de video (href diferido) quedaba en 2. Si no alcanza el cupo, hoverear.
+    if len(pairs) < limit:
         _hover_deferred_links(page)
         pairs = page.evaluate(_COLLECT_JS)
     out, seen, seen_text = [], set(), set()

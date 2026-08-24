@@ -19,6 +19,38 @@ import { fetchWithTimeout } from "@/lib/net/safe-fetch";
 const ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc";
 const MAX_RECORDS = 250;
 
+// GDELT rechaza con 429 más de 1 request cada 5 s por IP ("Please limit
+// requests to one every 5 seconds"). El cron listening-pull recorre todos los
+// proyectos en serie dentro del mismo proceso, así que se serializan acá las
+// llamadas con una pausa mínima entre ellas y se reintenta UNA vez el 429.
+export const GDELT_MIN_GAP_MS = 5500;
+const MAX_ATTEMPTS = 2;
+
+let lastCallAt = -Infinity;
+let queue: Promise<unknown> = Promise.resolve();
+
+export function __resetGdeltThrottle(): void {
+  lastCallAt = -Infinity;
+  queue = Promise.resolve();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Encola `fn` detrás de la llamada anterior y garantiza GDELT_MIN_GAP_MS
+// desde el inicio de la última request.
+function throttled<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    const wait = lastCallAt + GDELT_MIN_GAP_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastCallAt = Date.now();
+    return fn();
+  });
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 interface GdeltArticle {
   title?: string;
   url?: string;
@@ -58,7 +90,12 @@ async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
     timespan: "24h",
   });
   if (query.pais) params.set("sourcecountry", query.pais.toLowerCase());
-  const res = await fetchWithTimeout(`${ENDPOINT}?${params}`);
+  const url = `${ENDPOINT}?${params}`;
+  let res = await throttled(() => fetchWithTimeout(url));
+  for (let attempt = 1; res.status === 429 && attempt < MAX_ATTEMPTS; attempt++) {
+    log.warn("listening.gdelt.rate_limited", { attempt });
+    res = await throttled(() => fetchWithTimeout(url));
+  }
   if (!res.ok) throw new Error(`GDELT HTTP ${res.status}`);
   const ct = res.headers.get("content-type") ?? "";
   if (!ct.includes("json")) {
@@ -105,9 +142,10 @@ export const gdeltConnector: ListeningConnector = {
       log.debug("listening.gdelt.fetch", { count: real.length });
       return real;
     } catch (e) {
-      log.warn("listening.gdelt.fetch_failed", {
-        error: (e as Error).message,
-      });
+      const error = (e as Error).message;
+      log.warn("listening.gdelt.fetch_failed", { error });
+      // Sin esto el cron reporta "fetched: 0, errors: []" y nadie ve el 429.
+      query.diagnostics?.push({ source: "gdelt", detail: error });
       if (!demoData()) return [];
       return mockListenItems("gdelt").filter((i) => matches(i, query));
     }
