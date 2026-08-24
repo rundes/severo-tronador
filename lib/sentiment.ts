@@ -7,7 +7,7 @@
 // comparte stopwords. Antes este archivo tenía su propio tokenizer + STOPWORDS
 // divergentes (sin NFD, lista más chica), así que /escucha clasificaba con un
 // tokenizer inferior y desincronizado del de temas.
-import { tokenize } from "@/lib/text/tokenize";
+import { tokenize, words } from "@/lib/text/tokenize";
 
 const POS = new Set([
   "bueno", "buena", "buenos", "buenas",
@@ -58,7 +58,10 @@ export interface SentimentScore {
 }
 
 export function classifySentiment(text: string): SentimentScore {
-  const tokens = tokenize(text);
+  // words(), no tokenize(): el léxico incluye "lindo"/"bueno"/"malo", que
+  // para TEMAS son stopwords (no describen el territorio) pero acá son la
+  // señal. Con tokenize() el pulso de Ibicuy cayó de 21+ a 7+ (2026-08-24).
+  const tokens = words(text);
   let pos = 0;
   let neg = 0;
   for (const t of tokens) {
