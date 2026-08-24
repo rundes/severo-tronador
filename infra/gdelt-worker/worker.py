@@ -54,19 +54,45 @@ def rest(method: str, path: str, **kw) -> httpx.Response:
     )
 
 
-def build_query(keywords: list[str], zona: str | None, pais: str | None) -> str | None:
-    """Misma query que lib/connectors/gdelt.ts · fetchReal. None si no hay términos."""
-    terms = [k.strip() for k in keywords if k and k.strip()]
-    if not terms and zona and zona.strip():
-        terms = [zona.strip()]
-    if not terms:
-        return None
+# GDELT responde 429 ("contact us for larger queries") a una query OR muy
+# larga aunque la cadencia sea correcta: Maipú con 40 términos fallaba
+# siempre; Ibicuy con 7 respondía 200. Se parte en lotes de MAX_TERMS y se
+# hace un request por lote (con GAP_SECONDS entre medio).
+MAX_TERMS = 7
+
+
+def _terms(keywords: list[str], zona: str | None) -> list[str]:
+    seen, out = set(), []
+    for k in keywords:
+        t = (k or "").strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    if not out and zona and zona.strip():
+        out = [zona.strip()]
+    return out
+
+
+def _query_for(terms: list[str], pais: str | None) -> str:
     quoted = [f'"{t}"' if any(c.isspace() for c in t) else t for t in terms]
     joined = " OR ".join(quoted)
     q = f"({joined})" if len(quoted) > 1 else joined
     if (pais or "").lower() == "ar":
         q = f"{q} sourcelang:spa"
     return q
+
+
+def build_queries(keywords: list[str], zona: str | None, pais: str | None) -> list[str]:
+    """Queries GDELT (mismo formato que lib/connectors/gdelt.ts) en lotes de
+    MAX_TERMS términos, sin duplicados. [] si no hay términos."""
+    terms = _terms(keywords, zona)
+    return [_query_for(terms[i : i + MAX_TERMS], pais) for i in range(0, len(terms), MAX_TERMS)]
+
+
+def build_query(keywords: list[str], zona: str | None, pais: str | None) -> str | None:
+    """Una sola query con todos los términos (formato de gdelt.ts). None si no hay."""
+    terms = _terms(keywords, zona)
+    return _query_for(terms, pais) if terms else None
 
 
 def build_url(query: str, pais: str | None) -> str:
@@ -175,21 +201,34 @@ def main() -> None:
     projects = load_projects()
     print(f"{len(projects)} proyectos con gdelt")
     failures = 0
+    requests_made = 0
     with httpx.Client(headers={"user-agent": UA}) as client:
         for i, p in enumerate(projects):
-            query = build_query(p["keywords"], p["zona"], p["pais"])
-            if not query:
-                print(f"[{i + 1}/{len(projects)}] {p['project_id'][-4:]}: sin keywords ni zona, skip")
+            tag = f"[{i + 1}/{len(projects)}] {p['project_id'][-4:]}"
+            queries = build_queries(p["keywords"], p["zona"], p["pais"])
+            if not queries:
+                print(f"{tag}: sin keywords ni zona, skip")
                 continue
-            if i > 0:
-                time.sleep(GAP_SECONDS)
+            articles: list[dict] = []
+            errors: list[str] = []
+            for query in queries:
+                if requests_made:
+                    time.sleep(GAP_SECONDS)
+                requests_made += 1
+                try:
+                    articles.extend(fetch_articles(client, build_url(query, p["pais"])))
+                except Exception as e:  # noqa: BLE001 — un lote no frena a los demás
+                    errors.append(str(e))
             try:
-                articles = fetch_articles(client, build_url(query, p["pais"]))
                 n = upsert_items(to_rows(p["project_id"], articles))
-                print(f"[{i + 1}/{len(projects)}] {p['project_id'][-4:]}: {len(articles)} artículos → {n} upsert")
-            except Exception as e:  # noqa: BLE001 — un proyecto no frena a los demás
+            except Exception as e:  # noqa: BLE001
+                errors.append(str(e))
+                n = 0
+            print(f"{tag}: {len(queries)} lotes · {len(articles)} artículos → {n} upsert")
+            for err in errors:
+                print(f"{tag}: ERROR {err}", file=sys.stderr)
+            if errors and not articles:
                 failures += 1
-                print(f"[{i + 1}/{len(projects)}] {p['project_id'][-4:]}: ERROR {e}", file=sys.stderr)
     if failures and failures == len(projects):
         sys.exit("todas las fuentes fallaron")
 

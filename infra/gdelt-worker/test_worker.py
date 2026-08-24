@@ -5,7 +5,25 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from worker import build_query, build_url, parse_seendate, to_rows  # noqa: E402
+from worker import MAX_TERMS, build_queries, build_query, build_url, parse_seendate, to_rows  # noqa: E402
+
+
+class BuildQueriesTests(unittest.TestCase):
+    # GDELT responde 429 ("contact us for larger queries") a una query OR de
+    # 40 términos aunque la cadencia sea correcta; con 7 términos responde 200.
+    def test_parte_en_lotes_de_max_terms(self):
+        kws = [f"k{i}" for i in range(MAX_TERMS * 2 + 1)]
+        qs = build_queries(kws, None, "AR")
+        self.assertEqual(len(qs), 3)
+        self.assertEqual(qs[0], "(" + " OR ".join(kws[:MAX_TERMS]) + ") sourcelang:spa")
+        self.assertEqual(qs[2], f"k{MAX_TERMS * 2} sourcelang:spa")
+
+    def test_dedupe_case_insensitive_conserva_orden(self):
+        qs = build_queries(["Salud", "Hospital", "salud", " Salud "], None, None)
+        self.assertEqual(qs, ["(Salud OR Hospital)"])
+
+    def test_sin_terminos_lista_vacia(self):
+        self.assertEqual(build_queries([], "", "AR"), [])
 
 
 class BuildQueryTests(unittest.TestCase):
