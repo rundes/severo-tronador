@@ -8,8 +8,10 @@ name: GDELT worker (prensa online → listening_items)
 
 on:
   schedule:
-    # Cada 6 h, offset de listening-pull (:00/:05) y de fb-worker (11:37/23:37).
-    - cron: "17 */6 * * *"
+    # Cada 3 h, offset de listening-pull (:00/:05) y de fb-worker (11:37/23:37).
+    # GDELT throttlea IPs de Actions de forma errática: más corridas =
+    # más chances de que cada lote pase dentro de la ventana de 24 h.
+    - cron: "17 */3 * * *"
   workflow_dispatch:
 
 permissions:
