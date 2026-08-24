@@ -314,17 +314,47 @@ def extract_feed_posts(page, limit: int) -> list[dict]:
         if len(out) >= limit:
             break
     if not out:
-        # Instrumentación: qué anchors vio realmente la página, para iterar
-        # el patrón sin adivinar.
-        try:
-            hrefs = page.evaluate(
-                "() => Array.from(document.querySelectorAll('a[href]'))"
-                ".map(a => a.getAttribute('href')).filter(h => h && h.length > 1).slice(0, 40)"
-            )
-            print(f"  debug hrefs ({len(hrefs)}): {hrefs}", file=sys.stderr)
-        except Exception:
-            pass
+        _debug_dump_anchors(page)
     return out
+
+
+# Instrumentación cuando una fuente da 0 posts: qué anchors vio la página y
+# cómo son por dentro los posts (role=article) que sí renderizó, para iterar
+# el patrón de permalinks con evidencia y no adivinando.
+_DEBUG_JS = """
+() => {
+  const short = (s) => (s || '').replace(/\\s+/g, ' ').slice(0, 220);
+  const deferred = Array.from(document.querySelectorAll('a[href]'))
+    .filter(a => /^\\?|^#|__tn__/.test(a.getAttribute('href') || ''))
+    .slice(0, 6)
+    .map(a => ({ href: a.getAttribute('href'), role: a.getAttribute('role'),
+                 label: a.getAttribute('aria-label'), html: short(a.outerHTML) }));
+  const articles = Array.from(document.querySelectorAll('div[role="article"]'))
+    .slice(0, 5)
+    .map(el => ({
+      text: short(el.innerText).slice(0, 120),
+      hrefs: Array.from(el.querySelectorAll('a[href]')).map(a => a.getAttribute('href')).slice(0, 8),
+      labels: Array.from(el.querySelectorAll('[aria-label]')).map(e => e.getAttribute('aria-label')).slice(0, 8),
+    }));
+  return { deferred, articles };
+}
+"""
+
+
+def _debug_dump_anchors(page) -> None:
+    try:
+        hrefs = page.evaluate(
+            "() => Array.from(document.querySelectorAll('a[href]'))"
+            ".map(a => a.getAttribute('href')).filter(h => h && h.length > 1).slice(0, 40)"
+        )
+        print(f"  debug hrefs ({len(hrefs)}): {hrefs}", file=sys.stderr)
+        info = page.evaluate(_DEBUG_JS)
+        for d in info.get("deferred", []):
+            print(f"  debug deferred: {d}", file=sys.stderr)
+        for a in info.get("articles", []):
+            print(f"  debug article: {a}", file=sys.stderr)
+    except Exception as e:
+        print(f"  debug dump failed: {e}", file=sys.stderr)
 
 
 def extract_comments(page, limit: int) -> list[dict]:
