@@ -27,6 +27,46 @@ const CFG: TopicConfig = {
 
 const labels = (ts: { label: string }[]) => ts.map((t) => t.label);
 
+describe("topics · prioridad de frases y afinidad con el tablero", () => {
+  it("una frase con sentido rankea por encima de un unigrama igual de frecuente", () => {
+    const items = [
+      item("alerta amarilla por frio en la zona sur", 1, "a1"),
+      item("rige alerta amarilla para toda la provincia", 2, "a2"),
+      item("alerta amarilla y clases suspendidas", 3, "a3"),
+      item("sigue el pedido por el camino rural", 1, "b1"),
+      item("vecinos reclaman por el camino", 2, "b2"),
+      item("camino intransitable otra vez", 3, "b3"),
+    ];
+    const got = labels(extractTopics(items, CFG));
+    expect(got.indexOf("alerta amarilla")).toBeLessThan(got.indexOf("camino"));
+  });
+
+  it("no lista genéricos de calendario como tema", () => {
+    const items = [
+      item("el lunes hay acto en la plaza", 1, "a1"),
+      item("desde el lunes cambia el horario", 2, "a2"),
+      item("lunes de paro docente", 3, "a3"),
+    ];
+    expect(labels(extractTopics(items, CFG))).not.toContain("lunes");
+  });
+
+  it("boardTerms: lo que toca keywords/zona del tablero sube en el ranking", () => {
+    const items = [
+      item("crecida del rio y riesgo de inundaciones", 1, "a1"),
+      item("inundaciones en el norte provincial", 2, "a2"),
+      item("temen nuevas inundaciones tras las lluvias", 3, "a3"),
+      item("quedo listo el nuevo autodromo", 1, "b1"),
+      item("el autodromo abre el fin de semana", 2, "b2"),
+      item("autodromo lleno de publico", 3, "b3"),
+    ];
+    const sin = labels(extractTopics(items, CFG));
+    const con = labels(extractTopics(items, { ...CFG, boardTerms: ["Inundaciones", "Ibicuy"] }));
+    expect(sin).toContain("autodromo");
+    expect(con.indexOf("inundaciones")).toBe(0);
+    expect(con.indexOf("inundaciones")).toBeLessThan(con.indexOf("autodromo"));
+  });
+});
+
 describe("topics · extractTopics", () => {
   it("no produce ruido de plataforma (https / posted) como tema", () => {
     const items = [

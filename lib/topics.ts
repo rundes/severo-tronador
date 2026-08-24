@@ -34,6 +34,10 @@ export interface TopicConfig {
   maxTopics: number; // tope de temas devueltos
   maxNgram: number; // largo máximo de frase (1..3)
   now?: number; // ancla de "ahora" para tests reproducibles
+  // Términos del tablero (keywords + zona del proyecto). Un candidato que los
+  // contiene recibe un boost: lo que toca lo que el operador ya vigila vale
+  // más que un tema igual de frecuente pero ajeno al territorio.
+  boardTerms?: string[];
 }
 
 export const DEFAULT_TOPIC_CONFIG: TopicConfig = {
@@ -45,9 +49,14 @@ export const DEFAULT_TOPIC_CONFIG: TopicConfig = {
   maxNgram: 3,
 };
 
-// Boost leve al score por palabra extra: empata desempates a favor de la frase
-// sobre sus unigramas componentes.
-const NGRAM_BOOST = 0.15;
+// Boost al score por palabra extra. Una frase ("alerta amarilla", "caza
+// furtiva") es un tema; un unigrama suelto rara vez lo es. Antes 0.15 (sólo
+// desempate); Ibicuy 2026-08 mostraba "agosto"/"lunes"/"general" por encima
+// de frases con sentido.
+const NGRAM_BOOST = 0.6;
+// Multiplicador para candidatos que contienen un término del tablero
+// (keyword o zona del proyecto).
+const BOARD_AFFINITY_BOOST = 1.5;
 // Un candidato corto se descarta si una frase más larga ya aceptada cubre esta
 // fracción de sus documentos (subsunción: preferimos "corte de luz" a "luz").
 const SUBSUME_COVERAGE = 0.7;
@@ -142,6 +151,13 @@ export function extractTopics(
     }
   }
 
+  // Términos del tablero normalizados como el resto del texto ("Entre Ríos" →
+  // {"entre","rios"}); se compara palabra a palabra contra el candidato.
+  const board = new Set<string>();
+  for (const t of config.boardTerms ?? []) for (const w of words(t)) board.add(w);
+  const touchesBoard = (label: string): boolean =>
+    board.size > 0 && label.split(" ").some((w) => board.has(w));
+
   // Filtrar + puntuar por keyness (crecimiento reciente vs previo).
   const scored: Scored[] = [];
   for (const [label, a] of aggs) {
@@ -165,7 +181,10 @@ export function extractTopics(
       recentSigs: a.recent,
       bySource: a.bySource,
       examples: a.examples,
-      score: keyness * (1 + NGRAM_BOOST * (n - 1)),
+      score:
+        keyness *
+        (1 + NGRAM_BOOST * (n - 1)) *
+        (touchesBoard(label) ? BOARD_AFFINITY_BOOST : 1),
     });
   }
 

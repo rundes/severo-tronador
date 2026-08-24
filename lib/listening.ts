@@ -159,6 +159,8 @@ export async function runListening(
   const topics: Topic[] = extractTopics(items, {
     ...DEFAULT_TOPIC_CONFIG,
     now: now(),
+    // Afinidad con el tablero: keywords + zona del proyecto suben en el ranking.
+    boardTerms: [...cfg.keywords, ...(cfg.zona ? [cfg.zona] : [])],
   });
 
   const bySource: Record<string, number> = {};

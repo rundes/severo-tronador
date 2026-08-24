@@ -37,6 +37,39 @@ export const STOPWORDS = new Set<string>([
   "hoy", "ayer", "asi", "voy", "vas", "van", "fui", "ira",
   // genéricos del corpus Maipu (no son temas en sí mismos)
   "maipu", "barrio", "barrios", "vecino", "vecinos", "vecina", "vecinas",
+  // calendario (Ibicuy 2026-08: "agosto" y "lunes" salían como temas)
+  "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+  "septiembre", "setiembre", "octubre", "noviembre", "diciembre",
+  "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
+  "dia", "dias", "semana", "semanas", "mes", "meses", "ano", "anos", "hora",
+  "horas", "fecha", "manana", "tarde", "noche", "fin", "feriado", "jornada",
+  // adjetivos / adverbios vacíos y cuantificadores
+  "lindo", "linda", "lindos", "lindas", "bueno", "buena", "buenos", "buenas",
+  "malo", "mala", "gran", "grande", "grandes", "nuevo", "nueva", "nuevos",
+  "nuevas", "mejor", "mejores", "mayor", "mayores", "menor", "importante",
+  "importantes", "increible", "hermoso", "hermosa", "excelente", "especial",
+  "primer", "primera", "primero", "segundo", "segunda", "ultimo", "ultima",
+  "ultimos", "distintos", "distintas", "varios", "varias", "algunos",
+  "algunas", "mucho", "mucha", "muchos", "muchas", "poco", "pocos", "bien",
+  "mal", "solo", "siempre", "nunca", "ahora", "luego", "despues", "antes",
+  "durante", "mientras", "ademas", "segun", "tras", "ante", "bajo", "contra",
+  "hacia", "debido", "junto", "cerca", "lejos", "mismo", "misma", "mismos",
+  "parte", "forma", "manera", "momento", "vez", "veces", "cosa", "cosas",
+  "tipo", "caso", "casos", "lugar", "lugares", "zona", "zonas", "sector",
+  "sectores", "nivel", "propuesta", "propuestas", "actividad", "actividades",
+  // verbos auxiliares / de relleno frecuentes en titulares
+  "sera", "seran", "seria", "serian", "fueron", "estan", "estaba", "estaban",
+  "estamos", "tuvo", "tienen", "tenemos", "hizo", "hicieron", "dijo", "dijeron",
+  "puede", "pueden", "podria", "podrian", "debe", "deben", "quiere", "quieren",
+  "sigue", "siguen", "queda", "quedan", "quedo", "llega", "llegan", "llego",
+  "viene", "vienen", "vino", "esperamos", "esperan", "invitamos", "sumate",
+  // genéricos institucionales / de plataforma sin contenido territorial
+  "informacion", "oficial", "general", "generales", "nacional", "nacionales",
+  "provincial", "provinciales", "municipal", "municipales", "comunidad",
+  "comunicado", "aviso", "gobierno", "estado", "persona", "personas", "gente", "familia",
+  "familias", "todo", "todos", "nada", "nadie", "cada", "otro", "otra",
+  // ruido de títulos de medios / stickers
+  "analisis", "noticias", "noticia", "diario", "giphy", "post", "posts",
 ]);
 
 const URL_RE = /https?:\/\/\S+|www\.\S+/g;
