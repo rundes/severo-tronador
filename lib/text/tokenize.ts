@@ -44,7 +44,8 @@ export const STOPWORDS = new Set<string>([
   "dia", "dias", "semana", "semanas", "mes", "meses", "ano", "anos", "hora",
   "horas", "fecha", "manana", "tarde", "noche", "fin", "feriado", "jornada",
   // adjetivos / adverbios vacíos y cuantificadores
-  "lindo", "linda", "lindos", "lindas", "bueno", "buena", "buenos", "buenas",
+  // ("buenos"/"buenas" NO: rompería el topónimo "buenos aires")
+  "lindo", "linda", "lindos", "lindas", "bueno", "buena",
   "malo", "mala", "gran", "grande", "grandes", "nuevo", "nueva", "nuevos",
   "nuevas", "mejor", "mejores", "mayor", "mayores", "menor", "importante",
   "importantes", "increible", "hermoso", "hermosa", "excelente", "especial",
@@ -63,6 +64,12 @@ export const STOPWORDS = new Set<string>([
   "puede", "pueden", "podria", "podrian", "debe", "deben", "quiere", "quieren",
   "sigue", "siguen", "queda", "quedan", "quedo", "llega", "llegan", "llego",
   "viene", "vienen", "vino", "esperamos", "esperan", "invitamos", "sumate",
+  // verbos de cita de titulares ("Frigerio aseguró que … habrá …")
+  "habra", "habran", "habria", "aseguro", "asegura", "aseguran", "afirmo",
+  "afirma", "afirman", "destaco", "destaca", "destacan", "anuncio", "anuncia",
+  "anuncian", "sostuvo", "sostiene", "senalo", "senala", "explico", "explica",
+  "indico", "indica", "confirmo", "confirma", "informo", "informa", "expreso",
+  "expresa", "remarco", "advirtio", "advierte", "considero", "considera",
   // genéricos institucionales / de plataforma sin contenido territorial
   "informacion", "oficial", "general", "generales", "nacional", "nacionales",
   "provincial", "provinciales", "municipal", "municipales", "comunidad",

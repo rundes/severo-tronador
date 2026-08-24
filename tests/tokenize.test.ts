@@ -26,6 +26,17 @@ describe("tokenize · stopwords genéricas", () => {
     ]);
   });
 
+  it("quita verbos de cita de titulares (Ibicuy: 'provincia habra', 'frigerio aseguro')", () => {
+    expect(tokenize("Frigerio aseguró que nunca más habrá un gobierno enfrentado")).toEqual([
+      "frigerio", "enfrentado",
+    ]);
+    expect(tokenize("el ministro destacó, afirmó, anunció y sostuvo")).toEqual(["ministro"]);
+  });
+
+  it("no rompe topónimos: 'buenos aires' sobrevive", () => {
+    expect(tokenize("alerta en Buenos Aires")).toEqual(["alerta", "buenos", "aires"]);
+  });
+
   it("conserva palabras-tema reales", () => {
     expect(tokenize("inundaciones en islas del ibicuy y caza furtiva")).toEqual([
       "inundaciones", "islas", "ibicuy", "caza", "furtiva",
