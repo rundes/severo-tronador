@@ -14,7 +14,7 @@ MAX_RECORDS artículos de las últimas 24 h y upserta (project_id, url).
 Env:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
   MAX_RECORDS   (default 250)
-  GAP_SECONDS   (pausa mínima entre requests, default 6)
+  GAP_SECONDS   (pausa mínima entre requests, default 90)
 """
 import json
 import os
@@ -28,14 +28,17 @@ import httpx
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 MAX_RECORDS = int(os.environ.get("MAX_RECORDS", "250"))
-GAP_SECONDS = float(os.environ.get("GAP_SECONDS", "6"))
+GAP_SECONDS = float(os.environ.get("GAP_SECONDS", "90"))
 
 ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc"
 CONNECTOR_ID = "gdelt"
 TIMEOUT_SECONDS = 60
-# 429 → esperar y reintentar. GDELT tarda 10-25 s por query, así que el
-# backoff arranca por encima de la ventana de 5 s.
-RETRY_BACKOFF_SECONDS = (10, 20, 40)
+# 429 → esperar y reintentar. El "1 request / 5 s" documentado es optimista:
+# medido 2026-08-24 desde un runner de Actions, la 1.ª query (250 registros)
+# respondió 200 y la 2.ª dio 429 durante 6+10+20+40 s seguidos. La ventana
+# real tras una query pesada ronda el minuto, de ahí GAP_SECONDS=90 en el
+# workflow y este backoff.
+RETRY_BACKOFF_SECONDS = (60, 120)
 UA = "severo-tronador gdelt-worker (+https://github.com/rundes/severo-tronador)"
 
 

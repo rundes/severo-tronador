@@ -27,7 +27,9 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       MAX_RECORDS: "250"
-      GAP_SECONDS: "6"
+      # Ventana real de GDELT tras una query de 250 registros ≈ 1 min
+      # (ver RETRY_BACKOFF_SECONDS en worker.py).
+      GAP_SECONDS: "90"
     steps:
       - name: Verificar secrets
         id: gate

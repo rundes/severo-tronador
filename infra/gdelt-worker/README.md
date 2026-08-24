@@ -22,4 +22,4 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python worker.py
 python test_worker.py
 ```
 
-Env opcionales: `MAX_RECORDS` (250), `GAP_SECONDS` (6).
+Env opcionales: `MAX_RECORDS` (250), `GAP_SECONDS` (90).
