@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Log de corridas locales de vitest (npx vitest run > vt.log)
 vt.log
+
+__pycache__/
+*.pyc
