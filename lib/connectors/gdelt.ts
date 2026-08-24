@@ -24,6 +24,7 @@ const MAX_RECORDS = 250;
 // proyectos en serie dentro del mismo proceso, así que se serializan acá las
 // llamadas con una pausa mínima entre ellas y se reintenta UNA vez el 429.
 export const GDELT_MIN_GAP_MS = 5500;
+const GDELT_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 2;
 
 let lastCallAt = -Infinity;
@@ -91,10 +92,14 @@ async function fetchReal(query: ListenQuery): Promise<ListenItem[]> {
   });
   if (query.pais) params.set("sourcecountry", query.pais.toLowerCase());
   const url = `${ENDPOINT}?${params}`;
-  let res = await throttled(() => fetchWithTimeout(url));
+  // GDELT tarda 10-25 s en responder una query OR de 7 términos (medido
+  // 2026-08-24: 21 s con 250 registros). Con el default de 8 s el fetch
+  // abortaba siempre ("This operation was aborted") y el conector quedaba mudo.
+  const doFetch = () => fetchWithTimeout(url, { timeoutMs: GDELT_TIMEOUT_MS });
+  let res = await throttled(doFetch);
   for (let attempt = 1; res.status === 429 && attempt < MAX_ATTEMPTS; attempt++) {
     log.warn("listening.gdelt.rate_limited", { attempt });
-    res = await throttled(() => fetchWithTimeout(url));
+    res = await throttled(doFetch);
   }
   if (!res.ok) throw new Error(`GDELT HTTP ${res.status}`);
   const ct = res.headers.get("content-type") ?? "";

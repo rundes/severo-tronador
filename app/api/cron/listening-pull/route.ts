@@ -13,6 +13,11 @@ import { listActiveProjects } from "@/lib/projects";
 import { log } from "@/lib/logger";
 import { recordHeartbeat } from "@/lib/heartbeat";
 
+// GDELT se serializa con 5.5 s de pausa y hasta 30 s por respuesta; con 6
+// proyectos el peor caso ronda los 4 min. Sin esto el default puede cortar
+// la función a mitad del recorrido y los últimos proyectos quedan sin pull.
+export const maxDuration = 300;
+
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
