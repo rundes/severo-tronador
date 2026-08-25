@@ -16,6 +16,8 @@ import { getProject, listMembers } from "@/lib/projects";
 import { getMonitorConfig, nextCountdown } from "@/lib/monitor-config";
 import { accountMetrics } from "@/lib/monitor-metrics";
 import { log } from "@/lib/logger";
+import { z } from "zod";
+import { getClientBrief, briefText, mergeSuggestions, saveClientBrief } from "@/lib/client-brief";
 
 const HISTORY_CAP = 14;
 const CLAUDE_ID = "claude-api";
@@ -59,6 +61,37 @@ async function saveReport(projectId: string, report: DailyReport): Promise<void>
   }
 }
 
+// Actores nuevos que el modelo detecta en las menciones y no están en el
+// plan. Van al final del informe como bloque ```json```; se separan del
+// markdown antes de guardar. Un bloque ausente o inválido nunca rompe el
+// informe: solo deja 0 sugerencias.
+const ActorSchema = z.object({
+  handle: z.string().min(1),
+  platform: z.enum(["instagram", "x", "facebook", "tiktok"]),
+  category: z.enum(["organizacion", "medio", "individual", "institucional", "opera"]),
+  direccion: z.enum(["A", "B", "?"]).default("?"),
+  evidencia: z.string().url().optional(),
+  razon: z.string().default(""),
+});
+export type NuevoActor = z.infer<typeof ActorSchema>;
+
+export function splitReport(text: string): { markdown: string; nuevosActores: NuevoActor[] } {
+  const m = text.match(/```json\s*([\s\S]*?)```\s*$/);
+  if (!m) return { markdown: text.trim(), nuevosActores: [] };
+  const markdown = text.slice(0, m.index).trim();
+  try {
+    const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[] };
+    const actores = (raw.nuevosActores ?? [])
+      .map((a) => ActorSchema.safeParse(a))
+      .filter((r): r is { success: true; data: NuevoActor } => r.success)
+      .map((r) => r.data);
+    return { markdown, nuevosActores: actores };
+  } catch {
+    log.warn("daily_report.actors_parse_failed", { head: m[1].slice(0, 200) });
+    return { markdown, nuevosActores: [] };
+  }
+}
+
 function fmtItems(items: { source: string; text: string; publishedAt?: string; author?: string }[], cap: number): string {
   return items
     .slice(0, cap)
@@ -95,6 +128,11 @@ export async function generateDailyReport(
 
   const previous = (await readDailyReports(projectId)).latest;
 
+  const brief = await getClientBrief(projectId);
+  const briefSection = brief.entries.length
+    ? `## Brief del cliente (aportes del operador, en orden)\n${briefText(brief)}\n\n`
+    : "";
+
   const system =
     "Sos analista de opinión pública de un centro de estudios. Escribís " +
     "informes diarios para operadores: sobrios, densos en dato, sin marketing. " +
@@ -107,7 +145,7 @@ export async function generateDailyReport(
     "habla de sí mismo ni de la herramienta; no publiques nómina de " +
     "particulares, sí agregados y cuentas con relevancia organizativa.";
 
-  const prompt = `## Contexto del cliente (config del panel)
+  const prompt = `${briefSection}## Contexto del cliente (config del panel)
 Proyecto: ${project?.nombre ?? projectId}
 Zona: ${cfg.zona || "sin definir"} (${cfg.pais})
 Keywords monitoreadas: ${cfg.keywords.join(", ") || "ninguna"}
@@ -148,7 +186,11 @@ Además, por ser monitoreo electoral:
 6. **Mapa por categorías** — ordená las cuentas DENTRO de cada categoría por amplificación/adhesión/densidad (no compares categorías entre sí); notá cuando el orden por estructura difiere del orden por tamaño.
 7. **Cuentas que operan y cuentas nuevas** — declarando cuántas nuevas de cada dirección del conflicto aparecieron.
 8. **Cuenta regresiva** — expresá los hitos en días que faltan, no en fechas.` : ""}
-Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes/keywords.`;
+Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes/keywords.
+
+Cerrá el informe con un bloque \`\`\`json\`\`\` con este esquema exacto:
+{ "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }] }
+Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle).join(", ")})` : ""}. Si no hay, "nuevosActores": [].`;
 
   const result = await generateText({
     apiKey,
@@ -158,17 +200,25 @@ Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes
   });
   await incrementUsage(CLAUDE_ID, result.inputTokens + result.outputTokens, projectId);
 
+  const { markdown, nuevosActores } = splitReport(result.text);
   const report: DailyReport = {
     at: new Date().toISOString(),
-    markdown: result.text,
+    markdown,
     items24h: items24.length,
     items7d: items7.length,
     pull,
   };
   await saveReport(projectId, report);
+  if (nuevosActores.length > 0) {
+    const merged = mergeSuggestions(brief, nuevosActores, monitor.accounts, report.at);
+    if (merged.suggestions.length !== brief.suggestions.length) {
+      await saveClientBrief(projectId, merged);
+    }
+  }
   log.info("daily_report.generated", {
     projectId,
     items24h: items24.length,
+    nuevosActores: nuevosActores.length,
     tokens: result.inputTokens + result.outputTokens,
   });
   return report;
