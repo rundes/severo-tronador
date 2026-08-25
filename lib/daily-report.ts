@@ -6,6 +6,7 @@
 // Persistencia sin DDL: fila sintética de conector_config
 // daily-report:<projectId> = { latest, history[] } (historial capado).
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { upsertConectorConfig } from "@/lib/db/conector-config";
 import { getListeningConfig } from "@/lib/listening-config";
 import { readCachedItems, pullAllSources, type PullSummary } from "@/lib/listening-cache";
 import { getConnectorConfig } from "@/lib/connectors/config";
@@ -51,16 +52,11 @@ async function saveReport(projectId: string, report: DailyReport): Promise<void>
     .slice(0, HISTORY_CAP)
     // El historial no necesita el markdown completo de cada día: pesa.
     .map((r) => ({ ...r, markdown: r.markdown.slice(0, 4000), pull: undefined }));
-  const { error } = await getSupabase().from("conector_config").upsert(
-    {
-      connector_id: key(projectId),
-      project_id: null,
-      config: { latest: report, history },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "connector_id,project_id" },
-  );
-  if (error) log.warn("daily_report.save_failed", { error: error.message });
+  try {
+    await upsertConectorConfig(key(projectId), { latest: report, history });
+  } catch (error) {
+    log.warn("daily_report.save_failed", { error: (error as Error).message });
+  }
 }
 
 function fmtItems(items: { source: string; text: string; publishedAt?: string; author?: string }[], cap: number): string {

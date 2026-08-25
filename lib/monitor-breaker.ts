@@ -3,6 +3,7 @@
 // servidor enfría esa plataforma; el plan de colecta la excluye hasta que
 // pase el cooldown. Sobrevive a reinicios del navegador porque vive en DB.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { upsertConectorConfig } from "@/lib/db/conector-config";
 import { log } from "@/lib/logger";
 import type { Platform } from "@/lib/monitor-config";
 
@@ -54,14 +55,10 @@ export async function tripBreaker(
   const state = await readBreakerState(projectId);
   const until = new Date(Date.now() + COOLDOWN_HOURS[signal] * 3600_000).toISOString();
   state[platform] = { until, signal };
-  const { error } = await getSupabase().from("conector_config").upsert(
-    {
-      connector_id: key(projectId),
-      config: state,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "connector_id" },
-  );
-  if (error) log.warn("monitor_breaker.save_failed", { error: error.message });
-  else log.info("monitor_breaker.tripped", { projectId, platform, signal, until });
+  try {
+    await upsertConectorConfig(key(projectId), state);
+    log.info("monitor_breaker.tripped", { projectId, platform, signal, until });
+  } catch (error) {
+    log.warn("monitor_breaker.save_failed", { error: (error as Error).message });
+  }
 }

@@ -5,6 +5,7 @@
 // cache tiene filas frescas; cae a live fetch si la tabla está vacía o
 // Supabase no está configurado.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { upsertConectorConfig } from "@/lib/db/conector-config";
 import type { ListenItem, ListeningConnector } from "@/lib/connectors/types";
 import { connectors } from "@/lib/connectors/registry";
 import { getListeningConfig } from "@/lib/listening-config";
@@ -190,15 +191,14 @@ export async function savePullSummary(
   summary: PullSummary,
 ): Promise<void> {
   if (!dbConfigured()) return;
-  const { error } = await getSupabase().from("conector_config").upsert(
-    {
-      connector_id: pullSummaryKey(projectId),
-      config: { ...summary, at: new Date().toISOString() },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "connector_id" },
-  );
-  if (error) log.warn("listening.pull_summary.save_failed", { error: error.message });
+  try {
+    await upsertConectorConfig(pullSummaryKey(projectId), {
+      ...summary,
+      at: new Date().toISOString(),
+    });
+  } catch (error) {
+    log.warn("listening.pull_summary.save_failed", { error: (error as Error).message });
+  }
 }
 
 export async function readPullSummary(

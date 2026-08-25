@@ -6,6 +6,7 @@
 // Persistencia sin DDL: fila sintética de conector_config
 // monitor-config:<projectId>. Ningún conector consulta ese connector_id.
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
+import { upsertConectorConfig } from "@/lib/db/conector-config";
 import { log } from "@/lib/logger";
 
 export type Platform = "instagram" | "x" | "facebook" | "tiktok";
@@ -88,19 +89,10 @@ export async function saveMonitorConfig(
   cfg: MonitorConfig,
 ): Promise<void> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
-  // La unique de conector_config es (connector_id, project_id) NULLS NOT
-  // DISTINCT (migración 0053): onConflict "connector_id" solo da 42P10.
-  const { error } = await getSupabase().from("conector_config").upsert(
-    {
-      connector_id: key(projectId),
-      project_id: null,
-      config: cfg,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "connector_id,project_id" },
-  );
-  if (error) {
-    log.warn("monitor_config.save_failed", { error: error.message });
+  try {
+    await upsertConectorConfig(key(projectId), cfg);
+  } catch (error) {
+    log.warn("monitor_config.save_failed", { error: (error as Error).message });
     throw error;
   }
 }
