@@ -8,6 +8,16 @@
 import { decryptJson, encryptJson } from "@/lib/crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 
+// Las direcciones se normalizan a minúsculas en la escritura y las lecturas
+// usan .ilike; escapar %/_/\ evita que un local-part con comodines LIKE
+// matchee la credencial de otra casilla (bypass de autorización).
+function normalizeAddress(address: string): string {
+  return address.trim().toLowerCase();
+}
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, "\\$&");
+}
+
 export interface MailboxCredential {
   userEmail: string;
   address: string;
@@ -51,7 +61,7 @@ export async function saveCredential(input: {
   const enc = await encryptJson({ value: input.password });
   const row: MemoryRow = {
     user_email: input.userEmail,
-    mailbox_address: input.address,
+    mailbox_address: normalizeAddress(input.address),
     jmap_password_encrypted: enc,
     provisioned_at: new Date().toISOString(),
   };
@@ -73,15 +83,16 @@ export async function updateAddress(
   userEmail: string,
   address: string,
 ): Promise<void> {
+  const addr = normalizeAddress(address);
   if (!dbConfigured()) {
     const existing = memory.get(userEmail);
-    if (existing) existing.mailbox_address = address;
+    if (existing) existing.mailbox_address = addr;
     return;
   }
   const sb = getSupabase();
   const { error } = await sb
     .from("mailbox_credentials")
-    .update({ mailbox_address: address })
+    .update({ mailbox_address: addr })
     .eq("user_email", userEmail);
   if (error) throw new Error(error.message);
 }
@@ -92,7 +103,7 @@ export async function isAddressTakenByOther(
   address: string,
   userEmail: string,
 ): Promise<boolean> {
-  const addr = address.toLowerCase();
+  const addr = normalizeAddress(address);
   if (!dbConfigured()) {
     for (const row of memory.values()) {
       if (
@@ -108,7 +119,7 @@ export async function isAddressTakenByOther(
   const { data, error } = await sb
     .from("mailbox_credentials")
     .select("user_email")
-    .ilike("mailbox_address", addr)
+    .ilike("mailbox_address", escapeLike(addr))
     .neq("user_email", userEmail)
     .limit(1);
   if (error) throw new Error(error.message);
@@ -151,7 +162,7 @@ export function _clearMemoryForTests() {
 // Dueño de una casilla @tronador. Sirve para atribuir un mail entrante al
 // proyecto correcto en vez de tirarlo todo al proyecto default.
 export async function ownerOfAddress(address: string): Promise<string | null> {
-  const addr = address.trim().toLowerCase();
+  const addr = normalizeAddress(address);
   if (!addr) return null;
   if (!dbConfigured()) {
     for (const row of memory.values()) {
@@ -162,7 +173,7 @@ export async function ownerOfAddress(address: string): Promise<string | null> {
   const { data, error } = await getSupabase()
     .from("mailbox_credentials")
     .select("user_email")
-    .ilike("mailbox_address", addr)
+    .ilike("mailbox_address", escapeLike(addr))
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
