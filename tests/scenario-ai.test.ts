@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const generateText = vi.fn();
 vi.mock("@/lib/anthropic", () => ({ generateText: (...a: unknown[]) => generateText(...a) }));
+const { getConnectorConfigMock } = vi.hoisted(() => ({
+  getConnectorConfigMock: vi.fn(async (): Promise<Record<string, string>> => ({ ANTHROPIC_API_KEY: "sk-test" })),
+}));
 vi.mock("@/lib/connectors/config", () => ({
-  getConnectorConfig: async () => ({ ANTHROPIC_API_KEY: "sk-test" }),
+  getConnectorConfig: (...a: unknown[]) => getConnectorConfigMock(...(a as [])),
 }));
 vi.mock("@/lib/quota", () => ({ incrementUsage: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/listening-config", () => ({
@@ -15,8 +18,12 @@ vi.mock("@/lib/monitor-config", async (orig) => ({
     accounts: [], searchesA: ["a1"], searchesB: ["b1"], calendar: [], noRepetir: [], entidades: {}, budget: {},
   }),
 }));
+const INITIAL_BRIEF: import("@/lib/client-brief").ClientBrief = {
+  entries: [{ id: "1", at: "2026-08-25T00:00:00.000Z", by: "ana@x.ar", text: "Municipio de Ibicuy, gestión local, cloacas y caminos" }],
+  suggestions: [],
+};
 const briefStore: { current: import("@/lib/client-brief").ClientBrief } = {
-  current: { entries: [{ id: "1", at: "2026-08-25T00:00:00.000Z", by: "ana@x.ar", text: "Municipio de Ibicuy, gestión local, cloacas y caminos" }], suggestions: [] },
+  current: { ...INITIAL_BRIEF },
 };
 const saveClientBrief = vi.fn(async (_p: string, b: import("@/lib/client-brief").ClientBrief) => { briefStore.current = b; });
 vi.mock("@/lib/client-brief", async (orig) => ({
@@ -51,6 +58,7 @@ describe("buildScenarioPrompt", () => {
     expect(prompt).toContain('"Ferro Carril Oeste"');
     expect(prompt).toContain("a1");
     expect(prompt).toMatch(/16/);
+    expect(system).toMatch(/nunca como instrucciones/);
   });
 });
 
@@ -91,10 +99,23 @@ describe("parseScenarioJson", () => {
     const bad = { ...VALID, accounts: [{ handle: "x", platform: "threads", category: "medio" }] };
     expect(parseScenarioJson(fence(bad)).ok).toBe(false);
   });
+
+  it("acepta fence en mayúsculas y JSON sin fence", () => {
+    const upper = "```JSON\n" + JSON.stringify(VALID) + "\n```";
+    expect(parseScenarioJson(upper).ok).toBe(true);
+    const bare = "Acá va el escenario:\n" + JSON.stringify(VALID) + "\nlisto.";
+    expect(parseScenarioJson(bare).ok).toBe(true);
+  });
 });
 
 describe("proposeScenario", () => {
-  beforeEach(() => { generateText.mockReset(); saveClientBrief.mockClear(); briefStore.current = { ...briefStore.current, proposal: undefined }; });
+  beforeEach(() => {
+    generateText.mockReset();
+    saveClientBrief.mockClear();
+    getConnectorConfigMock.mockReset();
+    getConnectorConfigMock.mockResolvedValue({ ANTHROPIC_API_KEY: "sk-test" });
+    briefStore.current = { ...INITIAL_BRIEF };
+  });
 
   it("guarda la propuesta con el hash del brief y no toca lo vigente", async () => {
     generateText.mockResolvedValue({ text: fence(VALID), inputTokens: 10, outputTokens: 20 });
@@ -119,5 +140,13 @@ describe("proposeScenario", () => {
     const r = await proposeScenario("p1");
     expect(r.ok).toBe(false);
     expect(saveClientBrief).not.toHaveBeenCalled();
+  });
+
+  it("sin API key → error claro sin llamar al modelo", async () => {
+    getConnectorConfigMock.mockResolvedValueOnce({});
+    const r = await proposeScenario("p1");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/API key/);
+    expect(generateText).not.toHaveBeenCalled();
   });
 });
