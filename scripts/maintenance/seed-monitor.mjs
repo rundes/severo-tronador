@@ -27,9 +27,18 @@ async function findProject(nameLike) {
 }
 
 async function upsertConfig(connectorId, config) {
-  await rest("POST", "conector_config", {
-    connector_id: connectorId, config, updated_at: new Date().toISOString(),
-  });
+  // El POST con merge-duplicates no alcanza: la unique es (connector_id,
+  // project_id) con project_id NULL y la segunda corrida daba 409
+  // ("duplicate key ... monitor-config:<ferro>"), cortando el seed antes de
+  // Ibicuy. GET + PATCH/POST explícito.
+  const id = encodeURIComponent(connectorId);
+  const cur = await rest("GET", `conector_config?connector_id=eq.${id}&project_id=is.null&select=connector_id`);
+  const row = { config, updated_at: new Date().toISOString() };
+  if (cur.length > 0) {
+    await rest("PATCH", `conector_config?connector_id=eq.${id}&project_id=is.null`, row);
+  } else {
+    await rest("POST", "conector_config", { connector_id: connectorId, ...row });
+  }
 }
 
 async function setListening(projectId, patch) {
