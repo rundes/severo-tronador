@@ -2,14 +2,25 @@
 
 // Actores que las barridas sugirieron y todavía no se resolvieron.
 // Incorporar → plan de colecta (con nota de origen). Descartar → no vuelve.
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { resolverActorSugerido } from "@/app/(dashboard)/escucha/actions";
 import type { ActorSuggestion } from "@/lib/client-brief";
 
 export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion[] }) {
   const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const list = suggestions.filter((s) => s.status === "pending");
   if (list.length === 0) return null;
+
+  const resolve = (id: string, accepted: boolean) =>
+    start(async () => {
+      setError(null);
+      try {
+        await resolverActorSugerido({ id, accepted });
+      } catch {
+        setError("No se pudo guardar. Recargá la página y probá de nuevo.");
+      }
+    });
 
   return (
     <section className="space-y-2 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
@@ -24,13 +35,15 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
         <table className="w-full text-[12px]">
           <thead className="text-left text-[10px] uppercase tracking-[0.12em] text-zinc-500">
             <tr>
-              <th className="py-1 pr-3">Cuenta</th>
-              <th className="py-1 pr-3">Plataforma</th>
-              <th className="py-1 pr-3">Categoría</th>
-              <th className="py-1 pr-3">Dir.</th>
-              <th className="py-1 pr-3">Razón</th>
-              <th className="py-1 pr-3">Barrida</th>
-              <th className="py-1"></th>
+              <th scope="col" className="py-1 pr-3">Cuenta</th>
+              <th scope="col" className="py-1 pr-3">Plataforma</th>
+              <th scope="col" className="py-1 pr-3">Categoría</th>
+              <th scope="col" className="py-1 pr-3">Dir.</th>
+              <th scope="col" className="py-1 pr-3">Razón</th>
+              <th scope="col" className="py-1 pr-3">Barrida</th>
+              <th scope="col" className="py-1">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -45,7 +58,13 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
                   {s.evidencia && (
                     <>
                       {" "}
-                      <a href={s.evidencia} target="_blank" rel="noreferrer" className="underline">
+                      <a
+                        href={s.evidencia}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                        aria-label={`Evidencia de @${s.handle} (abre en pestaña nueva)`}
+                      >
                         evidencia →
                       </a>
                     </>
@@ -56,7 +75,8 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => start(async () => { await resolverActorSugerido({ id: s.id, accepted: true }); })}
+                    onClick={() => resolve(s.id, true)}
+                    aria-label={`Incorporar @${s.handle}`}
                     className="mr-2 rounded border border-zinc-300 px-2 py-0.5 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
                   >
                     Incorporar
@@ -64,7 +84,8 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => start(async () => { await resolverActorSugerido({ id: s.id, accepted: false }); })}
+                    onClick={() => resolve(s.id, false)}
+                    aria-label={`Descartar @${s.handle}`}
                     className="text-zinc-500 hover:text-red-600 disabled:opacity-60"
                   >
                     Descartar
@@ -75,6 +96,7 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
           </tbody>
         </table>
       </div>
+      {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
     </section>
   );
 }

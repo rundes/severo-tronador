@@ -60,7 +60,7 @@ export function MonitorEditor({ cfg, saved, proposal }: { cfg: MonitorConfig; sa
         Escenario de monitoreo electoral ({cfg.accounts.length} cuentas)
         {p && <span className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-300">· propuesta de IA prellenada — revisá y guardá</span>}
       </summary>
-      <form action={guardarMonitor} className="mt-4 space-y-5">
+      <form key={proposal?.appliedMonitorAt ?? proposal?.at ?? "vigente"} action={guardarMonitor} className="mt-4 space-y-5">
         <Field
           label="Cuentas a monitorear (una por línea)"
           diff={diffLabel(accounts.cur, accounts.pro)}

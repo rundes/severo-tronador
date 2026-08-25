@@ -31,7 +31,7 @@ export function BriefPanel({
   const p = brief.proposal;
   const pendiente = p && !(p.appliedKeywordsAt && p.appliedMonitorAt);
   const briefCambio = p && p.briefHash !== briefHash(brief);
-  const parcial = p && (p.appliedKeywordsAt ? !p.appliedMonitorAt : Boolean(p.appliedMonitorAt));
+  const parcial = p && Boolean(p.appliedKeywordsAt) !== Boolean(p.appliedMonitorAt);
 
   return (
     <section className="space-y-4 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
@@ -53,7 +53,12 @@ export function BriefPanel({
               <span className="flex-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{e.text}</span>
               <form action={quitarAporteBrief}>
                 <input type="hidden" name="id" value={e.id} />
-                <button type="submit" className="text-[11px] text-zinc-400 hover:text-red-600" title="Quitar aporte">
+                <button
+                  type="submit"
+                  className="text-[11px] text-zinc-500 hover:text-red-600 dark:text-zinc-400"
+                  title="Quitar aporte"
+                  aria-label={`Quitar aporte del ${fecha(e.at)}`}
+                >
                   quitar
                 </button>
               </form>
@@ -65,12 +70,15 @@ export function BriefPanel({
       )}
 
       <form action={agregarAporteBrief} className="space-y-2">
-        <textarea
-          name="text"
-          rows={3}
-          placeholder="Ej: Municipio de Ibicuy (Entre Ríos). Nos interesa la gestión local: cloacas, caminos, agua. Intendente actual X; la oposición se agrupa en Y."
-          className={inputCls}
-        />
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-500">Agregar aporte</span>
+          <textarea
+            name="text"
+            rows={3}
+            placeholder="Ej: Municipio de Ibicuy (Entre Ríos). Nos interesa la gestión local: cloacas, caminos, agua. Intendente actual X; la oposición se agrupa en Y."
+            className={inputCls}
+          />
+        </label>
         <div className="flex flex-wrap items-center gap-2">
           <SubmitButton variant="secondary" pendingLabel="Guardando…">Agregar aporte</SubmitButton>
           <FormStatus ok={flags.saved ? "Aporte guardado." : null} error={flags.briefError ? "El aporte está vacío." : null} />
