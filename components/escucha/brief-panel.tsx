@@ -9,7 +9,7 @@ import {
   descartarPropuesta,
 } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { briefHash, type ClientBrief } from "@/lib/client-brief";
+import { appliedCount, briefHash, isProposalPending, type ClientBrief } from "@/lib/client-brief";
 
 const inputCls =
   "w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[13px] text-zinc-900 focus-visible:border-[oklch(52%_0.13_255)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -29,9 +29,10 @@ export function BriefPanel({
   flags: { saved: boolean; generated: boolean; iaError?: string; briefError?: string };
 }) {
   const p = brief.proposal;
-  const pendiente = p && !(p.appliedKeywordsAt && p.appliedMonitorAt);
+  const pendiente = isProposalPending(p);
   const briefCambio = p && p.briefHash !== briefHash(brief);
-  const parcial = p && Boolean(p.appliedKeywordsAt) !== Boolean(p.appliedMonitorAt);
+  const parcial = p && appliedCount(p).done > 0;
+  const { faltan } = p ? appliedCount(p) : { faltan: [] };
 
   return (
     <section className="space-y-4 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
@@ -113,9 +114,8 @@ export function BriefPanel({
           <p className="whitespace-pre-wrap">{p.resumen}</p>
           <p className="text-xs">
             {p.keywords.length} keywords · {p.searchesA.length}+{p.searchesB.length} búsquedas · {p.accounts.length} cuentas ·{" "}
-            {Object.keys(p.entidades).length} entidades · {p.calendar.length} hitos.{" "}
-            {p.appliedKeywordsAt ? "Keywords aplicadas. " : "Keywords: Configurar → Guardar. "}
-            {p.appliedMonitorAt ? "Escenario aplicado." : "Escenario: abajo → Guardar escenario."}
+            {Object.keys(p.entidades).length} entidades · {p.calendar.length} hitos · {p.audio.length} programas de audio.{" "}
+            {`Aplicada ${appliedCount(p).done}/${appliedCount(p).total}`}{faltan.length ? ` · faltan: ${faltan.join(", ")}` : ""}
           </p>
           <form action={descartarPropuesta}>
             <button type="submit" className="text-xs underline">Descartar propuesta</button>

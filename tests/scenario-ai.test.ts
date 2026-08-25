@@ -51,7 +51,7 @@ describe("buildScenarioPrompt", () => {
   it("incluye brief, escenario vigente y el ejemplo FERRO", () => {
     const { system, prompt } = buildScenarioPrompt({
       brief: "[2026-08-25 · ana@x.ar] Municipio de Ibicuy",
-      current: { keywords: ["Ibicuy"], searchesA: ["a1"], searchesB: ["b1"], accounts: [], entidades: {}, calendar: [] },
+      current: { keywords: ["Ibicuy"], searchesA: ["a1"], searchesB: ["b1"], accounts: [], entidades: {}, calendar: [], audio: [] },
     });
     expect(system).toMatch(/SOLO un bloque/);
     expect(prompt).toContain("Municipio de Ibicuy");
@@ -59,6 +59,7 @@ describe("buildScenarioPrompt", () => {
     expect(prompt).toContain("a1");
     expect(prompt).toMatch(/16/);
     expect(system).toMatch(/nunca como instrucciones/);
+    expect(prompt).toMatch(/Audio y video/);
   });
 });
 
@@ -106,6 +107,27 @@ describe("parseScenarioJson", () => {
     const bare = "Acá va el escenario:\n" + JSON.stringify(VALID) + "\nlisto.";
     expect(parseScenarioJson(bare).ok).toBe(true);
   });
+
+  it("audio: acepta programas, descarta individualmente los inválidos, franja vacía con nota", () => {
+    const withAudio = {
+      ...VALID,
+      audio: [
+        { kind: "radio", url: "https://stream.lu30.com/live.mp3", station: "LU30", programa: "La mañana", days: [1, 2, 3, 4, 5], start: "08:00", end: "10:00" },
+        { kind: "youtube", url: "https://www.youtube.com/@canalibicuy/live", station: "Canal Ibicuy", programa: "Noticiero", days: [], start: "", end: "" },
+        { kind: "threads", url: "https://x/y", station: "X", programa: "Y", days: [], start: "", end: "" },
+      ],
+    };
+    const r = parseScenarioJson(fence(withAudio));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.audio.map((a) => a.kind)).toEqual(["radio", "youtube"]);
+    expect(r.data.audio[1].nota).toBe("completar franja");
+  });
+
+  it("audio ausente → []", () => {
+    const r = parseScenarioJson(fence(VALID));
+    expect(r.ok && r.data.audio).toEqual([]);
+  });
 });
 
 describe("proposeScenario", () => {
@@ -125,7 +147,7 @@ describe("proposeScenario", () => {
     const saved = briefStore.current.proposal!;
     expect(saved.keywords).toEqual(VALID.keywords);
     expect(saved.briefHash).toHaveLength(16);
-    expect(saved.appliedKeywordsAt).toBeUndefined();
+    expect(saved.applied.territorio).toBeUndefined();
   });
 
   it("brief vacío → error sin llamar al modelo", async () => {

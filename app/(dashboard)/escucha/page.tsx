@@ -36,7 +36,7 @@ export const metadata = { title: "Escucha · Tronador" };
 // Keywords de la propuesta de IA pendiente (brief del cliente), si la hay.
 async function proposedKeywordsFor(projectId: string): Promise<string[] | undefined> {
   const { proposal } = await getClientBrief(projectId);
-  return proposal && !proposal.appliedKeywordsAt ? proposal.keywords : undefined;
+  return proposal && !proposal.applied.territorio ? proposal.keywords : undefined;
 }
 
 function sourceStatuses(rssCount = 0): SourceStatus[] {

@@ -16,6 +16,7 @@ import {
   saveClientBrief,
   type ScenarioProposal,
 } from "@/lib/client-brief";
+import { normalizeAudioProgram, isValidUrlFor, type AudioProgram } from "@/lib/audio-programs";
 import { FERRO_EXAMPLE_BRIEF, FERRO_EXAMPLE_JSON } from "@/lib/scenario-examples";
 import { log } from "@/lib/logger";
 
@@ -33,6 +34,17 @@ const AccountSchema = z.object({
   nota: z.string().optional(),
 });
 
+const AudioItemSchema = z.object({
+  kind: z.enum(["radio", "youtube", "kick"]),
+  url: z.string().min(1),
+  station: z.string().min(1),
+  programa: z.string().min(1),
+  days: z.array(z.number().int().min(0).max(6)).default([]),
+  start: z.string().default(""),
+  end: z.string().default(""),
+  nota: z.string().optional(),
+});
+
 export const ScenarioSchema = z
   .object({
     tipo: z.enum(["electoral", "territorial"]),
@@ -45,6 +57,19 @@ export const ScenarioSchema = z
     ),
     entidades: z.record(z.string(), z.string()),
     calendar: z.array(z.object({ label: z.string().min(1), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })),
+    // Programas inválidos se descartan uno a uno: no tiran la propuesta.
+    audio: z
+      .array(z.unknown())
+      .default([])
+      .transform((arr) =>
+        arr.flatMap((raw): AudioProgram[] => {
+          const r = AudioItemSchema.safeParse(raw);
+          if (!r.success || !isValidUrlFor(r.data.kind, r.data.url)) return [];
+          const p = normalizeAudioProgram(r.data);
+          const complete = p.days.length > 0 && p.start && p.end;
+          return [complete ? p : { ...p, nota: p.nota || "completar franja" }];
+        }),
+      ),
   })
   .refine((s) => s.searchesA.length === s.searchesB.length, {
     message: "Las búsquedas A y B tienen que ser simétricas (misma cantidad)",
@@ -59,6 +84,7 @@ export interface CurrentScenario {
   accounts: MonitorAccount[];
   entidades: Record<string, string>;
   calendar: CalendarEvent[];
+  audio: AudioProgram[];
 }
 
 // ── Prompt ──────────────────────────────────────────────────────────────
@@ -88,6 +114,11 @@ ${JSON.stringify(FERRO_EXAMPLE_JSON, null, 2)}
 ${JSON.stringify(input.current, null, 2)}
 \`\`\`
 
+## Audio y video vigente (radio / YouTube / Kick que ya se graban)
+\`\`\`json
+${JSON.stringify(input.current.audio, null, 2)}
+\`\`\`
+
 ## Brief del cliente (aportes del operador, en orden)
 ${input.brief}
 
@@ -99,10 +130,11 @@ ${input.brief}
 - calendar: solo fechas explícitas del brief, formato YYYY-MM-DD.
 - tipo: "electoral" si hay elección, lista o asamblea; "territorial" si no.
 - resumen: 3-5 líneas, cómo leíste el brief y qué se va a vigilar.
+- audio: solo radios o canales de YouTube/Kick que el brief o el vigente nombren. kind según la plataforma. Si no conocés la franja, days [] y start/end "" con "nota": "completar franja". Nunca inventes URLs de stream: si no la sabés, poné la URL del canal y "nota": "verificar url".
 
 Esquema:
 \`\`\`json
-{ "tipo": "electoral|territorial", "resumen": "...", "keywords": [], "searchesA": [], "searchesB": [], "accounts": [{ "handle": "", "platform": "", "category": "", "vinculo": "", "nota": "verificar handle" }], "entidades": {}, "calendar": [{ "label": "", "date": "YYYY-MM-DD" }] }
+{ "tipo": "electoral|territorial", "resumen": "...", "keywords": [], "searchesA": [], "searchesB": [], "accounts": [{ "handle": "", "platform": "", "category": "", "vinculo": "", "nota": "verificar handle" }], "entidades": {}, "calendar": [{ "label": "", "date": "YYYY-MM-DD" }], "audio": [{ "kind": "radio|youtube|kick", "url": "", "station": "", "programa": "", "days": [], "start": "HH:MM", "end": "HH:MM", "nota": "" }] }
 \`\`\``;
 
   return { system, prompt };
@@ -157,6 +189,7 @@ export async function proposeScenario(projectId: string): Promise<ProposeResult>
     accounts: monitor.accounts,
     entidades: monitor.entidades,
     calendar: monitor.calendar,
+    audio: cfg.radioStreams,
   };
 
   const { system, prompt } = buildScenarioPrompt({ brief: briefText(brief), current });
@@ -173,6 +206,7 @@ export async function proposeScenario(projectId: string): Promise<ProposeResult>
     at: new Date().toISOString(),
     briefHash: briefHash(brief),
     ...parsed.data,
+    applied: {},
   };
   await saveClientBrief(projectId, { ...brief, proposal });
   log.info("scenario_ai.proposed", { projectId, keywords: proposal.keywords.length, accounts: proposal.accounts.length });

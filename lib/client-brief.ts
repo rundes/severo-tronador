@@ -12,6 +12,7 @@ import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { upsertConectorConfig } from "@/lib/db/conector-config";
 import { log } from "@/lib/logger";
 import type { CalendarEvent, Category, MonitorAccount, Platform } from "@/lib/monitor-config";
+import type { AudioProgram } from "@/lib/audio-programs";
 
 export interface BriefEntry {
   id: string;
@@ -19,6 +20,9 @@ export interface BriefEntry {
   by: string; // email del operador
   text: string;
 }
+
+export type ProposalBlock = "territorio" | "redes" | "audio" | "reglas";
+export const PROPOSAL_BLOCKS: ProposalBlock[] = ["territorio", "redes", "audio", "reglas"];
 
 export interface ScenarioProposal {
   at: string;
@@ -31,8 +35,23 @@ export interface ScenarioProposal {
   accounts: MonitorAccount[];
   entidades: Record<string, string>;
   calendar: CalendarEvent[];
-  appliedKeywordsAt?: string;
-  appliedMonitorAt?: string;
+  audio: AudioProgram[];
+  // Fecha en que cada bloque de Escenario aplicó la propuesta con su Guardar.
+  applied: Partial<Record<ProposalBlock, string>>;
+}
+
+// Bloques aplicados de 4; `faltan` en orden de la UI.
+export function appliedCount(p: ScenarioProposal): { done: number; total: number; faltan: ProposalBlock[] } {
+  const faltan = PROPOSAL_BLOCKS.filter((b) => !p.applied[b]);
+  return { done: PROPOSAL_BLOCKS.length - faltan.length, total: PROPOSAL_BLOCKS.length, faltan };
+}
+
+export function isProposalPending(p: ScenarioProposal | undefined): p is ScenarioProposal {
+  return Boolean(p) && appliedCount(p as ScenarioProposal).done < PROPOSAL_BLOCKS.length;
+}
+
+export function markApplied(p: ScenarioProposal, block: ProposalBlock, at = new Date().toISOString()): ScenarioProposal {
+  return p.applied[block] ? p : { ...p, applied: { ...p.applied, [block]: at } };
 }
 
 export interface ActorSuggestion {
@@ -56,6 +75,32 @@ export interface ClientBrief {
 export const EMPTY_BRIEF: ClientBrief = { entries: [], suggestions: [] };
 
 const key = (projectId: string) => `brief:${projectId}`;
+
+// Propuestas guardadas antes de "applied por bloque" traían
+// appliedKeywordsAt (→ territorio) y appliedMonitorAt (→ redes + reglas, que
+// se guardaban juntas). audio no existía.
+function normalizeProposal(raw: Partial<ScenarioProposal> & { appliedKeywordsAt?: string; appliedMonitorAt?: string }): ScenarioProposal {
+  const applied: Partial<Record<ProposalBlock, string>> = { ...(raw.applied ?? {}) };
+  if (raw.appliedKeywordsAt && !applied.territorio) applied.territorio = raw.appliedKeywordsAt;
+  if (raw.appliedMonitorAt) {
+    applied.redes ??= raw.appliedMonitorAt;
+    applied.reglas ??= raw.appliedMonitorAt;
+  }
+  return {
+    at: raw.at ?? "",
+    briefHash: raw.briefHash ?? "",
+    tipo: raw.tipo ?? "territorial",
+    resumen: raw.resumen ?? "",
+    keywords: raw.keywords ?? [],
+    searchesA: raw.searchesA ?? [],
+    searchesB: raw.searchesB ?? [],
+    accounts: raw.accounts ?? [],
+    entidades: raw.entidades ?? {},
+    calendar: raw.calendar ?? [],
+    audio: raw.audio ?? [],
+    applied,
+  };
+}
 
 // ── Helpers puros (inmutables) ──────────────────────────────────────────
 
@@ -143,7 +188,7 @@ export async function getClientBrief(projectId: string): Promise<ClientBrief> {
   if (!cfg) return EMPTY_BRIEF;
   return {
     entries: cfg.entries ?? [],
-    proposal: cfg.proposal,
+    proposal: cfg.proposal ? normalizeProposal(cfg.proposal) : undefined,
     suggestions: cfg.suggestions ?? [],
   };
 }

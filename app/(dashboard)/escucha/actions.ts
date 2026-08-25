@@ -17,7 +17,7 @@ import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
 import { listDescartes, toggleDescarte } from "@/lib/escucha-descartes";
 import { signedReadUrl } from "@/lib/gcs";
 import { projectOwnsAudio } from "@/lib/radio-runs";
-import { addEntry, getClientBrief, removeEntry, saveClientBrief, setSuggestionStatus } from "@/lib/client-brief";
+import { addEntry, getClientBrief, markApplied, removeEntry, saveClientBrief, setSuggestionStatus } from "@/lib/client-brief";
 import { proposeScenario } from "@/lib/scenario-ai";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
@@ -96,11 +96,8 @@ export async function guardarEscucha(formData: FormData) {
   await saveListeningConfig(projectId, parsed.data);
   // Si había propuesta de IA pendiente, este Guardar aplica las keywords.
   const brief = await getClientBrief(projectId);
-  if (brief.proposal && !brief.proposal.appliedKeywordsAt) {
-    await saveClientBrief(projectId, {
-      ...brief,
-      proposal: { ...brief.proposal, appliedKeywordsAt: new Date().toISOString() },
-    });
+  if (brief.proposal && !brief.proposal.applied.territorio) {
+    await saveClientBrief(projectId, { ...brief, proposal: markApplied(brief.proposal, "territorio") });
   }
   // Encola la watchlist ya mismo (refresh inmediato): sin esto los handles
   // recién cargados esperaban al próximo tick del cron para entrar a la cola.
@@ -230,10 +227,10 @@ export async function guardarMonitor(formData: FormData) {
   });
   // Si había propuesta de IA pendiente, este Guardar la aplica (parte escenario).
   const brief = await getClientBrief(projectId);
-  if (brief.proposal && !brief.proposal.appliedMonitorAt) {
+  if (brief.proposal && !brief.proposal.applied.redes) {
     await saveClientBrief(projectId, {
       ...brief,
-      proposal: { ...brief.proposal, appliedMonitorAt: new Date().toISOString() },
+      proposal: markApplied(markApplied(brief.proposal, "redes"), "reglas"),
     });
   }
   revalidatePath("/escucha");

@@ -22,6 +22,7 @@ import {
   setSuggestionStatus,
   getClientBrief,
   saveClientBrief,
+  appliedCount,
   type ClientBrief,
   type ActorSuggestion,
 } from "@/lib/client-brief";
@@ -102,5 +103,27 @@ describe("client-brief · persistencia", () => {
     expect(row.connector_id).toBe("brief:p1");
     expect(row.project_id).toBeNull();
     expect(opts.onConflict).toBe("connector_id,project_id");
+  });
+});
+
+describe("client-brief · propuesta por bloque", () => {
+  it("getClientBrief mapea propuestas viejas (appliedKeywordsAt/appliedMonitorAt) a applied.*", async () => {
+    stored = {
+      entries: [],
+      proposal: {
+        at: NOW, briefHash: "h", tipo: "territorial", resumen: "r", keywords: ["k"], searchesA: [], searchesB: [],
+        accounts: [], entidades: {}, calendar: [], appliedKeywordsAt: "2026-08-25T01:00:00.000Z", appliedMonitorAt: "2026-08-25T02:00:00.000Z",
+      },
+    };
+    const b = await getClientBrief("p1");
+    expect(b.proposal?.applied).toEqual({
+      territorio: "2026-08-25T01:00:00.000Z", redes: "2026-08-25T02:00:00.000Z", reglas: "2026-08-25T02:00:00.000Z",
+    });
+    expect(b.proposal?.audio).toEqual([]);
+  });
+
+  it("appliedCount cuenta bloques aplicados de 4 y lista los faltantes", () => {
+    const p = { audio: [], keywords: ["k"], accounts: [], searchesA: [], searchesB: [], entidades: {}, calendar: [], applied: { territorio: NOW } } as unknown as import("@/lib/client-brief").ScenarioProposal;
+    expect(appliedCount(p)).toEqual({ done: 1, total: 4, faltan: ["redes", "audio", "reglas"] });
   });
 });
