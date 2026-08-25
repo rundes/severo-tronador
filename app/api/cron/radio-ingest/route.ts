@@ -25,11 +25,17 @@ export async function POST(req: Request) {
   // cambio de formato del runner entraba igual y explotaba adentro.
   const parsed = await parseJsonBody(req, RadioIngestSchema);
   if (!parsed.ok) return parsed.response;
-  const { projectId, runId, station, programa, isoStart, transcript, segments, audioObject, durationSec, failed } = parsed.data;
+  const { projectId, runId, station, programa, isoStart, transcript, segments, audioObject, durationSec, failed, status } = parsed.data;
   // La grabación/transcripción falló en el runner → marcar el run y salir.
   if (failed) {
     if (runId) await markRunDone(runId, { status: "failed" });
     return NextResponse.json({ ok: true, failed: true });
+  }
+  // El canal no estaba en vivo (yt-dlp no encontró stream) → marcar y salir,
+  // sin matchear keywords (no hay transcript).
+  if (status === "no_live") {
+    if (runId) await markRunDone(runId, { status: "no_live" });
+    return NextResponse.json({ ok: true, noLive: true });
   }
 
   const cfg = await getListeningConfig(projectId);

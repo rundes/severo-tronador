@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { readFile, unlink, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveStreamUrl } from "./stream-url.mjs";
 
 const APP_URL = process.env.APP_URL?.replace(/\/$/, "");
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -28,6 +29,20 @@ function run(cmd, args) {
     const p = spawn(cmd, args, { stdio: ["ignore", "inherit", "inherit"] });
     p.on("error", reject);
     p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exit ${code}`))));
+  });
+}
+
+// Como `run`, pero capturando stdout/stderr en vez de heredarlos: lo usa
+// resolveStreamUrl para leer la URL que imprime `yt-dlp -g`.
+function execCapture(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    p.stdout.on("data", (d) => (stdout += d));
+    p.stderr.on("data", (d) => (stderr += d));
+    p.on("error", reject);
+    p.on("close", (code) => resolve({ stdout, stderr, code }));
   });
 }
 
@@ -102,11 +117,22 @@ async function main() {
     return;
   }
   for (const p of programs) {
+    // Resuelve antes de abrir el tmpdir: si no hay vivo, no hay nada que
+    // limpiar y el `continue` no interfiere con el try/finally de abajo.
+    const resolved = await resolveStreamUrl(p, execCapture);
+    if (!resolved.ok) {
+      console.log(`Sin vivo: ${p.station} · ${p.programa} (${resolved.reason})`);
+      await ingest({
+        projectId: p.projectId, runId: p.runId, station: p.station,
+        programa: p.programa, isoStart: p.isoStart, transcript: "", status: "no_live",
+      });
+      continue;
+    }
     const dir = await mkdtemp(join(tmpdir(), "radio-"));
     const out = join(dir, "audio.mp3");
     try {
       console.log(`Grabando ${p.station} · ${p.programa} (${p.durationSec}s)…`);
-      await record(p.url, p.durationSec, out);
+      await record(resolved.url, p.durationSec, out);
       const segments = await transcribeWhisper(out, dir);
       const object = `radios/${slug(p.station)}/${p.isoStart.replace(/[:.]/g, "-")}.mp3`;
       await gcsUpload(out, object);

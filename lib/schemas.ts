@@ -264,6 +264,7 @@ export const RadioIngestSchema = z.object({
   audioObject: z.string().optional(),
   durationSec: z.number().optional(),
   failed: z.boolean().optional(),
+  status: z.enum(["no_live"]).optional(),
 });
 
 // POST /api/webhooks/mail-in — mail crudo desde el Worker de Cloudflare.

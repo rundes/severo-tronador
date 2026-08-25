@@ -8,6 +8,7 @@ import { listActiveProjects } from "@/lib/projects";
 import { getListeningConfig } from "@/lib/listening-config";
 import { programsToRecord, secondsUntilEnd, hhmmToMinutes } from "@/lib/radio";
 import { createRunIfAbsent } from "@/lib/radio-runs";
+import { hasValidSlot } from "@/lib/audio-programs";
 
 // Pre-roll (min): se empieza a grabar hasta LEAD_MIN antes del inicio para no
 // perder el arranque del programa (la radio en vivo no tiene rewind). El cron
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
     station: string;
     programa: string;
     url: string;
+    kind: string;
     durationSec: number;
     isoStart: string;
     keywords: string[];
@@ -51,7 +53,7 @@ export async function GET(req: Request) {
   for (const p of projects) {
     const cfg = await getListeningConfig(p.id);
     if (!cfg.radioStreams?.length) continue;
-    const toRec = programsToRecord(cfg.radioStreams, dayOfWeek, minutesOfDay, LEAD_MIN);
+    const toRec = programsToRecord(cfg.radioStreams.filter(hasValidSlot), dayOfWeek, minutesOfDay, LEAD_MIN);
     for (const prog of toRec) {
       // isoStart = hoy a la hora de inicio del programa (AR) en UTC.
       const startMin = hhmmToMinutes(prog.start);
@@ -75,6 +77,7 @@ export async function GET(req: Request) {
         station: prog.station,
         programa: prog.programa,
         url: prog.url,
+        kind: prog.kind,
         // Graba desde ahora (con pre-roll) hasta el fin del programa.
         durationSec: secondsUntilEnd(prog, minutesOfDay),
         isoStart,
