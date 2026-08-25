@@ -98,11 +98,33 @@ export function InformePanel({
           La extensión corre en tu navegador (tu sesión, tu IP): muestra el
           escenario y las keywords del proyecto, abre búsquedas complementarias
           en Google News, X, Facebook, Instagram y TikTok, y captura lo que ves
-          para sumarlo al historial que alimenta este informe. Instalación:
-          carpeta <code>infra/escucha-extension</code> del repo →{" "}
-          <code>chrome://extensions</code> → &quot;Cargar descomprimida&quot;.
+          para sumarlo al historial que alimenta este informe.
         </p>
-        <ExtensionTokenButton />
+        <ol className="max-w-[70ch] list-decimal space-y-1 pl-5 text-xs text-zinc-500">
+          <li>
+            Descargá el .zip y descomprimilo en una carpeta que no vayas a
+            borrar (Chrome la lee desde ahí).
+          </li>
+          <li>
+            <code>chrome://extensions</code> → activá &quot;Modo de
+            desarrollador&quot; → &quot;Cargar descomprimida&quot; → elegí la
+            carpeta.
+          </li>
+          <li>
+            Generá el token (solo owner), y en Opciones de la extensión pegá la
+            URL de esta app + el token.
+          </li>
+        </ol>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/api/extension/download"
+            download
+            className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            Descargar extensión (.zip)
+          </a>
+          <ExtensionTokenButton />
+        </div>
       </section>
     </div>
   );

@@ -13,13 +13,18 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export async function issueExtensionToken(projectId: string): Promise<string> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
   const secret = randomBytes(24).toString("hex");
+  // La unique de conector_config es (connector_id, project_id) NULLS NOT
+  // DISTINCT (migración 0053). Con onConflict "connector_id" solo, Postgres
+  // devolvía 42P10 y el botón "Generar token" fallaba para cualquier owner.
+  // project_id va NULL a propósito: el proyecto viaja dentro del connector_id.
   const { error } = await getSupabase().from("conector_config").upsert(
     {
       connector_id: key(projectId),
+      project_id: null,
       config: { hash: sha256(secret) },
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "connector_id" },
+    { onConflict: "connector_id,project_id" },
   );
   if (error) throw error;
   return `${projectId}.${secret}`;

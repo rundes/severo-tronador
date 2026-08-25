@@ -55,6 +55,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // /api/extension/download zipea la extensión de Chrome desde el filesystem.
+  // Sin esto el bundle serverless de Vercel no incluye la carpeta (no la
+  // importa ningún módulo) y la ruta falla en prod con ENOENT.
+  outputFileTracingIncludes: {
+    "/api/extension/download": ["./infra/escucha-extension/**/*"],
+  },
   images: {
     remotePatterns: [
       ...(supabaseImageHost()
