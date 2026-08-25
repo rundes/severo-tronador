@@ -94,8 +94,17 @@ const IBICUY = {
   match: "ibicuy",
   listening: {
     geo: { zona: "Ibicuy, Entre Ríos", pais: "AR" },
+    // Dos capas, porque la prensa nacional casi no nombra "Ibicuy": los
+    // términos amplios (transporte, seguridad, inundaciones, Entre Ríos)
+    // son los que traen prensa provincial vía GDELT (~50 artículos/corrida);
+    // con solo los específicos GDELT dio 0 (2026-08-25). El gdelt-worker
+    // parte en lotes de 7, así que el orden importa: amplios primero.
     keywords: [
-      "Ibicuy", "Islas del Ibicuy", "municipio Ibicuy", "intendente Ibicuy",
+      // amplios (territorio + agenda)
+      "Transporte", "Seguridad", "Inundaciones", "Entre Rios",
+      "Departamento Islas", "islas de ibicuy", "Ibicuy",
+      // específicos (gestión local)
+      "Islas del Ibicuy", "municipio Ibicuy", "intendente Ibicuy",
       "obras Ibicuy", "cloacas Ibicuy", "agua Ibicuy", "caminos Ibicuy",
       "Villa Paranacito", "Médanos Entre Ríos",
     ],
