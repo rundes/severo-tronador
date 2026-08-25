@@ -98,7 +98,6 @@ export function EscenarioTab(props: {
       <BloqueAudio
         cfg={props.cfg}
         proposal={proposal}
-        sources={props.sources}
         counts={props.counts}
         now={props.now}
         upcoming={props.upcoming}

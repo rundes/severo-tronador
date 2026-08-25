@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Bloque } from "@/components/escucha/bloque";
 import { RadioConfig } from "@/components/escucha/radio-config";
 import { RadioAgenda } from "@/components/escucha/radio-agenda";
-import { AutoRow, type SourceStatus } from "@/components/escucha/source-rows";
+import { AutoRow } from "@/components/escucha/source-rows";
 import type { ListeningConfig } from "@/lib/listening-config";
 import type { ScenarioProposal } from "@/lib/client-brief";
 import type { RadioRun } from "@/lib/radio-runs";
@@ -24,7 +24,6 @@ export function BloqueAudio({
 }: {
   cfg: ListeningConfig;
   proposal?: ScenarioProposal;
-  sources: SourceStatus[];
   counts: SourceCounts;
   now: number;
   upcoming: Array<{ station: string; programa: string; startMs: number; endMs: number }>;
