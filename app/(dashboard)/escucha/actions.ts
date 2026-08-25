@@ -213,6 +213,7 @@ export async function guardarAudio(formData: FormData) {
 }
 
 export async function guardarReglas(formData: FormData) {
+  if (!dbConfigured()) redirect("/escucha?tab=escenario&error=reglas:no_db");
   const { id: projectId } = await requireMember("editor");
   const { getMonitorConfig, saveMonitorConfig } = await import("@/lib/monitor-config");
   const prev = await getMonitorConfig(projectId);

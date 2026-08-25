@@ -15,10 +15,12 @@ const monoCls = `${inputCls} font-mono`;
 export function BloqueReglas({
   monitor,
   proposal,
+  persistOk,
   params,
 }: {
   monitor: MonitorConfig;
   proposal?: ScenarioProposal;
+  persistOk: boolean;
   params: Record<string, string | undefined>;
 }) {
   const p = proposal && !proposal.applied.reglas ? proposal : undefined;
@@ -65,7 +67,7 @@ export function BloqueReglas({
         >
           <textarea name="noRepetir" rows={3} defaultValue={monitor.noRepetir.join("\n")} className={monoCls} />
         </Field>
-        <SubmitButton variant="accent" pendingLabel="Guardando…">
+        <SubmitButton variant="accent" disabled={!persistOk} pendingLabel="Guardando…">
           Guardar reglas
         </SubmitButton>
       </form>

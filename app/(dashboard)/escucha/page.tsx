@@ -68,11 +68,11 @@ export default async function EscuchaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+
+  const { id: projectId } = await requireProject();
   // "config" quedó como alias de "escenario" para links viejos.
   if (params.tab === "config") redirect("/escucha?tab=escenario");
   const tab = resolveTab(params.tab);
-
-  const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
   // Agenda de audio: la usa Escenario (bloque Audio y video) y Monitorear ("Al aire").
   const needsAgenda = tab === "escenario" || tab === "monitor";

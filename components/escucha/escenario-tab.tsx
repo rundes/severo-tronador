@@ -106,7 +106,7 @@ export function EscenarioTab(props: {
         persistOk={props.persistOk}
         params={params}
       />
-      <BloqueReglas monitor={props.monitor} proposal={proposal} params={params} />
+      <BloqueReglas monitor={props.monitor} proposal={proposal} persistOk={props.persistOk} params={params} />
     </div>
   );
 }

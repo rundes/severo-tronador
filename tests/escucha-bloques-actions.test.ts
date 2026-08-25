@@ -9,7 +9,8 @@ vi.mock("@/lib/workspace", () => ({
   requireProject: async () => ({ id: "p1", nombre: "P", role: "owner" }),
   currentUserEmail: async () => "ana@x.ar",
 }));
-vi.mock("@/lib/db/supabase", () => ({ dbConfigured: () => true, getSupabase: () => ({}) }));
+const { dbConfiguredMock } = vi.hoisted(() => ({ dbConfiguredMock: vi.fn(() => true) }));
+vi.mock("@/lib/db/supabase", () => ({ dbConfigured: () => dbConfiguredMock(), getSupabase: () => ({}) }));
 vi.mock("@/lib/listening-cache", () => ({ pullAllSources: vi.fn(async () => ({ total: 0, bySource: {}, errors: [] })), savePullSummary: vi.fn() }));
 vi.mock("@/lib/x-timeline", () => ({ enqueueXHandles: vi.fn() }));
 
@@ -60,6 +61,9 @@ describe("acciones por bloque", () => {
     redirect.mockClear();
     saveListeningConfig.mockClear();
     saveClientBrief.mockClear();
+    saveMonitorConfig.mockClear();
+    dbConfiguredMock.mockClear();
+    dbConfiguredMock.mockReturnValue(true);
     cfg = { ...initialCfg };
     monitor = { ...initialMonitor };
     brief = { ...initialBrief };
@@ -126,5 +130,12 @@ describe("acciones por bloque", () => {
     expect(monitor.entidades).toEqual({ Ibicuy: "localidad" });
     expect(monitor.calendar).toEqual([{ label: "Fiesta", date: "2026-09-14" }]);
     expect((brief.proposal as { applied: Record<string, string> }).applied.reglas).toBeTruthy();
+  });
+
+  it("guardarReglas sin DB → redirect con error reglas:no_db, sin persistir", async () => {
+    dbConfiguredMock.mockReturnValueOnce(false);
+    const r = await run(guardarReglas(fd({ entidades: "", calendar: "", noRepetir: "" })));
+    expect(r).toBe("REDIRECT /escucha?tab=escenario&error=reglas:no_db");
+    expect(saveMonitorConfig).not.toHaveBeenCalled();
   });
 });
