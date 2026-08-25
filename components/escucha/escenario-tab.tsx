@@ -9,6 +9,7 @@ import { BloqueRedes } from "@/components/escucha/bloque-redes";
 import { BloqueAudio } from "@/components/escucha/bloque-audio";
 import { BloqueReglas } from "@/components/escucha/bloque-reglas";
 import { timeAgo, type SourceStatus } from "@/components/escucha/source-rows";
+import { RefreshOnSave, PULL_BLOCKS } from "@/components/escucha/refresh-on-save";
 import type { ListeningConfig } from "@/lib/listening-config";
 import type { MonitorConfig } from "@/lib/monitor-config";
 import type { ClientBrief } from "@/lib/client-brief";
@@ -32,8 +33,14 @@ export function EscenarioTab(props: {
 }) {
   const { brief, params, summary, now } = props;
   const proposal = brief.proposal;
+  // Si el pull posterior al Guardar todavía no llegó, refrescar en background.
+  const pullPending =
+    (PULL_BLOCKS as readonly string[]).includes(params.ok ?? "") &&
+    (!summary?.at || now - +new Date(summary.at) > 10 * 60_000);
+
   return (
     <div className="space-y-6">
+      <RefreshOnSave active={pullPending} />
       {/* Resumen del último pull: la carga corre sola cada hora y también al
           guardar Territorio, Prensa o Redes (los bloques que gobiernan
           conectores togglables). */}

@@ -47,7 +47,13 @@ async function setListening(projectId, patch) {
   await rest("POST", "listening_config", {
     project_id: projectId,
     geo: patch.geo ?? cur.geo ?? { zona: "", pais: "AR" },
-    keywords: patch.keywords ?? cur.keywords ?? [],
+    // Keywords: el seed solo las carga si el proyecto no tiene (primer arranque).
+    // Si ya hay — cargadas a mano o aplicadas desde la propuesta de IA en
+    // Escenario — no se pisan. SEED_FORCE_KEYWORDS=1 fuerza la sobreescritura.
+    keywords:
+      process.env.SEED_FORCE_KEYWORDS === "1" || !(cur.keywords?.length > 0)
+        ? (patch.keywords ?? cur.keywords ?? [])
+        : cur.keywords,
     fuentes: cur.fuentes ?? [],
     rss_feeds: cur.rss_feeds ?? [],
     x_handles: cur.x_handles ?? [],
