@@ -21,6 +21,7 @@ import { EscenarioTab } from "@/components/escucha/escenario-tab";
 import { readDailyReports } from "@/lib/daily-report";
 import { getMonitorConfig } from "@/lib/monitor-config";
 import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
+import { alAireState } from "@/lib/al-aire";
 import { Monitor } from "@/components/escucha/monitor";
 import type { SourceStatus } from "@/components/escucha/source-rows";
 import { getClientBrief } from "@/lib/client-brief";
@@ -151,7 +152,13 @@ export default async function EscuchaPage({
       ) : tab === "informe" ? (
         <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} />
       ) : result ? (
-        <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
+        <Monitor
+          result={result}
+          marcas={marcas}
+          descartados={descartados}
+          persistOk={persistOk}
+          alAire={alAireState(upcoming, runs)}
+        />
       ) : null}
     </div>
   );
