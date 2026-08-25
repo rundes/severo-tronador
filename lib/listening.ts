@@ -57,7 +57,7 @@ export interface FeedItem {
   platform?: Platform;
 }
 
-export type Platform = "medios" | "x" | "radio" | "reddit" | "meta" | "otros";
+export type Platform = "medios" | "x" | "radio" | "reddit" | "meta" | "tiktok" | "otros";
 
 // Agrupa connector_id en categorías para el filtro de fuente del feed.
 export function platformOf(connectorId: string | null | undefined): Platform {
@@ -74,7 +74,11 @@ export function platformOf(connectorId: string | null | undefined): Platform {
     case "meta-ad-library":
     case "meta-content-library":
     case "fb-pages": // infra/fb-worker: páginas/grupos públicos de Facebook
+    case "meta-ig": // extensión de Chrome: capturas de Instagram
+    case "meta-fb":
       return "meta";
+    case "tiktok": // extensión de Chrome: capturas de TikTok
+      return "tiktok";
     default:
       return "otros";
   }

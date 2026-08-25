@@ -5,6 +5,8 @@ import { after } from "next/server";
 import { pullAllSources, savePullSummary } from "@/lib/listening-cache";
 import { normalizeFbUrl, normalizeTgChannel } from "@/lib/escucha-fuentes";
 import { log } from "@/lib/logger";
+import { issueExtensionToken } from "@/lib/extension-token";
+import { generateDailyReport, emailDailyReport } from "@/lib/daily-report";
 import { saveListeningConfig } from "@/lib/listening-config";
 import { normalizeHandle } from "@/lib/padron-handles";
 import { enqueueXHandles } from "@/lib/x-timeline";
@@ -152,4 +154,21 @@ export async function listarDescartes(): Promise<string[]> {
   if (!dbConfigured()) return [];
   const { id: projectId } = await requireMember("viewer");
   return listDescartes(projectId);
+}
+
+// Token para la extensión de Chrome: lo genera un owner y se muestra una vez.
+// Regenerarlo invalida el anterior.
+export async function generarTokenExtension(): Promise<{ token: string }> {
+  const { id: projectId } = await requireMember("owner");
+  const token = await issueExtensionToken(projectId);
+  return { token };
+}
+
+// Barrido + informe on-demand desde el panel (además del cron diario).
+export async function generarInformeAhora(): Promise<void> {
+  const { id: projectId } = await requireMember("editor");
+  const report = await generateDailyReport(projectId);
+  await emailDailyReport(projectId, report);
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe&generado=1");
 }

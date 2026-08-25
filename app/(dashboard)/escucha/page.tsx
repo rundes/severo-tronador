@@ -14,6 +14,8 @@ import { listMarcas } from "@/lib/escucha-marcas";
 import { listDescartes } from "@/lib/escucha-descartes";
 import { PageHeader } from "@/components/ui/page-header";
 import { renderNow } from "@/lib/escucha-fuentes";
+import { InformePanel } from "@/components/escucha/informe-panel";
+import { readDailyReports } from "@/lib/daily-report";
 import { ConfigForm } from "@/components/escucha/config-form";
 import { RadioAgenda } from "@/components/escucha/radio-agenda";
 import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
@@ -61,7 +63,8 @@ export default async function EscuchaPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const tab = params.tab === "config" ? "config" : "monitor";
+  const tab =
+    params.tab === "config" ? "config" : params.tab === "informe" ? "informe" : "monitor";
 
   const { id: projectId } = await requireProject();
   const persistOk = dbConfigured();
@@ -114,11 +117,16 @@ export default async function EscuchaPage({
         <Link href="/escucha?tab=config" className={tabLinkCls(tab === "config")}>
           Configurar
         </Link>
+        <Link href="/escucha?tab=informe" className={tabLinkCls(tab === "informe")}>
+          Informe
+        </Link>
       </nav>
 
       {/* Tab content */}
       {tab === "monitor" && result ? (
         <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
+      ) : tab === "informe" ? (
+        <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} />
       ) : (
         <div className="space-y-6">
           <ConfigForm

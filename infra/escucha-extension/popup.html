@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; width: 340px;
+         margin: 0; padding: 14px; color: #18181b; background: #fff; }
+  @media (prefers-color-scheme: dark) { body { color: #f4f4f5; background: #09090b; } }
+  h1 { font-size: 13px; margin: 0 0 2px; }
+  .muted { color: #71717a; font-size: 11px; }
+  .kw { display: inline-block; background: #f4f4f5; color: #3f3f46; border-radius: 999px;
+        padding: 1px 8px; margin: 2px 2px 0 0; font-size: 11px; }
+  @media (prefers-color-scheme: dark) { .kw { background: #27272a; color: #d4d4d8; } }
+  select, button { font: inherit; }
+  select { width: 100%; margin: 8px 0 6px; padding: 4px 6px; border: 1px solid #d4d4d8;
+           border-radius: 6px; background: inherit; color: inherit; }
+  .grid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .grid button, #capturar { border: 1px solid #d4d4d8; background: none; color: inherit;
+    border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  .grid button:hover, #capturar:hover { background: #f4f4f5; }
+  @media (prefers-color-scheme: dark) { .grid button:hover, #capturar:hover { background: #18181b; } }
+  #capturar { width: 100%; margin-top: 10px; padding: 7px; background: #4f5bd5;
+              border-color: #4f5bd5; color: #fff; font-weight: 600; }
+  #capturar:hover { background: #4550c0; }
+  #status { margin-top: 8px; font-size: 12px; min-height: 16px; }
+  .ok { color: #059669; } .err { color: #dc2626; }
+  hr { border: 0; border-top: 1px solid #e4e4e7; margin: 10px 0; }
+  @media (prefers-color-scheme: dark) { hr { border-top-color: #27272a; } }
+</style>
+</head>
+<body>
+  <h1 id="proyecto">Tronador Escucha</h1>
+  <div class="muted" id="escenario">Cargando escenario…</div>
+  <div id="keywords"></div>
+
+  <hr>
+  <div class="muted">Búsquedas complementarias</div>
+  <select id="kw-select"></select>
+  <div class="grid">
+    <button data-site="gnews">Google News</button>
+    <button data-site="x">X</button>
+    <button data-site="fb">Facebook</button>
+    <button data-site="ig">Instagram</button>
+    <button data-site="tt">TikTok</button>
+    <button data-site="todos">Abrir todas</button>
+  </div>
+
+  <button id="capturar">Capturar esta página</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
