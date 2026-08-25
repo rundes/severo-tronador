@@ -22,6 +22,9 @@ describe("GET /api/extension/download", () => {
     const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
     expect(names).toContain("manifest.json");
     expect(names).toContain("sw.js");
+    // Iconos declarados en el manifest (sin ellos Chrome muestra un cuadrado gris).
+    expect(names).toContain("icons/icon128.png");
+    expect(names).toContain("icons/icon16.png");
     expect(names.some((n) => n.startsWith("escucha-extension/"))).toBe(false);
 
     const manifest = JSON.parse(await zip.file("manifest.json")!.async("string"));

@@ -88,6 +88,20 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
         ],
       },
+      // La extensión de Chrome pega a /api/extension/* desde su propio origen
+      // (chrome-extension://…): sin CORS el fetch muere con "Failed to fetch"
+      // antes de llegar a la ruta. Auth es Bearer por proyecto, sin cookies,
+      // así que el origen abierto no expone sesión. Next responde el OPTIONS
+      // de preflight solo en route handlers; estos headers se le suman.
+      {
+        source: "/api/extension/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Authorization, Content-Type" },
+          { key: "Access-Control-Max-Age", value: "86400" },
+        ],
+      },
     ];
   },
 };

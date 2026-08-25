@@ -112,7 +112,7 @@ async function runCollection() {
   }
   await setStatus({ estado: `listo — ${inserted} nuevos`, inserted, finishedAt: Date.now() });
   chrome.notifications.create({
-    type: "basic", iconUrl: "icon.png",
+    type: "basic", iconUrl: "icons/icon128.png",
     title: "Monitor: corrida completa",
     message: `${done} cuentas relevadas, ${inserted} menciones nuevas.`,
   });
