@@ -128,6 +128,20 @@ describe("parseScenarioJson", () => {
     const r = parseScenarioJson(fence(VALID));
     expect(r.ok && r.data.audio).toEqual([]);
   });
+
+  it("audio null → [] sin tirar la propuesta", () => {
+    const r = parseScenarioJson(fence({ ...VALID, audio: null }));
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.data.audio).toEqual([]);
+  });
+
+  it("audio: nota del modelo sobrevive con franja completa; url de otra plataforma se descarta", () => {
+    const r = parseScenarioJson(fence({ ...VALID, audio: [
+      { kind: "radio", url: "https://stream.x.com/live", station: "R", programa: "P", days: [1], start: "08:00", end: "09:00", nota: "verificar url" },
+      { kind: "youtube", url: "https://kick.com/c", station: "K", programa: "P", days: [1], start: "08:00", end: "09:00" },
+    ] }));
+    expect(r.ok && r.data.audio.map((a) => a.nota)).toEqual(["verificar url"]);
+  });
 });
 
 describe("proposeScenario", () => {

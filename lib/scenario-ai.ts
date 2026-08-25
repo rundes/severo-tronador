@@ -58,8 +58,10 @@ export const ScenarioSchema = z
     entidades: z.record(z.string(), z.string()),
     calendar: z.array(z.object({ label: z.string().min(1), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })),
     // Programas inválidos se descartan uno a uno: no tiran la propuesta.
+    // El modelo a veces devuelve "audio": null en vez de omitir el campo u
+    // ofrecer []: se trata igual, nunca invalida la propuesta completa.
     audio: z
-      .array(z.unknown())
+      .preprocess((v) => (v == null ? [] : v), z.array(z.unknown()))
       .default([])
       .transform((arr) =>
         arr.flatMap((raw): AudioProgram[] => {

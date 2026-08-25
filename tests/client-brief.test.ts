@@ -126,4 +126,11 @@ describe("client-brief · propuesta por bloque", () => {
     const p = { audio: [], keywords: ["k"], accounts: [], searchesA: [], searchesB: [], entidades: {}, calendar: [], applied: { territorio: NOW } } as unknown as import("@/lib/client-brief").ScenarioProposal;
     expect(appliedCount(p)).toEqual({ done: 1, total: 4, faltan: ["redes", "audio", "reglas"] });
   });
+
+  it("normalizeProposal: applied nuevo queda intacto; legacy solo con appliedMonitorAt marca redes+reglas", async () => {
+    stored = { entries: [], proposal: { at: NOW, briefHash: "h", tipo: "territorial", resumen: "", keywords: [], searchesA: [], searchesB: [], accounts: [], entidades: {}, calendar: [], audio: [], applied: { audio: NOW } } };
+    expect((await getClientBrief("p1")).proposal?.applied).toEqual({ audio: NOW });
+    stored = { entries: [], proposal: { at: NOW, briefHash: "h", tipo: "territorial", resumen: "", keywords: [], searchesA: [], searchesB: [], accounts: [], entidades: {}, calendar: [], appliedMonitorAt: NOW } };
+    expect((await getClientBrief("p1")).proposal?.applied).toEqual({ redes: NOW, reglas: NOW });
+  });
 });
