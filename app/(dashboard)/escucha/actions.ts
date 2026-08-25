@@ -11,12 +11,14 @@ import { saveListeningConfig } from "@/lib/listening-config";
 import { normalizeHandle } from "@/lib/padron-handles";
 import { enqueueXHandles } from "@/lib/x-timeline";
 import { dbConfigured } from "@/lib/db/supabase";
-import { requireMember } from "@/lib/workspace";
+import { requireMember, currentUserEmail } from "@/lib/workspace";
 import { GuardarEscuchaSchema, formToObject } from "@/lib/schemas";
 import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
 import { listDescartes, toggleDescarte } from "@/lib/escucha-descartes";
 import { signedReadUrl } from "@/lib/gcs";
 import { projectOwnsAudio } from "@/lib/radio-runs";
+import { addEntry, getClientBrief, removeEntry, saveClientBrief, setSuggestionStatus } from "@/lib/client-brief";
+import { proposeScenario } from "@/lib/scenario-ai";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
 //
@@ -92,6 +94,14 @@ export async function guardarEscucha(formData: FormData) {
   if (!parsed.success) redirect("/escucha?error=validacion");
 
   await saveListeningConfig(projectId, parsed.data);
+  // Si había propuesta de IA pendiente, este Guardar aplica las keywords.
+  const brief = await getClientBrief(projectId);
+  if (brief.proposal && !brief.proposal.appliedKeywordsAt) {
+    await saveClientBrief(projectId, {
+      ...brief,
+      proposal: { ...brief.proposal, appliedKeywordsAt: new Date().toISOString() },
+    });
+  }
   // Encola la watchlist ya mismo (refresh inmediato): sin esto los handles
   // recién cargados esperaban al próximo tick del cron para entrar a la cola.
   if (parsed.data.xHandles.length > 0) {
@@ -218,6 +228,76 @@ export async function guardarMonitor(formData: FormData) {
     noRepetir: lines("noRepetir"),
     entidades,
   });
+  // Si había propuesta de IA pendiente, este Guardar la aplica (parte escenario).
+  const brief = await getClientBrief(projectId);
+  if (brief.proposal && !brief.proposal.appliedMonitorAt) {
+    await saveClientBrief(projectId, {
+      ...brief,
+      proposal: { ...brief.proposal, appliedMonitorAt: new Date().toISOString() },
+    });
+  }
   revalidatePath("/escucha");
   redirect("/escucha?tab=informe&monitor=1");
+}
+
+// ── Brief del cliente → escenario con IA ────────────────────────────────
+
+export async function agregarAporteBrief(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const text = String(formData.get("text") ?? "");
+  if (!text.trim()) redirect("/escucha?tab=informe&brief_error=vacio");
+  const brief = await getClientBrief(projectId);
+  await saveClientBrief(projectId, addEntry(brief, { by: await currentUserEmail(), text }));
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe&brief=1");
+}
+
+export async function quitarAporteBrief(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const id = String(formData.get("id") ?? "");
+  const brief = await getClientBrief(projectId);
+  await saveClientBrief(projectId, removeEntry(brief, id));
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe");
+}
+
+export async function generarEscenarioIA() {
+  const { id: projectId } = await requireMember("editor");
+  const r = await proposeScenario(projectId);
+  revalidatePath("/escucha");
+  if (!r.ok) redirect(`/escucha?tab=informe&ia_error=${encodeURIComponent(r.error.slice(0, 200))}`);
+  redirect("/escucha?tab=informe&ia=1");
+}
+
+export async function descartarPropuesta() {
+  const { id: projectId } = await requireMember("editor");
+  const brief = await getClientBrief(projectId);
+  await saveClientBrief(projectId, { ...brief, proposal: undefined });
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe");
+}
+
+// Incorporar (→ plan de colecta, con nota de origen) o descartar un actor
+// sugerido por una barrida. Nunca automático: spec FERRO §9.2.
+export async function resolverActorSugerido(input: { id: string; accepted: boolean }) {
+  const { id: projectId } = await requireMember("editor");
+  const brief = await getClientBrief(projectId);
+  const s = brief.suggestions.find((x) => x.id === input.id);
+  if (!s) return;
+  if (input.accepted) {
+    const { getMonitorConfig, saveMonitorConfig } = await import("@/lib/monitor-config");
+    const monitor = await getMonitorConfig(projectId);
+    const yaEsta = monitor.accounts.some((a) => a.platform === s.platform && a.handle.toLowerCase() === s.handle);
+    if (!yaEsta) {
+      await saveMonitorConfig(projectId, {
+        ...monitor,
+        accounts: [
+          ...monitor.accounts,
+          { handle: s.handle, platform: s.platform, category: s.category, nota: `sugerido por barrida ${s.suggestedAt.slice(0, 10)}` },
+        ],
+      });
+    }
+  }
+  await saveClientBrief(projectId, setSuggestionStatus(brief, input.id, input.accepted ? "accepted" : "dismissed"));
+  revalidatePath("/escucha");
 }

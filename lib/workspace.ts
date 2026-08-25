@@ -29,6 +29,11 @@ async function sessionEmail(): Promise<string | null> {
   return session?.user?.email?.toLowerCase() ?? null;
 }
 
+// Email del operador logueado (para autoría de aportes al brief).
+export async function currentUserEmail(): Promise<string> {
+  return (await sessionEmail()) ?? "desconocido";
+}
+
 // Memoizado por request (React cache): se llama en layout + páginas + actions
 // sin repetir la query de membresía.
 export const getActiveProject = cache(async (): Promise<ActiveProject | null> => {
