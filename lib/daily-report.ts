@@ -70,14 +70,18 @@ const ActorSchema = z.object({
   platform: z.enum(["instagram", "x", "facebook", "tiktok"]),
   category: z.enum(["organizacion", "medio", "individual", "institucional", "opera"]),
   direccion: z.enum(["A", "B", "?"]).default("?"),
-  evidencia: z.string().url().optional(),
+  evidencia: z
+    .string()
+    .optional()
+    .transform((v) => (v && /^https?:\/\/\S+$/i.test(v) ? v : undefined)),
   razon: z.string().default(""),
 });
 export type NuevoActor = z.infer<typeof ActorSchema>;
 
 export function splitReport(text: string): { markdown: string; nuevosActores: NuevoActor[] } {
-  const m = text.match(/```json\s*([\s\S]*?)```\s*$/);
-  if (!m) return { markdown: text.trim(), nuevosActores: [] };
+  const matches = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
+  const m = matches.at(-1);
+  if (!m || m.index === undefined) return { markdown: text.trim(), nuevosActores: [] };
   const markdown = text.slice(0, m.index).trim();
   try {
     const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[] };
@@ -190,13 +194,14 @@ Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes
 
 Cerrá el informe con un bloque \`\`\`json\`\`\` con este esquema exacto:
 { "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }] }
-Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle).join(", ")})` : ""}. Si no hay, "nuevosActores": [].`;
+El bloque es interno (el operador lo revisa aparte): no lo menciones ni lo describas en el cuerpo del informe.
+Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle.replace(/^@/, "")).join(", ")})` : ""}. Si no hay, "nuevosActores": [].`;
 
   const result = await generateText({
     apiKey,
     system,
     prompt,
-    maxTokens: 3000,
+    maxTokens: 3500,
   });
   await incrementUsage(CLAUDE_ID, result.inputTokens + result.outputTokens, projectId);
 
@@ -210,9 +215,14 @@ Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${mon
   };
   await saveReport(projectId, report);
   if (nuevosActores.length > 0) {
-    const merged = mergeSuggestions(brief, nuevosActores, monitor.accounts, report.at);
-    if (merged.suggestions.length !== brief.suggestions.length) {
-      await saveClientBrief(projectId, merged);
+    try {
+      const merged = mergeSuggestions(brief, nuevosActores, monitor.accounts, report.at);
+      if (merged.suggestions.length !== brief.suggestions.length) {
+        await saveClientBrief(projectId, merged);
+      }
+    } catch (e) {
+      // El informe ya está guardado: una falla acá no puede frenar el mail.
+      log.warn("daily_report.suggestions_save_failed", { projectId, error: (e as Error).message });
     }
   }
   log.info("daily_report.generated", {

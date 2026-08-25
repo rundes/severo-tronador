@@ -25,4 +25,18 @@ describe("splitReport", () => {
     const text = "T\n```json\n{\"nuevosActores\":[{\"handle\":\"a\",\"platform\":\"threads\",\"category\":\"medio\",\"direccion\":\"?\",\"razon\":\"r\"},{\"handle\":\"b\",\"platform\":\"x\",\"category\":\"opera\",\"direccion\":\"A\",\"razon\":\"r\"}]}\n```";
     expect(splitReport(text).nuevosActores.map((a) => a.handle)).toEqual(["b"]);
   });
+
+  it("toma el último bloque aunque el modelo agregue texto después", () => {
+    const text = "Cuerpo\n```json\n{\"nuevosActores\":[]}\n```\nEspero que sirva.";
+    const { markdown, nuevosActores } = splitReport(text);
+    expect(markdown).toBe("Cuerpo");
+    expect(nuevosActores).toEqual([]);
+  });
+
+  it("evidencia que no es URL se descarta pero el actor queda", () => {
+    const text = "T\n```json\n{\"nuevosActores\":[{\"handle\":\"c\",\"platform\":\"x\",\"category\":\"medio\",\"direccion\":\"A\",\"evidencia\":\"ver captura\",\"razon\":\"r\"}]}\n```";
+    const [a] = splitReport(text).nuevosActores;
+    expect(a.handle).toBe("c");
+    expect(a.evidencia).toBeUndefined();
+  });
 });
