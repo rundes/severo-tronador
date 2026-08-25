@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { RadioProgram } from "@/lib/radio";
+import { KIND_LABEL, type AudioProgram, type AudioKind } from "@/lib/audio-programs";
 import { controlClassName } from "@/components/ui/field";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const inputCls = controlClassName;
-const NEW: RadioProgram = {
+const NEW: AudioProgram = {
   kind: "radio",
   url: "",
   station: "",
@@ -16,12 +16,20 @@ const NEW: RadioProgram = {
   end: "09:00",
 };
 
-// Editor de programas de radio. Serializa a un input oculto `radioStreams`
-// (JSON) que el server action parsea + valida.
-export function RadioConfig({ initial }: { initial: RadioProgram[] }) {
-  const [programs, setPrograms] = useState<RadioProgram[]>(initial);
+const URL_PLACEHOLDER: Record<AudioKind, string> = {
+  radio: "URL del stream (https://…/stream.mp3)",
+  youtube: "https://www.youtube.com/@canal/live",
+  kick: "https://kick.com/canal",
+};
 
-  function patch(i: number, p: Partial<RadioProgram>) {
+// Editor de programas de audio/video (radio, YouTube, Kick). Serializa a un
+// input oculto `audioPrograms` (JSON) que el server action parsea + valida.
+// Si viene `proposed` (propuesta de IA sin aplicar), el estado inicial es la
+// propuesta; el form padre se remonta por `key` cuando cambia la propuesta.
+export function RadioConfig({ initial, proposed }: { initial: AudioProgram[]; proposed?: AudioProgram[] }) {
+  const [programs, setPrograms] = useState<AudioProgram[]>(proposed ?? initial);
+
+  function patch(i: number, p: Partial<AudioProgram>) {
     setPrograms((list) => list.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
   }
   function toggleDay(i: number, d: number) {
@@ -36,19 +44,34 @@ export function RadioConfig({ initial }: { initial: RadioProgram[] }) {
 
   return (
     <div className="space-y-3">
-      <input type="hidden" name="radioStreams" value={JSON.stringify(programs)} />
+      <input type="hidden" name="audioPrograms" value={JSON.stringify(programs)} />
       {programs.length === 0 && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Sin programas. Agregá uno con la URL del stream y su franja horaria.
+          Sin programas. Agregá uno con la URL de la radio, del canal de YouTube o de Kick y su franja horaria.
         </p>
       )}
       {programs.map((p, i) => (
         <div key={i} className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className={inputCls}
+              value={p.kind}
+              onChange={(e) => patch(i, { kind: e.target.value as AudioKind })}
+              aria-label="Plataforma"
+            >
+              {(Object.keys(KIND_LABEL) as AudioKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            {p.nota && <span className="text-xs text-amber-700 dark:text-amber-300">{p.nota}</span>}
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input className={inputCls} placeholder="Estación (ej. Radio Maipú)" value={p.station} onChange={(e) => patch(i, { station: e.target.value })} />
+            <input className={inputCls} placeholder="Estación o canal (ej. Radio Maipú)" value={p.station} onChange={(e) => patch(i, { station: e.target.value })} />
             <input className={inputCls} placeholder="Programa (ej. Primera Mañana)" value={p.programa} onChange={(e) => patch(i, { programa: e.target.value })} />
           </div>
-          <input className={`${inputCls} w-full font-mono`} placeholder="URL del stream (https://…/stream.mp3)" value={p.url} onChange={(e) => patch(i, { url: e.target.value })} />
+          <input className={`${inputCls} w-full font-mono`} placeholder={URL_PLACEHOLDER[p.kind]} value={p.url} onChange={(e) => patch(i, { url: e.target.value })} />
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap gap-1">
               {DAYS.map((label, d) => (
@@ -86,7 +109,7 @@ export function RadioConfig({ initial }: { initial: RadioProgram[] }) {
         onClick={() => setPrograms((list) => [...list, { ...NEW }])}
         className="rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
       >
-        + Programa de radio
+        + Programa
       </button>
     </div>
   );

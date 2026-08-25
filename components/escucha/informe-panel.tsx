@@ -1,14 +1,11 @@
 // Tab Informe: último informe diario generado con Claude, generación
-// on-demand (barrido + síntesis), historial y setup de la extensión.
+// on-demand (barrido + síntesis), historial y setup de la extensión. El
+// brief, los actores sugeridos y el escenario viven en la pestaña Escenario.
+import Link from "next/link";
 import { generarInformeAhora } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { ExtensionTokenButton } from "@/components/escucha/extension-token-button";
 import type { DailyReport } from "@/lib/daily-report";
-import type { MonitorConfig } from "@/lib/monitor-config";
-import { MonitorEditor } from "@/components/escucha/monitor-editor";
-import { BriefPanel } from "@/components/escucha/brief-panel";
-import { ActorSuggestions } from "@/components/escucha/actor-suggestions";
-import type { ClientBrief } from "@/lib/client-brief";
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -23,25 +20,22 @@ export function InformePanel({
   latest,
   history,
   generado,
-  monitor,
-  monitorSaved,
-  brief,
-  canGenerate,
-  briefFlags,
 }: {
   latest: DailyReport | null;
   history: DailyReport[];
   generado: boolean;
-  monitor: MonitorConfig;
-  monitorSaved: boolean;
-  brief: ClientBrief;
-  canGenerate: boolean;
-  briefFlags: { saved: boolean; generated: boolean; iaError?: string; briefError?: string };
 }) {
   return (
     <div className="space-y-6">
-      <BriefPanel brief={brief} canGenerate={canGenerate} flags={briefFlags} />
-      <ActorSuggestions suggestions={brief.suggestions} />
+      <p className="text-xs text-zinc-500">
+        El brief, los actores sugeridos y el escenario se editan en la pestaña{" "}
+        <Link
+          href="/escucha?tab=escenario"
+          className="font-medium text-[oklch(52%_0.13_255)] underline-offset-2 hover:underline"
+        >
+          Escenario →
+        </Link>
+      </p>
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
         <div className="text-sm text-zinc-700 dark:text-zinc-200">
           {latest ? (
@@ -98,8 +92,6 @@ export function InformePanel({
           </ul>
         </section>
       )}
-
-      <MonitorEditor cfg={monitor} saved={monitorSaved} proposal={brief.proposal} />
 
       <section className="space-y-2 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">

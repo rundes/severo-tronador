@@ -25,6 +25,13 @@ function statusBadge(status: string, mentions: number) {
         grabando…
       </span>
     );
+  // El worker no encontró vivo en el canal (YouTube/Kick) en la franja.
+  if (status === "no_live")
+    return (
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+        sin vivo
+      </span>
+    );
   if (status === "failed")
     return (
       <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:bg-red-950/40 dark:text-red-300">

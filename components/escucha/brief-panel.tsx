@@ -9,7 +9,14 @@ import {
   descartarPropuesta,
 } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { appliedCount, briefHash, isProposalPending, type ClientBrief } from "@/lib/client-brief";
+import { appliedCount, briefHash, isProposalPending, type ClientBrief, type ProposalBlock } from "@/lib/client-brief";
+
+const BLOCK_LABEL: Record<ProposalBlock, string> = {
+  territorio: "Territorio",
+  redes: "Redes",
+  audio: "Audio y video",
+  reglas: "Reglas",
+};
 
 const inputCls =
   "w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[13px] text-zinc-900 focus-visible:border-[oklch(52%_0.13_255)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[oklch(52%_0.13_255)]/12 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -103,7 +110,7 @@ export function BriefPanel({
           <span className="text-xs text-zinc-500">Agregá al menos un aporte.</span>
         )}
       </div>
-      <FormStatus ok={flags.generated ? "Propuesta lista: revisala abajo y en Configurar → Keywords." : null} error={flags.iaError ?? null} />
+      <FormStatus ok={flags.generated ? "Propuesta lista: revisala en los bloques de abajo y guardá cada uno." : null} error={flags.iaError ?? null} />
 
       {p && pendiente && (
         <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -115,7 +122,8 @@ export function BriefPanel({
           <p className="text-xs">
             {p.keywords.length} keywords · {p.searchesA.length}+{p.searchesB.length} búsquedas · {p.accounts.length} cuentas ·{" "}
             {Object.keys(p.entidades).length} entidades · {p.calendar.length} hitos · {p.audio.length} programas de audio.{" "}
-            {`Aplicada ${appliedCount(p).done}/${appliedCount(p).total}`}{faltan.length ? ` · faltan: ${faltan.join(", ")}` : ""}
+            {`Aplicada ${appliedCount(p).done}/${appliedCount(p).total}`}
+            {faltan.length ? ` · Faltan: ${faltan.map((b) => BLOCK_LABEL[b]).join(", ")}` : ""}
           </p>
           <form action={descartarPropuesta}>
             <button type="submit" className="text-xs underline">Descartar propuesta</button>

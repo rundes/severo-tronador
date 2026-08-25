@@ -37,93 +37,6 @@ export async function firmarAudioRadio(audioObject: string): Promise<{ url: stri
   return { url: await signedReadUrl(audioObject, 3600) };
 }
 
-export async function guardarEscucha(formData: FormData) {
-  // Sin Supabase la config no puede persistir. Redirigimos con flag para que
-  // la UI muestre el estado en banner, en vez de throw → error boundary.
-  if (!dbConfigured()) redirect("/escucha?error=no_db");
-  const { id: projectId } = await requireMember("editor");
-
-  const raw = formToObject(formData);
-  const keywords = String(formData.get("keywords") ?? "")
-    .split("\n")
-    .map((k) => k.trim())
-    .filter(Boolean);
-  const fuentes = formData.getAll("fuentes").map(String);
-  // La UI separa medios / Facebook / Telegram en tres campos; el storage
-  // sigue siendo la lista única rss_feeds (se re-particiona al renderizar).
-  const medios = String(formData.get("rssFeeds") ?? "")
-    .split("\n")
-    .map((u) => u.trim())
-    .filter(Boolean);
-  const fbUrls = String(formData.get("fbUrls") ?? "")
-    .split("\n")
-    .map((u) => normalizeFbUrl(u))
-    .filter((u): u is string => Boolean(u));
-  const tgChannels = String(formData.get("tgChannels") ?? "")
-    .split(/[\n,]/)
-    .map((u) => normalizeTgChannel(u))
-    .filter((u): u is string => Boolean(u));
-  const rssFeeds = [...new Set([...medios, ...fbUrls, ...tgChannels])];
-  const xHandles = Array.from(
-    new Set(
-      String(formData.get("xHandles") ?? "")
-        .split(/[\n,]/)
-        .map((h) => normalizeHandle(h))
-        .filter(Boolean),
-    ),
-  );
-  // Programas de radio: la UI los manda como JSON en un campo oculto.
-  let radioStreams: unknown = [];
-  try {
-    radioStreams = JSON.parse(String(formData.get("radioStreams") ?? "[]"));
-  } catch {
-    radioStreams = [];
-  }
-
-  const parsed = GuardarEscuchaSchema.safeParse({
-    zona: raw.zona,
-    pais: raw.pais,
-    radioKm: raw.radioKm,
-    lat: raw.lat,
-    lng: raw.lng,
-    keywords,
-    fuentes,
-    rssFeeds,
-    xHandles,
-    radioStreams,
-  });
-  if (!parsed.success) redirect("/escucha?error=validacion");
-
-  await saveListeningConfig(projectId, parsed.data);
-  // Si había propuesta de IA pendiente, este Guardar aplica las keywords.
-  const brief = await getClientBrief(projectId);
-  if (brief.proposal && !brief.proposal.applied.territorio) {
-    await saveClientBrief(projectId, { ...brief, proposal: markApplied(brief.proposal, "territorio") });
-  }
-  // Encola la watchlist ya mismo (refresh inmediato): sin esto los handles
-  // recién cargados esperaban al próximo tick del cron para entrar a la cola.
-  if (parsed.data.xHandles.length > 0) {
-    await enqueueXHandles(projectId, parsed.data.xHandles);
-  }
-  // Carga inicial: corre después de responder (after → no bloquea el submit).
-  // El resumen queda persistido y la pestaña de config lo muestra por fuente.
-  after(async () => {
-    try {
-      const summary = await pullAllSources(projectId);
-      await savePullSummary(projectId, summary);
-      log.info("listening.initial_pull.done", {
-        projectId,
-        total: summary.total,
-        errors: summary.errors.length,
-      });
-    } catch (e) {
-      log.error("listening.initial_pull.failed", { error: (e as Error).message });
-    }
-  });
-  revalidatePath("/escucha");
-  redirect("/escucha?tab=config&guardado=1");
-}
-
 // ── Escenario por bloque ────────────────────────────────────────────────
 //
 // Cada Guardar de Escenario pisa solo los campos de su bloque (territorio,
@@ -362,10 +275,6 @@ export async function generarInformeAhora(): Promise<void> {
   revalidatePath("/escucha");
   redirect("/escucha?tab=informe&generado=1");
 }
-
-// Compat: monitor-editor.tsx (Task 4 lo reemplaza por bloque-redes.tsx) sigue
-// usando el nombre viejo como `action` de su <form>.
-export const guardarMonitor = guardarRedes;
 
 // ── Brief del cliente → escenario con IA ────────────────────────────────
 
