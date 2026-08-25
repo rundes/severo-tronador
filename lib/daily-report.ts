@@ -12,6 +12,8 @@ import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
 import { getProject, listMembers } from "@/lib/projects";
+import { getMonitorConfig, nextCountdown } from "@/lib/monitor-config";
+import { accountMetrics } from "@/lib/monitor-metrics";
 import { log } from "@/lib/logger";
 
 const HISTORY_CAP = 14;
@@ -81,12 +83,16 @@ export async function generateDailyReport(
     pull = await pullAllSources(projectId);
   }
 
-  const [items24, items7] = await Promise.all([
+  const [items24, items7, monitor, metrics] = await Promise.all([
     readCachedItems(projectId, 1),
     readCachedItems(projectId, 7),
+    getMonitorConfig(projectId),
+    accountMetrics(projectId, 7),
   ]);
+  const countdown = nextCountdown(monitor);
+  const isElectoral = monitor.accounts.length > 0;
 
-  const claudeCfg = await getConnectorConfig(CLAUDE_ID);
+  const claudeCfg = await getConnectorConfig(CLAUDE_ID, projectId);
   const apiKey = claudeCfg.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Conector claude-api sin ANTHROPIC_API_KEY");
 
@@ -94,8 +100,15 @@ export async function generateDailyReport(
 
   const system =
     "Sos analista de opinión pública de un centro de estudios. Escribís " +
-    "informes diarios de escucha social para operadores: sobrios, densos en " +
-    "dato, sin marketing. Español rioplatense. Formato Markdown.";
+    "informes diarios para operadores: sobrios, densos en dato, sin marketing. " +
+    "Español rioplatense, Markdown. Reglas editoriales innegociables: separá " +
+    "hecho verificado de inferencia y etiquetá la inferencia; una acusación de " +
+    "un usuario es una declaración pública, no un hecho; nunca atribuyas una " +
+    "operación a una organización sin evidencia (dos cuentas contra el mismo " +
+    "blanco, o creadas el mismo mes, no prueban coordinación); la tracción de " +
+    "una pieza se mide a las 24 h, por debajo es provisoria; el informe no " +
+    "habla de sí mismo ni de la herramienta; no publiques nómina de " +
+    "particulares, sí agregados y cuentas con relevancia organizativa.";
 
   const prompt = `## Contexto del cliente (config del panel)
 Proyecto: ${project?.nombre ?? projectId}
@@ -110,6 +123,21 @@ ${fmtItems(items24, 120) || "(sin menciones nuevas)"}
 
 ## Muestra de los últimos 7 días (${items7.length} total, para baseline)
 ${fmtItems(items7.slice(items24.length), 60)}
+${isElectoral ? `
+## Escenario electoral
+${countdown ? `Cuenta regresiva: faltan ${countdown.days} días para ${countdown.label}.` : "Sin fecha clave cargada."}
+Cuentas monitoreadas por categoría (no se comparan entre categorías):
+${monitor.accounts.map((a) => `- [${a.category}] @${a.handle.replace(/^@/, "")} (${a.platform})${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}`).join("\n")}
+
+## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, densidad=comentaristas recurrentes)
+${metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}`).join("\n")}
+
+## Memoria de errores (no repetir)
+${monitor.noRepetir.length ? monitor.noRepetir.map((e) => `- ${e}`).join("\n") : "(sin correcciones registradas)"}
+
+## Definiciones (lugares/personas/cargos)
+${Object.entries(monitor.entidades).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "(ninguna)"}
+` : ""}
 
 ## Tarea
 Escribí el informe diario de temas relevantes para este cliente:
@@ -118,6 +146,11 @@ Escribí el informe diario de temas relevantes para este cliente:
 3. **Menciones destacadas** — 3-5 citas textuales cortas con fuente.
 4. **Señales a vigilar** — temas incipientes o cambios de tono.
 5. **Sugerencia operativa** — 1-2 acciones concretas (ej: pregunta para encuesta, keyword a agregar).
+${isElectoral ? `
+Además, por ser monitoreo electoral:
+6. **Mapa por categorías** — ordená las cuentas DENTRO de cada categoría por amplificación/adhesión/densidad (no compares categorías entre sí); notá cuando el orden por estructura difiere del orden por tamaño.
+7. **Cuentas que operan y cuentas nuevas** — declarando cuántas nuevas de cada dirección del conflicto aparecieron.
+8. **Cuenta regresiva** — expresá los hitos en días que faltan, no en fechas.` : ""}
 Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes/keywords.`;
 
   const result = await generateText({
@@ -149,7 +182,7 @@ export async function emailDailyReport(
   projectId: string,
   report: DailyReport,
 ): Promise<{ sent: number }> {
-  const cfg = await getConnectorConfig("resend");
+  const cfg = await getConnectorConfig("resend", projectId);
   if (!cfg.RESEND_API_KEY || !cfg.RESEND_FROM) return { sent: 0 };
   const project = await getProject(projectId);
   const owners = (await listMembers(projectId)).filter((m) => m.role === "owner");

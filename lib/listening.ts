@@ -47,7 +47,7 @@ export interface FeedItem {
   sentiment: Sentiment;
   // Threading (Plan 05 F4): cuando un item es un comment Meta CL o reply
   // X, parentUrl referencia al post padre. La UI agrupa visualmente.
-  kind?: "post" | "reel" | "comment" | "tweet" | "reply";
+  kind?: "post" | "reel" | "comment" | "tweet" | "reply" | "story" | "highlight";
   parentUrl?: string;
   // Radio: { audioObject, start, end, programa } para reproducir la mención.
   meta?: Record<string, unknown>;

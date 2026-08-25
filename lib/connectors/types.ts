@@ -208,7 +208,7 @@ export interface ListenItem {
   author?: string;
   // Tipo de contenido (Meta CL: post|reel|comment, X: tweet|reply, etc).
   // Permite threading + métricas separadas en /escucha.
-  kind?: "post" | "reel" | "comment" | "tweet" | "reply";
+  kind?: "post" | "reel" | "comment" | "tweet" | "reply" | "story" | "highlight";
   // URL del post padre cuando el item es un comentario / reply. Habilita
   // agrupado threaded en el feed cuando ambos están en la misma corrida.
   parentUrl?: string;
