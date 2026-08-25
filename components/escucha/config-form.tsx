@@ -32,6 +32,8 @@ interface ConfigFormProps {
   counts: SourceCounts;
   // Reloj del server render (react-hooks/purity prohíbe Date.now() acá).
   now: number;
+  // Keywords propuestas por la IA (brief del cliente) pendientes de aplicar.
+  proposedKeywords?: string[];
 }
 
 function timeAgo(iso: string | null | undefined, now: number): string {
@@ -165,6 +167,7 @@ export function ConfigForm({
   summary,
   counts,
   now,
+  proposedKeywords,
 }: ConfigFormProps) {
   const parts = partitionFeeds(cfg.rssFeeds);
   const justSaved = params.guardado === "1";
@@ -232,12 +235,23 @@ export function ConfigForm({
           </div>
           <Field
             label="Keywords (una por línea)"
-            hint="Temas a rastrear en todas las fuentes. La zona + estas keywords arman también las búsquedas automáticas de Google News y GDELT."
+            hint={
+              proposedKeywords ? (
+                <>
+                  <span className="text-amber-700 dark:text-amber-300">
+                    Propuesta de IA prellenada (vigente {cfg.keywords.length} → propuesto {proposedKeywords.length}). Guardar la aplica.
+                  </span>{" "}
+                  La zona + estas keywords arman también las búsquedas automáticas de Google News y GDELT.
+                </>
+              ) : (
+                "Temas a rastrear en todas las fuentes. La zona + estas keywords arman también las búsquedas automáticas de Google News y GDELT."
+              )
+            }
           >
             <textarea
               name="keywords"
-              rows={3}
-              defaultValue={cfg.keywords.join("\n")}
+              rows={proposedKeywords ? 8 : 3}
+              defaultValue={(proposedKeywords ?? cfg.keywords).join("\n")}
               placeholder={"obras\nseguridad\nsalud"}
               className={`${inputCls} font-mono`}
             />
