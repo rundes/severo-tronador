@@ -79,6 +79,25 @@ function decodeEntities(s: string): string {
     .trim();
 }
 
+// Texto plano de un fragmento HTML: sin tags, entidades decodificadas,
+// espacios colapsados.
+export function stripTags(html: string): string {
+  return decodeEntities(html.replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/gi, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Una fila por título (lowercase, sin puntuación ni espacios extra).
+export function dedupeByTitle(items: ListenItem[]): ListenItem[] {
+  const seen = new Set<string>();
+  return items.filter((i) => {
+    const key = i.text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(0, 120);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function firstTag(block: string, name: string): string | undefined {
   const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, "i"));
   return m ? decodeEntities(m[1]) : undefined;
@@ -100,7 +119,7 @@ function hostOf(url: string): string {
   }
 }
 
-function parseFeed(xml: string, feedUrl: string): ListenItem[] {
+export function parseFeed(xml: string, feedUrl: string): ListenItem[] {
   const host = hostOf(feedUrl);
   const out: ListenItem[] = [];
 
@@ -108,10 +127,14 @@ function parseFeed(xml: string, feedUrl: string): ListenItem[] {
     const block = m[0];
     const title = firstTag(block, "title");
     if (!title) continue;
-    const desc = firstTag(block, "description");
+    // La descripción puede traer HTML (Google News manda `<a>título</a>
+    // <font>medio</font>`): se quitan tags y, si no agrega nada sobre el
+    // título, se usa el título solo.
+    const desc = stripTags(firstTag(block, "description") ?? "");
+    const addsInfo = desc.length > title.length && !desc.startsWith(title);
     out.push({
       source: host,
-      text: desc && desc.length > title.length ? `${title} — ${desc}`.slice(0, 400) : title,
+      text: addsInfo ? `${title} — ${desc}`.slice(0, 400) : title,
       url: firstTag(block, "link"),
       publishedAt: firstTag(block, "pubDate") ?? firstTag(block, "dc:date"),
       author: host,
@@ -450,7 +473,9 @@ export const rssConnector: ListeningConnector = {
       Promise.all(auto.map(fetchOne)),
     ]);
     const items = own.flat().filter((i) => matches(i, query));
-    const newsItems = news.flat();
+    // Cada query de Google News devuelve su propia URL codificada para el
+    // mismo artículo: se deduplica por título normalizado.
+    const newsItems = dedupeByTitle(news.flat());
     log.info("listening.rss.fetch", {
       configured: configured.length,
       googleNews: auto.length,

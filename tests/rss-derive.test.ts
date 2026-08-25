@@ -6,7 +6,43 @@ import {
   googleNewsFeeds,
   extractArticleMeta,
   parseTelegramChannel,
+  parseFeed,
+  stripTags,
+  dedupeByTitle,
 } from "@/lib/connectors/rss";
+
+// Google News: la descripción es HTML (`<a>título</a><font>medio</font>`) y
+// cada query devuelve su propia URL para el mismo artículo. Ibicuy 2026-08-25
+// mostraba "… — <a href=" y títulos repetidos en el feed.
+describe("parseFeed · descripción HTML y dedupe por título", () => {
+  const item = (title: string, desc: string, link: string) =>
+    `<item><title>${title}</title><description>${desc}</description><link>${link}</link><pubDate>Tue, 25 Aug 2026 19:23:58 GMT</pubDate></item>`;
+
+  it("stripTags quita tags, decodifica entidades y colapsa espacios", () => {
+    expect(stripTags('<a href="x">Hola</a>&nbsp;&nbsp;<font>Medio</font>')).toBe("Hola Medio");
+  });
+
+  it("descripción HTML que solo repite el título → texto = título", () => {
+    const xml = `<rss><channel>${item("Puerto de Ibicuy crece - El Cronista", '&lt;a href="https://news.google.com/x"&gt;Puerto de Ibicuy crece - El Cronista&lt;/a&gt;&amp;nbsp;&lt;font color="#6f6f6f"&gt;El Cronista&lt;/font&gt;', "https://news.google.com/rss/articles/A")}</channel></rss>`;
+    const [it0] = parseFeed(xml, "https://news.google.com/rss/search?q=Ibicuy");
+    expect(it0.text).toBe("Puerto de Ibicuy crece - El Cronista");
+    expect(it0.text).not.toMatch(/<|&lt;/);
+  });
+
+  it("descripción con contenido propio se conserva, sin tags", () => {
+    const xml = `<rss><channel>${item("Título", "&lt;p&gt;Bajada con &lt;b&gt;detalle&lt;/b&gt; propio&lt;/p&gt;", "https://m.ar/1")}</channel></rss>`;
+    expect(parseFeed(xml, "https://m.ar/feed")[0].text).toBe("Título — Bajada con detalle propio");
+  });
+
+  it("dedupeByTitle deja una fila por título normalizado", () => {
+    const items = [
+      { source: "g", text: "Pueblo Belgrano e Ibicuy recibieron kits - R2820", url: "https://g/A" },
+      { source: "g", text: "Pueblo Belgrano e Ibicuy recibieron kits - R2820", url: "https://g/B" },
+      { source: "g", text: "Otra nota", url: "https://g/C" },
+    ];
+    expect(dedupeByTitle(items).map((i) => i.url)).toEqual(["https://g/A", "https://g/C"]);
+  });
+});
 
 describe("looksLikeFeed", () => {
   it("reconoce RSS y Atom", () => {
