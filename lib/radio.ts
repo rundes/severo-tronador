@@ -2,14 +2,10 @@
 // matcheo de keywords, transcript → items). Sin imports de servidor →
 // testeables y usables en el runner de GitHub Actions y en los endpoints.
 
-export interface RadioProgram {
-  url: string; // stream HTTP (Icecast/Shoutcast mp3/aac)
-  station: string; // nombre de la radio (→ source / author)
-  programa: string; // nombre del programa
-  days: number[]; // 0-6 (Dom..Sáb)
-  start: string; // "HH:MM" local
-  end: string; // "HH:MM" local
-}
+// El modelo pasó a lib/audio-programs (radio + YouTube + Kick). Se mantiene el
+// nombre para el worker y los endpoints que ya lo importan.
+import type { AudioProgram } from "@/lib/audio-programs";
+export type RadioProgram = AudioProgram;
 
 // URL de stream segura: http(s) y host NO interno/privado. Evita SSRF/LFI
 // cuando el url va a ffmpeg/fetch (file:, metadata cloud, redes internas).

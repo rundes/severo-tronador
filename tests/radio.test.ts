@@ -16,6 +16,7 @@ import {
 } from "@/lib/radio";
 
 const prog = (over: Partial<RadioProgram> = {}): RadioProgram => ({
+  kind: "radio",
   url: "http://stream/radio",
   station: "Radio X",
   programa: "Mañanas",

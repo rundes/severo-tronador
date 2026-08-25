@@ -7,6 +7,7 @@ import { controlClassName } from "@/components/ui/field";
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const inputCls = controlClassName;
 const NEW: RadioProgram = {
+  kind: "radio",
   url: "",
   station: "",
   programa: "",

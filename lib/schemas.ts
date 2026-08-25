@@ -6,6 +6,7 @@
 // En el path "happy" usa los datos ya tipados.
 import { z } from "zod";
 import { isPublicHttpUrl } from "@/lib/radio";
+import { isValidUrlFor } from "@/lib/audio-programs";
 
 // ── Enums compartidos ─────────────────────────────────────────────────────
 export const ChannelEnum = z.enum(["email", "whatsapp", "sms", "voice", "telegram"]);
@@ -126,16 +127,28 @@ const optFloat = (min: number, max: number) =>
     .transform((v) => (v == null ? null : Number(v)))
     .pipe(z.union([z.number().min(min).max(max), z.null()]));
 
-export const RadioProgramSchema = z.object({
-  // Solo http(s) y host público: el url va a ffmpeg en el runner; evitamos
-  // esquemas peligrosos (file:/concat:) y SSRF a redes internas/metadata.
-  url: z.string().trim().url().refine(isPublicHttpUrl, "URL de stream inválida (http(s) público)"),
-  station: z.string().trim().min(1).max(80),
-  programa: z.string().trim().min(1).max(120),
-  days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
-  start: z.string().trim().regex(/^\d{1,2}:\d{2}$/, "Hora HH:MM"),
-  end: z.string().trim().regex(/^\d{1,2}:\d{2}$/, "Hora HH:MM"),
-});
+export const AudioKindSchema = z.enum(["radio", "youtube", "kick"]);
+
+// Radio + YouTube + Kick (lib/audio-programs). start/end vacíos = franja
+// incompleta: se guarda pero no se graba (hasValidSlot). La url se valida
+// según la plataforma (radio → ffmpeg; youtube/kick → yt-dlp).
+export const AudioProgramSchema = z
+  .object({
+    kind: AudioKindSchema.default("radio"),
+    url: z.string().trim().url(),
+    station: z.string().trim().min(1).max(80),
+    programa: z.string().trim().min(1).max(120),
+    days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+    start: z.string().trim().regex(/^(\d{1,2}:\d{2})?$/, "Hora HH:MM"),
+    end: z.string().trim().regex(/^(\d{1,2}:\d{2})?$/, "Hora HH:MM"),
+    nota: z.string().trim().max(120).optional(),
+  })
+  .refine((p) => isValidUrlFor(p.kind, p.url), {
+    message: "URL inválida para la plataforma (radio: stream http(s) público; youtube/kick: URL del canal)",
+    path: ["url"],
+  });
+// Compat con imports existentes.
+export const RadioProgramSchema = AudioProgramSchema;
 
 export const GuardarEscuchaSchema = z.object({
   zona: z.string().trim().max(120).catch(""),
@@ -163,7 +176,7 @@ export const GuardarEscuchaSchema = z.object({
     .max(40)
     .default([]),
   xHandles: z.array(z.string().trim().min(1)).max(100).default([]),
-  radioStreams: z.array(RadioProgramSchema).max(30).default([]),
+  radioStreams: z.array(AudioProgramSchema).max(30).default([]),
 });
 export type GuardarEscuchaInput = z.infer<typeof GuardarEscuchaSchema>;
 
