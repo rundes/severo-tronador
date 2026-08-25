@@ -102,8 +102,9 @@ export function InformePanel({
         </p>
         <ol className="max-w-[70ch] list-decimal space-y-1 pl-5 text-xs text-zinc-500">
           <li>
-            Descargá el .zip y descomprimilo en una carpeta que no vayas a
-            borrar (Chrome la lee desde ahí).
+            Descargá el .zip y descomprimilo (&quot;Extraer todo&quot;) en una
+            carpeta que no vayas a borrar: Chrome la lee desde ahí. Adentro
+            tiene que quedar <code>manifest.json</code> directamente.
           </li>
           <li>
             <code>chrome://extensions</code> → activá &quot;Modo de

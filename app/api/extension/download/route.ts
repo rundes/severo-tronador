@@ -17,7 +17,10 @@ import { log } from "@/lib/logger";
 export const runtime = "nodejs";
 
 const EXTENSION_DIR = path.join(process.cwd(), "infra", "escucha-extension");
-const ZIP_ROOT = "escucha-extension";
+const ZIP_NAME = "escucha-extension";
+// El zip va PLANO (manifest.json en la raíz). Con una carpeta contenedora,
+// "Extraer todo" de Windows crea Downloads\escucha-extension\escucha-extension\
+// y Chrome dice "Falta el archivo de manifiesto" al elegir la de afuera.
 
 async function collectFiles(dir: string, rel = ""): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -43,13 +46,13 @@ export async function GET() {
     }
     const zip = new JSZip();
     for (const rel of files) {
-      zip.file(`${ZIP_ROOT}/${rel}`, await readFile(path.join(EXTENSION_DIR, rel)));
+      zip.file(rel, await readFile(path.join(EXTENSION_DIR, rel)));
     }
     const body = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
     return new NextResponse(body, {
       headers: {
         "content-type": "application/zip",
-        "content-disposition": `attachment; filename="${ZIP_ROOT}.zip"`,
+        "content-disposition": `attachment; filename="${ZIP_NAME}.zip"`,
         "cache-control": "no-store",
       },
     });
