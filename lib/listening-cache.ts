@@ -118,21 +118,39 @@ export async function cacheHasFreshItems(
   return (count ?? 0) > 0;
 }
 
+// Una fila por url dentro del lote. Google News arma varios feeds (localidad,
+// localidad×keyword) que traen el mismo artículo con la misma url; con dos
+// filas iguales en un solo upsert Postgres rechaza el lote entero ("ON
+// CONFLICT DO UPDATE command cannot affect row a second time") y la fuente
+// quedaba en "fetched N, upserted 0" sin error visible.
+export function dedupeByUrl<T extends { url?: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((i) => {
+    if (!i.url) return true;
+    if (seen.has(i.url)) return false;
+    seen.add(i.url);
+    return true;
+  });
+}
+
 // Upsert por (project_id, url). Items sin url se insertan siempre.
 export async function upsertItems(
   projectId: string,
   connectorId: string,
   items: ListenItem[],
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; error?: string }> {
   if (!dbConfigured() || items.length === 0) {
     return { inserted: 0, skipped: items.length };
   }
   const sb = getSupabase();
-  const withUrl = items.filter((i) => !!i.url);
+  const withUrl = dedupeByUrl(items.filter((i) => !!i.url));
   const withoutUrl = items.filter((i) => !i.url);
 
   let inserted = 0;
   let skipped = 0;
+  // Primer error de DB del lote: el pull lo muestra en bySource (antes quedaba
+  // solo en el log y la fuente parecía "sin novedades").
+  let dbError: string | undefined;
 
   if (withUrl.length > 0) {
     const { error, count } = await sb
@@ -148,6 +166,7 @@ export async function upsertItems(
     if (error) {
       log.warn("listening.cache.upsert_failed", { error: error.message });
       skipped += withUrl.length;
+      dbError = error.message;
     } else {
       inserted += count ?? withUrl.length;
     }
@@ -163,12 +182,13 @@ export async function upsertItems(
     if (error) {
       log.warn("listening.cache.insert_failed", { error: error.message });
       skipped += withoutUrl.length;
+      dbError = dbError ?? error.message;
     } else {
       inserted += count ?? withoutUrl.length;
     }
   }
 
-  return { inserted, skipped };
+  return dbError ? { inserted, skipped, error: dbError } : { inserted, skipped };
 }
 
 // Pull desde todos los listening connectors con la config actual.
@@ -291,10 +311,11 @@ export async function pullAllSources(projectId: string): Promise<PullSummary> {
         xHandles: cfg.xHandles,
         diagnostics,
       });
-      const { inserted } = await upsertItems(projectId, l.id, items);
+      const { inserted, error: dbError } = await upsertItems(projectId, l.id, items);
       summary.bySource[l.id] = {
         fetched: items.length,
         upserted: inserted,
+        ...(dbError ? { error: `DB: ${dbError.slice(0, 120)}` } : {}),
       };
       summary.total += items.length;
     } catch (e) {
