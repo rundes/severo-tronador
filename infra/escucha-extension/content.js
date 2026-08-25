@@ -1,117 +1,157 @@
-// Captura de menciones visibles en FB / IG / X / TikTok. Corre a pedido
-// (mensaje "capture" desde el popup): extrae los posts renderizados en el
-// DOM, los normaliza y los manda al background para subir al tablero.
+// Content script: ejecuta UNA unidad de colecta a pedido del orquestador (sw).
+// Corre en la pestaña de la plataforma (misma sesión, misma IP). Para
+// Instagram usa la API interna con credentials:include; para X/FB/TikTok lee
+// el DOM. NUNCA invoca endpoints de escritura (lista negra dura, spec §3.5).
 
-function clean(s) {
-  return (s || "").replace(/\s+/g, " ").trim();
-}
-function abs(href) {
-  try { return new URL(href, location.href).toString(); } catch { return null; }
+// Lista negra: cualquier efecto observable por terceros aborta en runtime.
+const WRITE_BLACKLIST = /\/(like|unlike|friendships\/(create|destroy)|media\/[^/]+\/seen|comment|save|approve)\//i;
+
+function clean(s) { return (s || "").replace(/\s+/g, " ").trim(); }
+function abs(h) { try { return new URL(h, location.href).toString(); } catch { return null; } }
+
+// ---- Instagram: API interna (spec §4). Solo lectura. ----
+const IG_APP_ID = "936619743392459";
+
+async function igFetch(path) {
+  if (WRITE_BLACKLIST.test(path)) {
+    throw new Error(`endpoint de escritura bloqueado: ${path}`);
+  }
+  const res = await fetch(path, {
+    credentials: "include",
+    headers: { "x-ig-app-id": IG_APP_ID },
+  });
+  const text = await res.text();
+  if (!res.ok) return { status: res.status, body: text, json: null };
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* no-json */ }
+  return { status: res.status, body: text, json };
 }
 
-function extractFacebook() {
+async function igProfile(handle) {
+  const r = await igFetch(`/api/v1/users/web_profile_info/?username=${encodeURIComponent(handle)}`);
+  if (!r.json) return { status: r.status, body: r.body, user: null };
+  const u = r.json.data && r.json.data.user;
+  return {
+    status: r.status,
+    user: u && {
+      id: u.id,
+      followers: u.edge_followed_by ? u.edge_followed_by.count : 0,
+      posts: u.edge_owner_to_timeline_media ? u.edge_owner_to_timeline_media.count : 0,
+    },
+  };
+}
+
+function igMediaUrl(pk, code) {
+  return code ? `https://www.instagram.com/p/${code}/` : `https://www.instagram.com/media/${pk}/`;
+}
+
+async function igFeed(userId, handle, followers) {
+  const r = await igFetch(`/api/v1/feed/user/${userId}/?count=24`);
+  if (!r.json) return { status: r.status, body: r.body, items: [] };
+  const items = (r.json.items || []).map((it) => ({
+    site: "instagram",
+    kind: it.media_type === 2 ? "reel" : "post",
+    text: clean((it.caption && it.caption.text) || "").slice(0, 800),
+    url: igMediaUrl(it.pk, it.code),
+    author: handle,
+    metrics: {
+      followers,
+      likeCount: it.like_count,
+      commentCount: it.comment_count,
+      viewCount: it.play_count || it.view_count,
+      takenAt: it.taken_at ? new Date(it.taken_at * 1000).toISOString() : undefined,
+    },
+  })).filter((i) => i.text.length >= 1);
+  return { status: r.status, items };
+}
+
+async function igStories(userId, handle, followers) {
+  const r = await igFetch(`/api/v1/feed/reels_media/?reel_ids=${userId}`);
+  if (!r.json) return { status: r.status, body: r.body, items: [] };
+  const reel = (r.json.reels_media || [])[0];
+  const items = ((reel && reel.items) || []).map((it) => ({
+    site: "instagram",
+    kind: "story",
+    text: clean(it.accessibility_caption || "(historia sin texto alternativo)").slice(0, 800),
+    url: `https://www.instagram.com/stories/${handle}/${it.pk}/`,
+    author: handle,
+    metrics: {
+      followers,
+      takenAt: it.taken_at ? new Date(it.taken_at * 1000).toISOString() : undefined,
+      expiringAt: it.expiring_at ? new Date(it.expiring_at * 1000).toISOString() : undefined,
+    },
+  }));
+  return { status: r.status, items };
+}
+
+// ---- DOM: X / Facebook / TikTok ----
+function domX(handle) {
+  const out = [];
+  for (const t of document.querySelectorAll('article[data-testid="tweet"]')) {
+    const text = clean(t.querySelector('[data-testid="tweetText"]') && t.querySelector('[data-testid="tweetText"]').innerText);
+    if (text.length < 5) continue;
+    const link = t.querySelector('a[href*="/status/"]');
+    const url = link ? abs(link.getAttribute("href")) : null;
+    if (!url) continue;
+    out.push({ site: "x", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
+  }
+  return out;
+}
+function domFacebook(handle) {
   const out = [];
   for (const art of document.querySelectorAll('div[role="article"]')) {
-    const label = art.getAttribute("aria-label") || "";
-    const isComment = /omentario|omment/.test(label);
-    const text = clean(art.innerText).slice(0, 1200);
+    const text = clean(art.innerText).slice(0, 1000);
     if (text.length < 25) continue;
     let url = null;
     for (const a of art.querySelectorAll("a[href]")) {
       const h = a.getAttribute("href") || "";
-      if (/\/(posts|permalink|videos|reel)\/|pfbid|story_fbid|comment_id/.test(h)) {
-        url = abs(h);
-        break;
-      }
+      if (/\/(posts|permalink|videos|reel)\/|pfbid|story_fbid/.test(h)) { url = abs(h); break; }
     }
     if (!url) continue;
-    out.push({ site: "facebook", text: text.slice(0, 800), url, kind: isComment ? "comment" : "post" });
+    out.push({ site: "facebook", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
   }
   return out;
 }
-
-function extractX() {
-  const out = [];
-  for (const t of document.querySelectorAll('article[data-testid="tweet"]')) {
-    const text = clean(t.querySelector('[data-testid="tweetText"]')?.innerText);
-    if (text.length < 10) continue;
-    const link = t.querySelector('a[href*="/status/"]');
-    const url = link ? abs(link.getAttribute("href")) : null;
-    if (!url) continue;
-    const author = clean(t.querySelector('[data-testid="User-Name"]')?.innerText)
-      .split("\n")[0].slice(0, 80);
-    out.push({ site: "x", text: text.slice(0, 800), url, author, kind: "post" });
-  }
-  return out;
-}
-
-function extractInstagram() {
-  const out = [];
-  for (const art of document.querySelectorAll("article")) {
-    const link = art.querySelector('a[href*="/p/"], a[href*="/reel/"]');
-    const url = link ? abs(link.getAttribute("href")) : abs(location.pathname);
-    const text = clean(art.innerText).slice(0, 1200);
-    if (!url || text.length < 20) continue;
-    out.push({ site: "instagram", text: text.slice(0, 800), url, kind: "post" });
-  }
-  if (out.length === 0 && /\/(p|reel)\//.test(location.pathname)) {
-    const text = clean(document.querySelector("h1")?.innerText);
-    if (text.length >= 20) {
-      out.push({ site: "instagram", text: text.slice(0, 800), url: abs(location.pathname), kind: "post" });
-    }
-  }
-  return out;
-}
-
-function hashCode(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  return h;
-}
-
-function extractTikTok() {
+function domTikTok(handle) {
   const out = [];
   for (const d of document.querySelectorAll('[data-e2e="search-card-desc"], [data-e2e="browse-video-desc"], [data-e2e="video-desc"]')) {
     const text = clean(d.innerText);
-    if (text.length < 15) continue;
-    const container = d.closest("div");
-    const link = container?.querySelector('a[href*="/video/"]') ||
-      d.closest('a[href*="/video/"]') ||
-      document.querySelector('a[href*="/video/"]');
+    if (text.length < 10) continue;
+    const link = d.closest("div") && d.closest("div").querySelector('a[href*="/video/"]');
     const url = link ? abs(link.getAttribute("href")) : abs(location.href);
     if (!url || !/\/video\//.test(url)) continue;
-    out.push({ site: "tiktok", text: text.slice(0, 800), url, kind: "post" });
-  }
-  for (const c of document.querySelectorAll('[data-e2e="comment-item"], [data-e2e="comment-level-1"]')) {
-    const text = clean(c.querySelector('[data-e2e="comment-text"], p')?.innerText || c.innerText);
-    if (text.length < 10) continue;
-    const parent = abs(location.href);
-    if (!/\/video\//.test(parent || "")) continue;
-    out.push({
-      site: "tiktok",
-      text: text.slice(0, 800),
-      url: `${parent}#c-${Math.abs(hashCode(text)) % 1e10}`,
-      kind: "comment",
-      parentUrl: parent,
-    });
+    out.push({ site: "tiktok", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
   }
   return out;
 }
 
-function extract() {
-  const h = location.hostname;
-  let items = [];
-  if (h.includes("facebook.com")) items = extractFacebook();
-  else if (h.includes("instagram.com")) items = extractInstagram();
-  else if (h.includes("tiktok.com")) items = extractTikTok();
-  else if (h === "x.com" || h.includes("twitter.com")) items = extractX();
-  const seen = new Set();
-  return items.filter((i) => i.url && !seen.has(i.url) && seen.add(i.url));
-}
-
+// Orquestador → content: ejecutá esta unidad y devolveme datos + status.
 chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
-  if (msg.type === "capture") {
-    sendResponse({ items: extract() });
-  }
-  return false;
+  (async () => {
+    try {
+      if (msg.type === "ig-collect") {
+        const prof = await igProfile(msg.handle);
+        if (!prof.user) return sendResponse({ ok: true, status: prof.status, body: prof.body, items: [] });
+        const [feed, stories] = [
+          await igFeed(prof.user.id, msg.handle, prof.user.followers),
+          await igStories(prof.user.id, msg.handle, prof.user.followers),
+        ];
+        const worst = Math.max(prof.status, feed.status, stories.status);
+        sendResponse({ ok: true, status: worst, body: feed.body || stories.body, items: [...feed.items, ...stories.items] });
+      } else if (msg.type === "dom-collect") {
+        const h = location.hostname;
+        let items = [];
+        if (h.includes("facebook.com")) items = domFacebook(msg.handle);
+        else if (h.includes("tiktok.com")) items = domTikTok(msg.handle);
+        else if (h === "x.com" || h.includes("twitter.com")) items = domX(msg.handle);
+        const seen = new Set();
+        sendResponse({ ok: true, status: 200, items: items.filter((i) => i.url && !seen.has(i.url) && seen.add(i.url)) });
+      } else {
+        sendResponse({ ok: false, error: "tipo desconocido" });
+      }
+    } catch (e) {
+      sendResponse({ ok: false, error: String((e && e.message) || e) });
+    }
+  })();
+  return true; // async
 });

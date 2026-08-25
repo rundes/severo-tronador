@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { renderNow } from "@/lib/escucha-fuentes";
 import { InformePanel } from "@/components/escucha/informe-panel";
 import { readDailyReports } from "@/lib/daily-report";
+import { getMonitorConfig } from "@/lib/monitor-config";
 import { ConfigForm } from "@/components/escucha/config-form";
 import { RadioAgenda } from "@/components/escucha/radio-agenda";
 import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
@@ -126,7 +127,7 @@ export default async function EscuchaPage({
       {tab === "monitor" && result ? (
         <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
       ) : tab === "informe" ? (
-        <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} />
+        <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} monitor={await getMonitorConfig(projectId)} monitorSaved={params.monitor === "1"} />
       ) : (
         <div className="space-y-6">
           <ConfigForm

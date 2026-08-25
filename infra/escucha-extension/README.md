@@ -1,32 +1,40 @@
-# Tronador Escucha — extensión de Chrome
+# Tronador Monitor — extensión de Chrome (v0.2, server-first)
 
-Corre en el navegador del operador (su sesión, su IP): lo que el scraping
-server-side no puede ver de FB/IG/X/TikTok, el operador lo ve navegando — la
-extensión lo captura y lo suma al historial de escucha del proyecto, que es
-el contexto que consume Claude para el informe diario.
+El plugin **solo navega y colecta**. El escenario de cada cliente (cuentas a
+monitorear, búsquedas simétricas, calendario, memoria de errores, presupuesto)
+vive en el servidor; el plugin lo baja como **plan de colecta** y lo ejecuta en
+el navegador del operador (su sesión, su IP). Las métricas y el informe se
+calculan server-side. Correr desde la nube con las cookies del usuario es el
+error de arquitectura que esto evita (spec §7.1).
 
-## Qué hace
+## Qué hace una corrida
 
-- **Escenario en el popup**: zona + keywords definidas en el tablero
-  (`/escucha → Configurar`), siempre sincronizadas.
-- **Búsquedas complementarias**: abre la búsqueda de zona+keyword en Google
-  News, X, Facebook, Instagram y TikTok (una o todas). Alarma diaria opcional
-  que abre las búsquedas a la hora configurada.
-- **Captura**: botón "Capturar esta página" en FB / IG / X / TikTok toma los
-  posts (y comentarios en FB/TikTok) visibles y los sube al tablero
-  (dedupe por URL; entra a `/escucha` y al informe diario).
+1. `GET /api/extension/plan` — baja cuentas + búsquedas + presupuesto + qué
+   plataformas están enfriadas por el circuit breaker.
+2. Recorre las cuentas **barajadas**, una plataforma por vez, con la disciplina
+   anti-bloqueo (spec §3): presupuesto duro por plataforma/día, pausa aleatoria
+   6–20 s entre cuentas, pausa larga cada 15, horario plausible 08:00–01:00,
+   **concurrencia 1**.
+3. Instagram: API interna de solo lectura (perfil, feed, historias) desde una
+   pestaña de instagram.com. X/Facebook/TikTok: lectura del DOM. **Nunca** un
+   endpoint de escritura (lista negra dura: like, follow, `media/seen`…).
+4. Ante 429 / checkpoint / captcha: corta la plataforma y reporta la señal a
+   `POST /api/extension/signal`; el server la enfría. Nunca reintenta.
+5. Sube lo relevado (con métricas) a `POST /api/extension/items`.
 
 ## Instalación
 
-1. `chrome://extensions` → activar "Modo desarrollador" → "Cargar
-   descomprimida" → elegir esta carpeta (`infra/escucha-extension`).
-2. En la app: `Escucha → Informe → Generar token de extensión` (rol owner).
-3. Click derecho al ícono → Opciones → pegar URL de la app + token →
-   "Guardar y probar".
+1. `chrome://extensions` → Modo desarrollador → Cargar descomprimida → esta
+   carpeta.
+2. App: `Escucha → Informe → Generar token de extensión` (owner) y cargá el
+   escenario en el editor de monitoreo.
+3. Click derecho al ícono → Opciones → URL de la app + token → Guardar y probar.
+4. Abrí el panel lateral (ícono) → "Correr colecta ahora", o dejá la corrida
+   diaria con deriva horaria.
 
-## Límites
+## Cuenta a usar
 
-- Captura solo lo **visible** en la página: scrolleá antes de capturar.
-- Solo contenido público al que el operador accede legítimamente.
-- El informe diario se genera server-side (cron 09:00 + botón en el panel);
-  la extensión no llama a Claude ni guarda API keys.
+Usar una **cuenta secundaria quemable** logueada en el navegador, no la
+principal. El uso de la API interna de Instagram contradice sus ToS aunque el
+contenido sea público y la operación de solo lectura; la disciplina reduce
+mucho el riesgo pero no lo elimina (spec §3.6).

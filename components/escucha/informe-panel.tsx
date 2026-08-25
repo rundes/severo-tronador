@@ -4,6 +4,8 @@ import { generarInformeAhora } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { ExtensionTokenButton } from "@/components/escucha/extension-token-button";
 import type { DailyReport } from "@/lib/daily-report";
+import type { MonitorConfig } from "@/lib/monitor-config";
+import { MonitorEditor } from "@/components/escucha/monitor-editor";
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -18,10 +20,14 @@ export function InformePanel({
   latest,
   history,
   generado,
+  monitor,
+  monitorSaved,
 }: {
   latest: DailyReport | null;
   history: DailyReport[];
   generado: boolean;
+  monitor: MonitorConfig;
+  monitorSaved: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -81,6 +87,8 @@ export function InformePanel({
           </ul>
         </section>
       )}
+
+      <MonitorEditor cfg={monitor} saved={monitorSaved} />
 
       <section className="space-y-2 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">

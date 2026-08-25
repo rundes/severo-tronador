@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0;
+         padding: 14px; color: #18181b; background: #fff; }
+  @media (prefers-color-scheme: dark) { body { color: #f4f4f5; background: #09090b; } }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  .muted { color: #71717a; font-size: 12px; }
+  #run { width: 100%; margin: 12px 0; padding: 9px; border: 0; border-radius: 6px;
+         background: #4f5bd5; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  #run:disabled { opacity: .6; cursor: default; }
+  .box { border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px; margin-top: 10px; }
+  @media (prefers-color-scheme: dark) { .box { border-color: #27272a; } }
+  .num { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; }
+  .warn { color: #d97706; }
+  a { color: #4f5bd5; }
+</style>
+</head>
+<body>
+  <h1>Tronador Monitor</h1>
+  <div class="muted" id="proyecto">Configurá URL y token en <a href="#" id="opts">Opciones</a>.</div>
+  <button id="run">Correr colecta ahora</button>
+  <div class="box">
+    <div class="muted">Estado</div>
+    <div id="estado">en reposo</div>
+    <div class="num" id="inserted">0</div>
+    <div class="muted">menciones nuevas en esta corrida</div>
+  </div>
+  <p class="muted" id="hint">El plugin navega las cuentas del plan del tablero con pausas largas entre cada una: una corrida puede tardar varios minutos. No cierres el navegador.</p>
+  <script src="panel.js"></script>
+</body>
+</html>

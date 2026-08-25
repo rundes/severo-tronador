@@ -172,3 +172,52 @@ export async function generarInformeAhora(): Promise<void> {
   revalidatePath("/escucha");
   redirect("/escucha?tab=informe&generado=1");
 }
+
+// Guarda el escenario de monitoreo electoral (cuentas, búsquedas simétricas,
+// calendario, memoria de errores, entidades). Editor por líneas → estructura.
+export async function guardarMonitor(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const { getMonitorConfig, saveMonitorConfig } = await import("@/lib/monitor-config");
+  const prev = await getMonitorConfig(projectId);
+
+  const lines = (name: string) =>
+    String(formData.get(name) ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+  const PLAT = new Set(["instagram", "x", "facebook", "tiktok"]);
+  const CAT = new Set(["organizacion", "medio", "individual", "institucional", "opera"]);
+  const accounts = lines("accounts").flatMap((l) => {
+    const [handle, platform, category, ...rest] = l.split(",").map((s) => s.trim());
+    if (!handle || !PLAT.has(platform) || !CAT.has(category)) return [];
+    return [{
+      handle: handle.replace(/^@/, ""),
+      platform: platform as "instagram" | "x" | "facebook" | "tiktok",
+      category: category as "organizacion" | "medio" | "individual" | "institucional" | "opera",
+      vinculo: rest.join(",").trim() || undefined,
+    }];
+  });
+  const calendar = lines("calendar").flatMap((l) => {
+    const [label, date] = l.split(",").map((s) => s.trim());
+    if (!label || !date || Number.isNaN(+new Date(date))) return [];
+    return [{ label, date }];
+  });
+  const entidades: Record<string, string> = {};
+  for (const l of lines("entidades")) {
+    const i = l.indexOf(":");
+    if (i > 0) entidades[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+  }
+
+  await saveMonitorConfig(projectId, {
+    ...prev,
+    accounts,
+    searchesA: lines("searchesA"),
+    searchesB: lines("searchesB"),
+    calendar,
+    noRepetir: lines("noRepetir"),
+    entidades,
+  });
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe&monitor=1");
+}
