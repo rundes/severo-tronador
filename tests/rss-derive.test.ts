@@ -113,4 +113,16 @@ describe("googleNewsFeeds", () => {
   it("sin zona ni keywords no genera feeds", () => {
     expect(googleNewsFeeds({ keywords: [] })).toHaveLength(0);
   });
+  it("zona con coma: ancla por la localidad, no por la frase entera", () => {
+    // "Ibicuy, Entre Ríos" como frase exacta devolvía 0 resultados en Google
+    // News (2026-08-25); "Ibicuy" solo devolvía 34 en 7 días.
+    const feeds = googleNewsFeeds({ keywords: ["Inundaciones"], zona: "Ibicuy, Entre Ríos", pais: "AR" });
+    const q = feeds.map((f) => decodeURIComponent(f));
+    expect(q[0]).toContain("q=Ibicuy when:");
+    expect(q[0]).not.toContain("Entre Ríos");
+    expect(q[1]).toContain("q=Ibicuy Inundaciones when:");
+    // una localidad de varias palabras sigue entre comillas
+    const multi = googleNewsFeeds({ keywords: [], zona: "Villa Paranacito, Entre Ríos", pais: "AR" });
+    expect(decodeURIComponent(multi[0])).toContain('q="Villa Paranacito" when:');
+  });
 });

@@ -146,18 +146,23 @@ function matches(item: ListenItem, q: ListenQuery): boolean {
 // zona sola y uno por cada keyword acotada a la zona (máx 6 feeds). Formato:
 // https://news.google.com/rss/search?q=...&hl=es-419&gl=AR&ceid=AR:es-419
 export function googleNewsFeeds(q: ListenQuery): string[] {
-  const zona = q.zona?.trim();
+  // La zona de config suele ser "Localidad, Provincia". Como frase exacta
+  // ("Ibicuy, Entre Ríos") Google News devolvía 0 resultados; la localidad
+  // sola ("Ibicuy") devolvía 34 en 7 días (2026-08-25). Se ancla por la
+  // localidad, entre comillas solo si tiene más de una palabra.
+  const localidad = (q.zona ?? "").split(",")[0].trim();
+  const ancla = localidad ? (/\s/.test(localidad) ? `"${localidad}"` : localidad) : "";
   const keywords = q.keywords.map((k) => k.trim()).filter(Boolean);
   const queries: string[] = [];
-  if (zona) queries.push(`"${zona}"`);
+  if (ancla) queries.push(ancla);
   for (const k of keywords.slice(0, 5)) {
-    queries.push(zona ? `"${zona}" ${k}` : k);
+    queries.push(ancla ? `${ancla} ${k}` : k);
   }
   const gl = (q.pais ?? "AR").toUpperCase();
   return queries.map(
     (s) =>
       `https://news.google.com/rss/search?q=${encodeURIComponent(
-        `${s} when:2d`,
+        `${s} when:3d`,
       )}&hl=es-419&gl=${gl}&ceid=${gl}:es-419`,
   );
 }
