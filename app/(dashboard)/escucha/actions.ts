@@ -283,7 +283,12 @@ export async function resolverActorSugerido(input: { id: string; accepted: boole
   const { id: projectId } = await requireMember("editor");
   const brief = await getClientBrief(projectId);
   const s = brief.suggestions.find((x) => x.id === input.id);
-  if (!s) return;
+  if (!s) {
+    // Sugerencia ya resuelta o inexistente (doble click / pestaña vieja):
+    // refrescar para que la UI deje de mostrarla.
+    revalidatePath("/escucha");
+    return;
+  }
   if (input.accepted) {
     const { getMonitorConfig, saveMonitorConfig } = await import("@/lib/monitor-config");
     const monitor = await getMonitorConfig(projectId);

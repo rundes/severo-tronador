@@ -6,6 +6,9 @@ import { ExtensionTokenButton } from "@/components/escucha/extension-token-butto
 import type { DailyReport } from "@/lib/daily-report";
 import type { MonitorConfig } from "@/lib/monitor-config";
 import { MonitorEditor } from "@/components/escucha/monitor-editor";
+import { BriefPanel } from "@/components/escucha/brief-panel";
+import { ActorSuggestions } from "@/components/escucha/actor-suggestions";
+import type { ClientBrief } from "@/lib/client-brief";
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -22,15 +25,23 @@ export function InformePanel({
   generado,
   monitor,
   monitorSaved,
+  brief,
+  canGenerate,
+  briefFlags,
 }: {
   latest: DailyReport | null;
   history: DailyReport[];
   generado: boolean;
   monitor: MonitorConfig;
   monitorSaved: boolean;
+  brief: ClientBrief;
+  canGenerate: boolean;
+  briefFlags: { saved: boolean; generated: boolean; iaError?: string; briefError?: string };
 }) {
   return (
     <div className="space-y-6">
+      <BriefPanel brief={brief} canGenerate={canGenerate} flags={briefFlags} />
+      <ActorSuggestions suggestions={brief.suggestions} />
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
         <div className="text-sm text-zinc-700 dark:text-zinc-200">
           {latest ? (
@@ -88,7 +99,7 @@ export function InformePanel({
         </section>
       )}
 
-      <MonitorEditor cfg={monitor} saved={monitorSaved} />
+      <MonitorEditor cfg={monitor} saved={monitorSaved} proposal={brief.proposal} />
 
       <section className="space-y-2 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">

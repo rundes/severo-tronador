@@ -22,6 +22,8 @@ import { RadioAgenda } from "@/components/escucha/radio-agenda";
 import { listRecentRuns, agendaUpcoming } from "@/lib/radio-runs";
 import { Monitor } from "@/components/escucha/monitor";
 import type { SourceStatus } from "@/components/escucha/config-form";
+import { getClientBrief } from "@/lib/client-brief";
+import { getConnectorConfig } from "@/lib/connectors/config";
 
 // Página autenticada con fetch vivo de fuentes externas (tab monitor): el
 // prerender de build pagaba todas esas llamadas (y con el enriquecimiento de
@@ -30,6 +32,12 @@ import type { SourceStatus } from "@/components/escucha/config-form";
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Escucha · Tronador" };
+
+// Keywords de la propuesta de IA pendiente (brief del cliente), si la hay.
+async function proposedKeywordsFor(projectId: string): Promise<string[] | undefined> {
+  const { proposal } = await getClientBrief(projectId);
+  return proposal && !proposal.appliedKeywordsAt ? proposal.keywords : undefined;
+}
 
 function sourceStatuses(rssCount = 0): SourceStatus[] {
   const xToken = Boolean(process.env.X_API_BEARER_TOKEN);
@@ -127,7 +135,20 @@ export default async function EscuchaPage({
       {tab === "monitor" && result ? (
         <Monitor result={result} marcas={marcas} descartados={descartados} persistOk={persistOk} />
       ) : tab === "informe" ? (
-        <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} monitor={await getMonitorConfig(projectId)} monitorSaved={params.monitor === "1"} />
+        <InformePanel
+          {...await readDailyReports(projectId)}
+          generado={params.generado === "1"}
+          monitor={await getMonitorConfig(projectId)}
+          monitorSaved={params.monitor === "1"}
+          brief={await getClientBrief(projectId)}
+          canGenerate={Boolean((await getConnectorConfig("claude-api", projectId)).ANTHROPIC_API_KEY)}
+          briefFlags={{
+            saved: params.brief === "1",
+            generated: params.ia === "1",
+            iaError: params.ia_error,
+            briefError: params.brief_error,
+          }}
+        />
       ) : (
         <div className="space-y-6">
           <ConfigForm
@@ -139,6 +160,7 @@ export default async function EscuchaPage({
             summary={summary}
             counts={counts}
             now={renderNow()}
+            proposedKeywords={await proposedKeywordsFor(projectId)}
           />
           <RadioAgenda
             upcoming={agendaUpcoming(cfg.radioStreams)}
