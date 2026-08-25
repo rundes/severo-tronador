@@ -88,13 +88,16 @@ export async function saveMonitorConfig(
   cfg: MonitorConfig,
 ): Promise<void> {
   if (!dbConfigured()) throw new Error("Supabase no configurado");
+  // La unique de conector_config es (connector_id, project_id) NULLS NOT
+  // DISTINCT (migración 0053): onConflict "connector_id" solo da 42P10.
   const { error } = await getSupabase().from("conector_config").upsert(
     {
       connector_id: key(projectId),
+      project_id: null,
       config: cfg,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "connector_id" },
+    { onConflict: "connector_id,project_id" },
   );
   if (error) {
     log.warn("monitor_config.save_failed", { error: error.message });

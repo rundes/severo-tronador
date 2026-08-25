@@ -54,10 +54,11 @@ async function saveReport(projectId: string, report: DailyReport): Promise<void>
   const { error } = await getSupabase().from("conector_config").upsert(
     {
       connector_id: key(projectId),
+      project_id: null,
       config: { latest: report, history },
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "connector_id" },
+    { onConflict: "connector_id,project_id" },
   );
   if (error) log.warn("daily_report.save_failed", { error: error.message });
 }
