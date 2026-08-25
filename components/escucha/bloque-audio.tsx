@@ -15,7 +15,6 @@ import { hasValidSlot } from "@/lib/audio-programs";
 export function BloqueAudio({
   cfg,
   proposal,
-  sources,
   counts,
   now,
   upcoming,
@@ -35,8 +34,6 @@ export function BloqueAudio({
 }) {
   const p = proposal && !proposal.applied.audio && proposal.audio.length > 0 ? proposal : undefined;
   const sinFranja = cfg.radioStreams.filter((x) => !hasValidSlot(x)).length;
-  // Hoy no hay toggle "radio" en sourceStatuses; si aparece, se renderiza.
-  const radioToggle = sources.find((s) => s.id === "radio");
   return (
     <Bloque
       id="audio"
@@ -52,19 +49,6 @@ export function BloqueAudio({
       </p>
       <form key={p?.at ?? "vigente"} action={guardarAudio} className="space-y-5">
         <RadioConfig initial={cfg.radioStreams} proposed={p?.audio} />
-        {radioToggle && (
-          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-            <input
-              type="checkbox"
-              name="fuentesAudio"
-              value="radio"
-              defaultChecked={cfg.fuentes.length === 0 || cfg.fuentes.includes("radio")}
-              className="h-3.5 w-3.5"
-            />
-            Grabar y transcribir{" "}
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500">{radioToggle.reason}</span>
-          </label>
-        )}
         <ul className="divide-y divide-zinc-100 rounded-md border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           <AutoRow label="Menciones transcriptas" detail="radio + streaming" stat={counts.byConnector["radio"]} now={now} />
         </ul>

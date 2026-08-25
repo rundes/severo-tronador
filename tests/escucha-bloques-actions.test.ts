@@ -14,25 +14,31 @@ vi.mock("@/lib/listening-cache", () => ({ pullAllSources: vi.fn(async () => ({ t
 vi.mock("@/lib/x-timeline", () => ({ enqueueXHandles: vi.fn() }));
 
 const NOW = "2026-08-25T00:00:00.000Z";
-let cfg: Record<string, unknown> = {
+
+const initialCfg: Record<string, unknown> = {
   zona: "Ibicuy", pais: "AR", radioKm: null, lat: null, lng: null, keywords: ["viejo"], fuentes: [], rssFeeds: ["https://m.ar"], xHandles: [], radioStreams: [],
 };
+let cfg: Record<string, unknown> = { ...initialCfg };
 const saveListeningConfig = vi.fn(async (_p: string, c: typeof cfg) => { cfg = c; });
 vi.mock("@/lib/listening-config", () => ({
   getListeningConfig: async () => cfg,
   saveListeningConfig: (p: string, c: typeof cfg) => saveListeningConfig(p, c),
 }));
-let monitor: Record<string, unknown> = { accounts: [], searchesA: [], searchesB: [], calendar: [], noRepetir: ["n"], budget: {}, entidades: {} };
+
+const initialMonitor: Record<string, unknown> = { accounts: [], searchesA: [], searchesB: [], calendar: [], noRepetir: ["n"], budget: {}, entidades: {} };
+let monitor: Record<string, unknown> = { ...initialMonitor };
 const saveMonitorConfig = vi.fn(async (_p: string, m: typeof monitor) => { monitor = m; });
 vi.mock("@/lib/monitor-config", async (orig) => ({
   ...(await orig<typeof import("@/lib/monitor-config")>()),
   getMonitorConfig: async () => monitor,
   saveMonitorConfig: (p: string, m: typeof monitor) => saveMonitorConfig(p, m),
 }));
-let brief: Record<string, unknown> = {
+
+const initialBrief: Record<string, unknown> = {
   entries: [], suggestions: [],
   proposal: { at: NOW, briefHash: "h", tipo: "territorial", resumen: "", keywords: [], searchesA: [], searchesB: [], accounts: [], entidades: {}, calendar: [], audio: [], applied: {} },
 };
+let brief: Record<string, unknown> = { ...initialBrief };
 const saveClientBrief = vi.fn(async (_p: string, b: typeof brief) => { brief = b; });
 vi.mock("@/lib/client-brief", async (orig) => ({
   ...(await orig<typeof import("@/lib/client-brief")>()),
@@ -40,7 +46,7 @@ vi.mock("@/lib/client-brief", async (orig) => ({
   saveClientBrief: (p: string, b: typeof brief) => saveClientBrief(p, b),
 }));
 
-import { guardarTerritorio, guardarPrensa, guardarAudio, guardarReglas } from "@/app/(dashboard)/escucha/actions";
+import { guardarTerritorio, guardarPrensa, guardarRedes, guardarAudio, guardarReglas } from "@/app/(dashboard)/escucha/actions";
 
 const fd = (o: Record<string, string | string[]>) => {
   const f = new FormData();
@@ -50,7 +56,14 @@ const fd = (o: Record<string, string | string[]>) => {
 const run = (p: Promise<unknown>) => p.catch((e: Error) => e.message);
 
 describe("acciones por bloque", () => {
-  beforeEach(() => { redirect.mockClear(); saveListeningConfig.mockClear(); saveClientBrief.mockClear(); });
+  beforeEach(() => {
+    redirect.mockClear();
+    saveListeningConfig.mockClear();
+    saveClientBrief.mockClear();
+    cfg = { ...initialCfg };
+    monitor = { ...initialMonitor };
+    brief = { ...initialBrief };
+  });
 
   it("guardarTerritorio pisa solo zona/pais/keywords y marca applied.territorio", async () => {
     const r = await run(guardarTerritorio(fd({ zona: "Ibicuy, ER", pais: "ar", keywords: "a\nb", radioKm: "", lat: "", lng: "" })));
@@ -68,15 +81,42 @@ describe("acciones por bloque", () => {
     expect(cfg.fuentes).toEqual(["x-api", "gdelt"]);
   });
 
-  it("guardarAudio rechaza franja inválida sin persistir; acepta franja vacía", async () => {
+  it("mergeFuentes: con fuentes vacío y todo marcado no materializa la lista", async () => {
+    cfg = { ...initialCfg, fuentes: [] };
+    await run(guardarPrensa(fd({ rssFeeds: "https://m.ar", fuentesPrensa: ["gdelt", "rss-medios", "meta-content-library"] })));
+    expect(cfg.fuentes).toEqual([]);
+  });
+
+  it("mergeFuentes: desmarcar uno desde vacío materializa el resto", async () => {
+    cfg = { ...initialCfg, fuentes: [] };
+    await run(guardarPrensa(fd({ rssFeeds: "https://m.ar", fuentesPrensa: ["rss-medios", "meta-content-library"] })));
+    expect((cfg.fuentes as string[]).sort()).toEqual(["meta-content-library", "rss-medios", "x-api"].sort());
+  });
+
+  it("guardarRedes: feeds sociales + cuentas del plan, conserva medios, encola X y marca applied.redes", async () => {
+    cfg = { ...initialCfg, rssFeeds: ["https://m.ar", "https://www.facebook.com/vieja"] };
+    const r = await run(guardarRedes(fd({ fbUrls: "https://www.facebook.com/muni", tgChannels: "@canal", xHandles: "@uno\n@dos", fuentesRedes: ["x-api"], accounts: "muni, facebook, institucional", searchesA: "a", searchesB: "b" })));
+    expect(r).toBe("REDIRECT /escucha?tab=escenario&ok=redes");
+    expect(cfg.rssFeeds).toContain("https://m.ar");
+    expect(cfg.rssFeeds).toContain("https://www.facebook.com/muni");
+    expect(cfg.rssFeeds).toContain("https://t.me/canal"); // normalizeTgChannel("@canal")
+    expect(cfg.rssFeeds).not.toContain("https://www.facebook.com/vieja");
+    expect(cfg.xHandles).toEqual(["uno", "dos"]);
+    expect(monitor.accounts).toEqual([{ handle: "muni", platform: "facebook", category: "institucional", vinculo: undefined }]);
+    expect(monitor.searchesA).toEqual(["a"]);
+    expect((brief.proposal as { applied: Record<string, string> }).applied.redes).toBeTruthy();
+  });
+
+  it("guardarAudio rechaza franja inválida sin persistir; acepta franja vacía y no toca fuentes", async () => {
     const bad = JSON.stringify([{ kind: "radio", url: "https://s/x", station: "R", programa: "P", days: [1], start: "10:00", end: "08:00" }]);
-    const r1 = await run(guardarAudio(fd({ audioPrograms: bad, fuentesAudio: ["radio"] })));
+    const r1 = await run(guardarAudio(fd({ audioPrograms: bad })));
     expect(r1).toMatch(/error=audio:/);
     expect(saveListeningConfig).not.toHaveBeenCalled();
     const ok = JSON.stringify([{ kind: "kick", url: "https://kick.com/canal", station: "K", programa: "Vivo", days: [], start: "", end: "" }]);
-    const r2 = await run(guardarAudio(fd({ audioPrograms: ok, fuentesAudio: ["radio"] })));
+    const r2 = await run(guardarAudio(fd({ audioPrograms: ok })));
     expect(r2).toBe("REDIRECT /escucha?tab=escenario&ok=audio");
     expect((cfg.radioStreams as { kind: string }[])[0].kind).toBe("kick");
+    expect(cfg.fuentes).toEqual(initialCfg.fuentes);
     expect((brief.proposal as { applied: Record<string, string> }).applied.audio).toBeTruthy();
   });
 

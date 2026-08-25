@@ -70,19 +70,22 @@ function errRedirect(block: string, motivo: string): never {
 }
 
 // Conectores togglables que gobierna cada bloque (ids de sourceStatuses en
-// app/(dashboard)/escucha/page.tsx). Los que no aparecen acá (por ahora
-// ninguno) quedan intactos en cfg.fuentes sea cual sea su bloque.
+// app/(dashboard)/escucha/page.tsx). No existe un conector "radio": la
+// ingesta de audio corre por fuera del pull togglable (ver cacheConnectorFilter
+// en lib/listening.ts), así que Audio y video no gobierna ningún id.
 const PRENSA_IDS = ["gdelt", "rss-medios", "meta-content-library"] as const;
 const REDES_IDS = ["x-api"] as const;
-const AUDIO_IDS = ["radio"] as const;
-const ALL_SOURCE_IDS: string[] = [...PRENSA_IDS, ...REDES_IDS, ...AUDIO_IDS];
+const ALL_SOURCE_IDS: string[] = [...PRENSA_IDS, ...REDES_IDS];
 
 // Pisa en cfg.fuentes solo los ids del bloque: quita los que gobierna y suma
-// los marcados. `fuentes` vacío significa "todas": si el usuario desmarca
-// todo un bloque partiendo de vacío, materializamos la lista completa.
+// los marcados.
 function mergeFuentes(current: string[], owned: readonly string[], checked: string[], allIds: string[]): string[] {
+  const checkedOwned = checked.filter((id) => owned.includes(id));
+  // fuentes vacío = "todas". Si el bloque sigue con todo marcado, no se
+  // materializa la lista: un conector nuevo seguiría entrando por defecto.
+  if (current.length === 0 && checkedOwned.length === owned.length) return current;
   const base = current.length === 0 ? allIds : current;
-  return [...base.filter((id) => !owned.includes(id)), ...checked.filter((id) => owned.includes(id))];
+  return [...base.filter((id) => !owned.includes(id)), ...checkedOwned];
 }
 
 export async function guardarTerritorio(formData: FormData) {
@@ -170,6 +173,16 @@ export async function guardarRedes(formData: FormData) {
   });
   await saveMonitorConfig(projectId, { ...prev, accounts, searchesA: lines(formData, "searchesA"), searchesB: lines(formData, "searchesB") });
   await applyBlock(projectId, "redes");
+  // Carga inicial: como Territorio y Prensa (Telegram entra por el conector
+  // RSS de rssFeeds, no necesita su propio disparador).
+  after(async () => {
+    try {
+      const summary = await pullAllSources(projectId);
+      await savePullSummary(projectId, summary);
+    } catch (e) {
+      log.warn("listening.initial_pull.failed", { projectId, error: (e as Error).message });
+    }
+  });
   okRedirect("redes");
 }
 
@@ -194,8 +207,7 @@ export async function guardarAudio(formData: FormData) {
     if (!empty && !hasValidSlot(p)) errRedirect("audio", `programa ${i + 1}: franja inválida (inicio < fin, HH:MM)`);
     programs.push(p);
   }
-  const fuentes = mergeFuentes(cur.fuentes, AUDIO_IDS, formData.getAll("fuentesAudio").map(String), ALL_SOURCE_IDS);
-  await saveListeningConfig(projectId, { ...cur, radioStreams: programs, fuentes });
+  await saveListeningConfig(projectId, { ...cur, radioStreams: programs });
   await applyBlock(projectId, "audio");
   okRedirect("audio");
 }
