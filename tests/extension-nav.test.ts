@@ -49,3 +49,57 @@ describe("nav · candidatos", () => {
     expect(m[0].followers).toBe(5);
   });
 });
+
+describe("nav · robustez (handles válidos, topsearch null-safe, encode)", () => {
+  it("candidatesFromIgSearch tolera json nulo o malformado", () => {
+    for (const bad of [null, undefined, {}, { users: {} }, { users: [null] }, { users: [{ user: null }, { user: { username: 42 } }] }]) {
+      expect(candidatesFromIgSearch(bad, "q")).toEqual([]);
+    }
+  });
+  it("candidatesFromIgSearch tolera full_name/follower_count con tipos raros", () => {
+    const c = candidatesFromIgSearch({ users: [{ username: "Ok_User", full_name: 7, follower_count: "1200" }] }, "q");
+    expect(c).toEqual([{ platform: "instagram", handle: "ok_user", displayName: undefined, followers: undefined, sample: [], query: "q" }]);
+  });
+  it("descarta handles inválidos (espacios, largo >80, vacío) y slugs no-handle", () => {
+    const mk = (author: string, site = "facebook") => ({ site, author, url: "https://www.facebook.com/x/posts/1", text: "t", publishedAt: "2026-08-25" });
+    const items = [
+      mk("Juan Pérez"),
+      mk("a".repeat(81)),
+      mk(""),
+      mk("@"),
+      mk("profile.php"),
+      mk("people"),
+      mk("reel"),
+      mk("permalink.php"),
+      mk("somosferro"),
+      mk("ok.handle-1"),
+    ];
+    expect(candidatesFromItems(items, "q").map((c) => c.handle)).toEqual(["somosferro", "ok.handle-1"]);
+    expect(candidatesFromIgSearch({ users: [{ username: "Nombre Con Espacios" }, { username: "explore" }, { username: "bien" }] }, "q").map((c: { handle: string }) => c.handle)).toEqual(["bien"]);
+  });
+  it("recorta text a 500 y descarta muestras con url inválida o >600", () => {
+    const long = "x".repeat(900);
+    const items = [
+      { site: "x", author: "a", url: "https://x.com/a/status/1", text: long, publishedAt: "2026-08-25" },
+      { site: "x", author: "a", url: "https://x.com/a/" + "z".repeat(600), text: "t", publishedAt: "2026-08-25" },
+      { site: "x", author: "a", url: "javascript:alert(1)", text: "t", publishedAt: "2026-08-25" },
+      { site: "x", author: "a", url: "", text: "t", publishedAt: "2026-08-25" },
+      { site: "x", author: "b", url: "not a url", text: "t", publishedAt: "2026-08-25" },
+    ];
+    const c = candidatesFromItems(items, "q");
+    expect(c.map((x) => [x.handle, x.sample.length])).toEqual([["a", 1]]);
+    expect(c[0].sample[0].text).toHaveLength(500);
+  });
+  it("mergeCandidates limita a 3 muestras entre listas", () => {
+    const m = mergeCandidates([
+      [{ platform: "x", handle: "a", sample: [{ url: "u1", text: "1" }, { url: "u2", text: "2" }] }],
+      [{ platform: "x", handle: "a", sample: [{ url: "u3", text: "3" }, { url: "u4", text: "4" }] }],
+    ]);
+    expect(m).toHaveLength(1);
+    expect(m[0].sample).toHaveLength(3);
+  });
+  it("profileUrl codifica el handle", () => {
+    expect(profileUrl("x", "a b/c?d")).toBe("https://x.com/a%20b%2Fc%3Fd");
+    expect(profileUrl("instagram", "@ok")).toBe("https://www.instagram.com/ok/");
+  });
+});
