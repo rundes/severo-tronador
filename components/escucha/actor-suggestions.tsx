@@ -6,6 +6,9 @@ import { useState, useTransition } from "react";
 import { resolverActorSugerido } from "@/app/(dashboard)/escucha/actions";
 import type { ActorSuggestion } from "@/lib/client-brief";
 
+const formatFollowers = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
+
 export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion[] }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +43,7 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
               <th scope="col" className="py-1 pr-3">Categoría</th>
               <th scope="col" className="py-1 pr-3">Dir.</th>
               <th scope="col" className="py-1 pr-3">Razón</th>
-              <th scope="col" className="py-1 pr-3">Barrida</th>
+              <th scope="col" className="py-1 pr-3">Origen · fecha</th>
               <th scope="col" className="py-1">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -49,7 +52,13 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {list.map((s) => (
               <tr key={s.id}>
-                <td className="py-1.5 pr-3 font-mono">@{s.handle}</td>
+                <td className="py-1.5 pr-3">
+                  <span className="font-mono">@{s.handle}</span>
+                  {s.displayName && <div className="text-zinc-500">{s.displayName}</div>}
+                  {s.followers != null && (
+                    <div className="tabular-nums text-zinc-500">{formatFollowers(s.followers)} seg.</div>
+                  )}
+                </td>
                 <td className="py-1.5 pr-3">{s.platform}</td>
                 <td className="py-1.5 pr-3">{s.category}</td>
                 <td className="py-1.5 pr-3">{s.direccion}</td>
@@ -70,7 +79,11 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
                     </>
                   )}
                 </td>
-                <td className="py-1.5 pr-3 font-mono tabular-nums text-zinc-500">{s.suggestedAt.slice(0, 10)}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap text-zinc-500">
+                  {s.origen === "barrido" ? "barrido" : "informe"}
+                  {" · "}
+                  <span className="font-mono tabular-nums">{s.suggestedAt.slice(0, 10)}</span>
+                </td>
                 <td className="py-1.5 whitespace-nowrap">
                   <button
                     type="button"
