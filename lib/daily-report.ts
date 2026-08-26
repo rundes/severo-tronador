@@ -14,7 +14,7 @@ import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
 import { getProject, listMembers } from "@/lib/projects";
 import { getMonitorConfig, type CalendarEvent } from "@/lib/monitor-config";
-import { accountMetrics } from "@/lib/monitor-metrics";
+import { accountMetrics, type AccountMetrics } from "@/lib/monitor-metrics";
 import { log } from "@/lib/logger";
 import { z } from "zod";
 import { getClientBrief, briefText, mergeSuggestions, mergeBriefUpdates, saveClientBrief } from "@/lib/client-brief";
@@ -356,6 +356,38 @@ function fmtItems(items: { source: string; text: string; publishedAt?: string; a
     .join("\n");
 }
 
+// Cuentas con muestra de comentarios que entran al prompt (spec §12).
+const MAX_COMMENT_ACCOUNTS = 6;
+
+// Una línea por cuenta para el prompt. Densidad en porcentaje: "dens:50%".
+export function metricsLine(m: AccountMetrics): string {
+  const dens = m.densidad !== null ? `${Math.round(m.densidad * 100)}%` : "s/d";
+  const pieza = m.ultimaPieza
+    ? ` última pieza: "${m.ultimaPieza.text.slice(0, 60)}" (${m.ultimaPieza.likeCount ?? "s/d"} likes)`
+    : "";
+  return (
+    `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers}` +
+    ` amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"}` +
+    ` com:${m.comentarios} dens:${dens} piezas:${m.piezas} hist:${m.historiasVivas}` +
+    ` última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}${pieza}`
+  );
+}
+
+// Material para "06 Tono y densidad": comentarios reales, autor anonimizado.
+export function commentsSection(metrics: AccountMetrics[]): string {
+  const conComentarios = metrics
+    .filter((m) => m.muestraComentarios.length > 0)
+    .sort((a, b) => b.comentarios - a.comentarios)
+    .slice(0, MAX_COMMENT_ACCOUNTS);
+  if (conComentarios.length === 0) return "(sin comentarios colectados)";
+  return conComentarios
+    .map((m) =>
+      `### @${m.handle.replace(/^@/, "")} (${m.comentarios} comentarios, ${m.comentaristas} comentaristas)\n` +
+      m.muestraComentarios.map((c) => `- [${c.autor}] ${c.text}`).join("\n"),
+    )
+    .join("\n\n");
+}
+
 // Barrido con la config vigente + informe. runPull=false para regenerar el
 // informe sin re-fetchear fuentes.
 export async function generateDailyReport(
@@ -445,8 +477,11 @@ ${hitos.length ? hitos.map((h) => `- faltan ${h.days} días para ${h.label} (${h
 ## Cuentas monitoreadas por categoría (no se comparan entre categorías)
 ${monitor.accounts.length ? monitor.accounts.map((a) => `- [${a.category}] @${a.handle.replace(/^@/, "")} (${a.platform})${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}${a.nota ? ` · ${a.nota}` : ""}`).join("\n") : "(sin cuentas cargadas)"}
 
-## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, densidad=comentaristas recurrentes)
-${metrics.length ? metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} hist:${m.historiasVivas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}${m.ultimaPieza ? ` última pieza: "${m.ultimaPieza.text.slice(0, 60)}" (${m.ultimaPieza.likeCount ?? "s/d"} likes)` : ""}`).join("\n") : "(sin métricas)"}
+## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, com=comentarios colectados, densidad=% de comentaristas que reaparecen en otra pieza)
+${metrics.length ? metrics.map(metricsLine).join("\n") : "(sin métricas)"}
+
+## Comentarios recientes por cuenta (muestra, autores anonimizados c1..cN)
+${commentsSection(metrics)}
 
 ## Menciones de las últimas 24 horas (${items24.length})
 ${fmtItems(items24, 120) || "(sin menciones nuevas)"}
