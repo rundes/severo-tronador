@@ -7,9 +7,11 @@ import {
   quitarAporteBrief,
   generarEscenarioIA,
   descartarPropuesta,
+  resolverBriefUpdate,
 } from "@/app/(dashboard)/escucha/actions";
+import { BriefMaster } from "@/components/escucha/brief-master";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { appliedCount, briefHash, isProposalPending, type ClientBrief, type ProposalBlock } from "@/lib/client-brief";
+import { appliedCount, briefHash, isProposalPending, MASTER_MAX_CHARS, type ClientBrief, type ProposalBlock } from "@/lib/client-brief";
 
 const BLOCK_LABEL: Record<ProposalBlock, string> = {
   territorio: "Territorio",
@@ -33,22 +35,79 @@ export function BriefPanel({
   brief: ClientBrief;
   // false si falta la API key de Claude
   canGenerate: boolean;
-  flags: { saved: boolean; generated: boolean; iaError?: string; briefError?: string };
+  flags: { saved: boolean; generated: boolean; maestroSaved: boolean; iaError?: string; briefError?: string };
 }) {
   const p = brief.proposal;
   const pendiente = isProposalPending(p);
   const briefCambio = p && p.briefHash !== briefHash(brief);
   const parcial = p && appliedCount(p).done > 0;
   const { faltan } = p ? appliedCount(p) : { faltan: [] };
+  const pendientes = (brief.pendingUpdates ?? []).filter((u) => u.status === "pending");
+  const sinContexto = brief.entries.length === 0 && !brief.master?.text;
 
   return (
     <section className="space-y-4 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
       <div>
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Contexto del cliente</h2>
         <p className="max-w-[70ch] text-xs text-zinc-500">
-          Contá quién es el cliente, qué se juega, actores, territorio y fechas. Cada aporte se suma
-          al anterior; la IA arma el escenario de monitoreo a partir de todo el brief.
+          El brief maestro es el documento que manda: mapa de actores, métricas ya medidas,
+          hallazgos establecidos, errores a no repetir y reglas editoriales. Los aportes de abajo
+          son notas incrementales entre versiones del maestro. La IA arma el escenario con todo.
         </p>
+      </div>
+
+      <div className="space-y-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+        <BriefMaster
+          initial={brief.master?.text ?? ""}
+          max={MASTER_MAX_CHARS}
+          updatedAt={brief.master?.updatedAt}
+          by={brief.master?.by}
+        />
+        <FormStatus
+          ok={flags.maestroSaved ? "Brief maestro guardado." : null}
+          error={flags.briefError === "too_long" ? `El brief maestro supera los ${MASTER_MAX_CHARS.toLocaleString("es-AR")} caracteres: no se guardó.` : null}
+        />
+
+        {pendientes.length > 0 && (
+          <div className="space-y-1 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            <h3 className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-100">
+              Propuestas de actualización ({pendientes.length})
+            </h3>
+            <p className="max-w-[70ch] text-xs text-zinc-500">
+              Hechos nuevos que el último informe propone incorporar al maestro. Aceptar los suma
+              como aporte fechado; el maestro nunca se edita solo.
+            </p>
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {pendientes.map((u) => (
+                <li key={u.id} className="flex flex-wrap items-start gap-2 py-2 text-[13px]">
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">
+                    {fecha(u.reportAt)} · §{u.seccion}
+                  </span>
+                  <span className="flex-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{u.texto}</span>
+                  <form action={resolverBriefUpdate} className="flex shrink-0 items-center gap-2">
+                    <input type="hidden" name="id" value={u.id} />
+                    <button
+                      type="submit"
+                      name="accion"
+                      value="aceptar"
+                      className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      type="submit"
+                      name="accion"
+                      value="descartar"
+                      className="text-[11px] text-zinc-500 hover:text-red-600 dark:text-zinc-400"
+                    >
+                      Descartar
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {brief.entries.length > 0 ? (
@@ -89,7 +148,7 @@ export function BriefPanel({
         </label>
         <div className="flex flex-wrap items-center gap-2">
           <SubmitButton variant="secondary" pendingLabel="Guardando…">Agregar aporte</SubmitButton>
-          <FormStatus ok={flags.saved ? "Aporte guardado." : null} error={flags.briefError ? "El aporte está vacío." : null} />
+          <FormStatus ok={flags.saved ? "Aporte guardado." : null} error={flags.briefError === "vacio" ? "El aporte está vacío." : null} />
         </div>
       </form>
 
@@ -97,7 +156,7 @@ export function BriefPanel({
         <form action={generarEscenarioIA}>
           <SubmitButton
             variant="accent"
-            disabled={!canGenerate || brief.entries.length === 0}
+            disabled={!canGenerate || sinContexto}
             pendingLabel="Leyendo el brief y armando el escenario…"
           >
             Generar escenario con IA
@@ -106,8 +165,8 @@ export function BriefPanel({
         {!canGenerate && (
           <span className="text-xs text-zinc-500">Configurá el conector Claude (API key) para generar.</span>
         )}
-        {canGenerate && brief.entries.length === 0 && (
-          <span className="text-xs text-zinc-500">Agregá al menos un aporte.</span>
+        {canGenerate && sinContexto && (
+          <span className="text-xs text-zinc-500">Cargá el brief maestro o agregá al menos un aporte.</span>
         )}
       </div>
       <FormStatus ok={flags.generated ? "Propuesta lista: revisala en los bloques de abajo y guardá cada uno." : null} error={flags.iaError ?? null} />

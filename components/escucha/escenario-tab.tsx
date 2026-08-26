@@ -81,6 +81,7 @@ export function EscenarioTab(props: {
         flags={{
           saved: params.brief === "1",
           generated: params.ia === "1",
+          maestroSaved: params.maestro === "1",
           iaError: params.ia_error,
           briefError: params.brief_error,
         }}

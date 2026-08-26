@@ -18,7 +18,7 @@ import { listMarcas, toggleMarca } from "@/lib/escucha-marcas";
 import { listDescartes, toggleDescarte } from "@/lib/escucha-descartes";
 import { signedReadUrl } from "@/lib/gcs";
 import { projectOwnsAudio } from "@/lib/radio-runs";
-import { addEntry, getClientBrief, markApplied, removeEntry, saveClientBrief, setSuggestionStatus, type ProposalBlock } from "@/lib/client-brief";
+import { addEntry, getClientBrief, markApplied, removeEntry, saveClientBrief, setBriefUpdateStatus, setMaster, setSuggestionStatus, MASTER_MAX_CHARS, type ProposalBlock } from "@/lib/client-brief";
 import { proposeScenario } from "@/lib/scenario-ai";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
@@ -308,6 +308,45 @@ export async function quitarAporteBrief(formData: FormData) {
   await saveClientBrief(projectId, removeEntry(brief, id));
   revalidatePath("/escucha");
   redirect("/escucha?tab=escenario");
+}
+
+// Brief maestro: el documento que manda sobre la config del panel para el
+// contexto del informe. Se pisa entero en cada Guardar (no es append-only
+// como los aportes) y no puede pasar de MASTER_MAX_CHARS.
+export async function guardarBriefMaestro(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const text = String(formData.get("master") ?? "");
+  if (text.length > MASTER_MAX_CHARS) redirect("/escucha?tab=escenario&brief_error=too_long");
+  const brief = await getClientBrief(projectId);
+  await saveClientBrief(projectId, setMaster(brief, { by: await currentUserEmail(), text }));
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=escenario&maestro=1");
+}
+
+// Propuesta de actualización del brief que trajo un informe: aceptar la suma
+// como aporte fechado (el maestro nunca se edita solo, spec §5); descartar la
+// marca y no vuelve.
+export async function resolverBriefUpdate(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const id = String(formData.get("id") ?? "");
+  const accepted = String(formData.get("accion") ?? "") === "aceptar";
+  const brief = await getClientBrief(projectId);
+  const u = (brief.pendingUpdates ?? []).find((x) => x.id === id);
+  if (!u) {
+    // Propuesta ya resuelta o inexistente (doble click / pestaña vieja).
+    revalidatePath("/escucha");
+    redirect("/escucha?tab=escenario");
+  }
+  let next = setBriefUpdateStatus(brief, id, accepted ? "accepted" : "dismissed");
+  if (accepted) {
+    next = addEntry(next, {
+      by: await currentUserEmail(),
+      text: `[informe ${u.reportAt.slice(0, 10)} · §${u.seccion}] ${u.texto}`,
+    });
+  }
+  await saveClientBrief(projectId, next);
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=escenario&maestro=1");
 }
 
 export async function generarEscenarioIA() {
