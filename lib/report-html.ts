@@ -2,7 +2,7 @@
 // Outlook), paleta de DESIGN.md, sin imágenes remotas ni scripts. El PDF
 // adjunto lleva el informe completo; acá va el mismo contenido legible.
 import type { DailyReport } from "@/lib/daily-report";
-import { parseReportMarkdown, renderableSections, inlineToHtml, escapeHtml, type Block } from "@/lib/report-markdown";
+import { parseReportMarkdown, renderableSections, inlineToHtml, escapeHtml, reportTitle, type Block } from "@/lib/report-markdown";
 
 const C = {
   ink: "#18181b", soft: "#3f3f46", muted: "#71717a", border: "#e4e4e7",
@@ -92,7 +92,10 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
   subject: string; html: string; text: string;
 } {
   const { report, project, zona, appUrl } = input;
-  const subject = `Informe de escucha · ${project} · ${fechaCorta(report.at)}`;
+  // El asunto es la tesis del día (el h1 del informe); si el modelo no la
+  // escribió, cae al formato viejo con la fecha.
+  const titulo = reportTitle(report.markdown);
+  const subject = titulo ? `${project} · ${titulo}` : `Informe de escucha · ${project} · ${fechaCorta(report.at)}`;
   const blocks = parseReportMarkdown(report.markdown);
   const sections = renderableSections(blocks);
 
@@ -119,8 +122,8 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
 <table role="presentation" cellpadding="0" cellspacing="0" width="640" style="max-width:640px;width:100%">
 <tr><td style="padding:0 4px 12px">
   <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:${C.muted}">Tronador · Escucha</div>
-  <div style="font-size:22px;font-weight:600;line-height:1.15;color:${C.ink};margin-top:4px">${escapeHtml(project)}</div>
-  <div style="font-size:13px;color:${C.muted};margin-top:2px">${escapeHtml(fechaLarga(report.at))}${zona ? ` · ${escapeHtml(zona)}` : ""}</div>
+  <div style="font-size:22px;font-weight:600;line-height:1.15;color:${C.ink};margin-top:4px">${escapeHtml(titulo || project)}</div>
+  <div style="font-size:13px;color:${C.muted};margin-top:2px">${titulo ? `${escapeHtml(project)} · ` : ""}${escapeHtml(fechaLarga(report.at))}${zona ? ` · ${escapeHtml(zona)}` : ""}</div>
   <div style="margin-top:10px">${chips}</div>
 </td></tr>
 <tr><td style="background:#fff;border:1px solid ${C.border};border-radius:10px;padding:22px 24px">

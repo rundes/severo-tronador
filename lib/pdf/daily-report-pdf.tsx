@@ -2,7 +2,7 @@
 // Helvetica (default de react-pdf): sin descarga de fuentes en Vercel.
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import type { DailyReport } from "@/lib/daily-report";
-import { parseReportMarkdown, renderableSections, inlineToText, type Block, type Inline } from "@/lib/report-markdown";
+import { parseReportMarkdown, renderableSections, inlineToText, reportTitle, type Block, type Inline } from "@/lib/report-markdown";
 
 const C = { ink: "#18181b", soft: "#3f3f46", muted: "#71717a", border: "#e4e4e7", subtle: "#fafafa", accent: "#4f5bd5", accentSoft: "#eef0fb" };
 
@@ -128,12 +128,13 @@ export function DailyReportDocument({ report, project, zona }: DailyReportPdfInp
   const blocks = parseReportMarkdown(report.markdown);
   const sections = renderableSections(blocks);
   const fecha = new Date(report.at).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const titulo = reportTitle(report.markdown);
   return (
-    <Document title={`Informe de escucha · ${project} · ${report.at.slice(0, 10)}`} author="Tronador">
+    <Document title={titulo ? `${project} · ${titulo}` : `Informe de escucha · ${project} · ${report.at.slice(0, 10)}`} author="Tronador">
       <Page size="A4" style={s.page}>
         <Text style={s.eyebrow}>Tronador · Escucha</Text>
-        <Text style={s.title}>{project}</Text>
-        <Text style={s.meta}>{fecha}{zona ? ` · ${zona}` : ""}</Text>
+        <Text style={s.title}>{titulo || project}</Text>
+        <Text style={s.meta}>{titulo ? `${project} · ` : ""}{fecha}{zona ? ` · ${zona}` : ""}</Text>
         <View style={s.chips}>
           <Text style={s.chip}>{report.items24h} menciones 24 h</Text>
           <Text style={s.chip}>{report.items7d} en 7 d</Text>

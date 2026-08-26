@@ -13,8 +13,10 @@ const report = {
 describe("renderReportEmail", () => {
   const out = renderReportEmail({ report, project: "Ibicuy", zona: "Ibicuy, Entre Ríos", appUrl: "https://app.test" });
 
-  it("subject con proyecto y fecha; text = markdown", () => {
-    expect(out.subject).toMatch(/Informe de escucha · Ibicuy · 25\/08\/2026/);
+  it("subject = proyecto · tesis (h1); sin h1 cae a proyecto + fecha; text = markdown", () => {
+    expect(out.subject).toBe("Ibicuy · Informe");
+    const sinTitulo = renderReportEmail({ report: { ...report, markdown: "## 1. Resumen\nHola." }, project: "Ibicuy", zona: "", appUrl: "https://a" });
+    expect(sinTitulo.subject).toMatch(/Informe de escucha · Ibicuy · 25\/08\/2026/);
     expect(out.text).toBe(report.markdown);
   });
 
