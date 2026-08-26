@@ -2,16 +2,41 @@
 // Corre en la pestaña de la plataforma (misma sesión, misma IP). Para
 // Instagram usa la API interna con credentials:include; para X/FB/TikTok lee
 // el DOM. NUNCA invoca endpoints de escritura (lista negra dura, spec §3.5).
+//
+// Toda la lógica de parseo vive en core/*.js (módulos ESM puros, testeados con
+// vitest). Este archivo es un content script clásico: los carga con import()
+// dinámico sobre chrome.runtime.getURL, que funciona porque el manifest los
+// declara en web_accessible_resources.
 
 // Lista negra: cualquier efecto observable por terceros aborta en runtime.
+// OJO: el patrón exige "/comment/" exacto — la LECTURA de comentarios es
+// "/comments/" (plural) y no queda bloqueada. No cambiar a "comments?".
 const WRITE_BLACKLIST = /\/(like|unlike|friendships\/(create|destroy)|media\/[^/]+\/seen|comment|save|approve)\//i;
 
-function clean(s) { return (s || "").replace(/\s+/g, " ").trim(); }
-function abs(h) { try { return new URL(h, location.href).toString(); } catch { return null; } }
+const IG_APP_ID = "936619743392459";
+const IG_FEED_COUNT = 12;
+const IG_COMMENT_PAGES = 2;
+const SCROLL_PASSES = 3;
+const SCROLL_PAUSE_MS = 2000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Carga perezosa y cacheada de los módulos puros.
+let corePromise = null;
+function core() {
+  if (!corePromise) {
+    corePromise = Promise.all([
+      import(chrome.runtime.getURL("core/parse.js")),
+      import(chrome.runtime.getURL("core/ig.js")),
+      import(chrome.runtime.getURL("core/xdom.js")),
+      import(chrome.runtime.getURL("core/fbdom.js")),
+      import(chrome.runtime.getURL("core/ttdom.js")),
+    ]).then(([parse, ig, xdom, fbdom, ttdom]) => ({ parse, ig, xdom, fbdom, ttdom }));
+  }
+  return corePromise;
+}
 
 // ---- Instagram: API interna (spec §4). Solo lectura. ----
-const IG_APP_ID = "936619743392459";
-
 async function igFetch(path) {
   if (WRITE_BLACKLIST.test(path)) {
     throw new Error(`endpoint de escritura bloqueado: ${path}`);
@@ -27,137 +52,148 @@ async function igFetch(path) {
   return { status: res.status, body: text, json };
 }
 
-async function igProfile(handle) {
-  const r = await igFetch(`/api/v1/users/web_profile_info/?username=${encodeURIComponent(handle)}`);
-  if (!r.json) return { status: r.status, body: r.body, user: null };
-  const u = r.json.data && r.json.data.user;
+// Seguidores del perfil: primero el header, después og:description.
+function igFollowersFromDom(parse) {
+  const header = document.querySelector("header");
+  const fromHeader = header ? parse.parseIgHeader(header.textContent) : null;
+  if (fromHeader != null) return { followers: fromHeader, posts: null };
+  const og = document.querySelector('meta[property="og:description"]');
+  return parse.parseIgOg(og ? og.getAttribute("content") : "");
+}
+
+// Unidad completa de una cuenta de IG: perfil (DOM) + feed + historias.
+async function igCollect(handle, since) {
+  const { parse, ig } = await core();
+  const errors = [];
+  const { followers, posts } = igFollowersFromDom(parse);
+  if (followers == null) errors.push({ step: "profile", detail: "seguidores no encontrados en el DOM" });
+
+  let items = [];
+  let pieces = [];
+  let userId = null;
+  let status = 200;
+  let body = "";
+
+  const feed = await igFetch(`/api/v1/feed/user/${encodeURIComponent(handle)}/username/?count=${IG_FEED_COUNT}`);
+  status = Math.max(status, feed.status);
+  if (!feed.json) {
+    body = body || feed.body;
+    errors.push({ step: "feed", detail: `HTTP ${feed.status}` });
+  } else if (!Array.isArray(feed.json.items) || feed.json.items.length === 0) {
+    errors.push({ step: "feed", detail: "feed sin items" });
+  } else {
+    userId = ig.userIdFromFeed(feed.json);
+    const mapped = ig.itemsFromFeed(feed.json, handle, followers == null ? undefined : followers, since);
+    items = mapped.items;
+    pieces = mapped.pieces;
+  }
+
+  if (!userId) userId = ig.userIdFromScripts(document);
+  if (userId) {
+    const st = await igFetch(`/api/v1/feed/reels_media/?reel_ids=${encodeURIComponent(userId)}`);
+    status = Math.max(status, st.status);
+    if (!st.json) {
+      body = body || st.body;
+      errors.push({ step: "stories", detail: `HTTP ${st.status}` });
+    } else {
+      items = items.concat(ig.storiesFromReels(st.json, handle, followers == null ? undefined : followers));
+    }
+  } else {
+    errors.push({ step: "userId", detail: "sin userId: feed vacío y sin profile_id en los scripts" });
+  }
+
   return {
-    status: r.status,
-    user: u && {
-      id: u.id,
-      followers: u.edge_followed_by ? u.edge_followed_by.count : 0,
-      posts: u.edge_owner_to_timeline_media ? u.edge_owner_to_timeline_media.count : 0,
-    },
+    ok: true,
+    status,
+    body,
+    items,
+    pieces,
+    profile: { followers: followers == null ? null : followers, posts, userId },
+    errors,
   };
 }
 
-function igMediaUrl(pk, code) {
-  return code ? `https://www.instagram.com/p/${code}/` : `https://www.instagram.com/media/${pk}/`;
-}
-
-async function igFeed(userId, handle, followers) {
-  const r = await igFetch(`/api/v1/feed/user/${userId}/?count=24`);
-  if (!r.json) return { status: r.status, body: r.body, items: [] };
-  const items = (r.json.items || []).map((it) => ({
-    site: "instagram",
-    kind: it.media_type === 2 ? "reel" : "post",
-    text: clean((it.caption && it.caption.text) || "").slice(0, 800),
-    url: igMediaUrl(it.pk, it.code),
-    author: handle,
-    metrics: {
-      followers,
-      likeCount: it.like_count,
-      commentCount: it.comment_count,
-      viewCount: it.play_count || it.view_count,
-      takenAt: it.taken_at ? new Date(it.taken_at * 1000).toISOString() : undefined,
-    },
-  })).filter((i) => i.text.length >= 1);
-  return { status: r.status, items };
-}
-
-async function igStories(userId, handle, followers) {
-  const r = await igFetch(`/api/v1/feed/reels_media/?reel_ids=${userId}`);
-  if (!r.json) return { status: r.status, body: r.body, items: [] };
-  const reel = (r.json.reels_media || [])[0];
-  const items = ((reel && reel.items) || []).map((it) => ({
-    site: "instagram",
-    kind: "story",
-    text: clean(it.accessibility_caption || "(historia sin texto alternativo)").slice(0, 800),
-    url: `https://www.instagram.com/stories/${handle}/${it.pk}/`,
-    author: handle,
-    metrics: {
-      followers,
-      takenAt: it.taken_at ? new Date(it.taken_at * 1000).toISOString() : undefined,
-      expiringAt: it.expiring_at ? new Date(it.expiring_at * 1000).toISOString() : undefined,
-    },
-  }));
-  return { status: r.status, items };
+// Comentarios de UNA pieza, hasta IG_COMMENT_PAGES páginas (~40 comentarios).
+async function igComments(pk, url, handle) {
+  const { ig } = await core();
+  let items = [];
+  let status = 200;
+  let body = "";
+  let minId = null;
+  for (let page = 0; page < IG_COMMENT_PAGES; page++) {
+    const q = `/api/v1/media/${encodeURIComponent(pk)}/comments/?can_support_threading=true&permalink_enabled=false${minId ? `&min_id=${encodeURIComponent(minId)}` : ""}`;
+    const r = await igFetch(q);
+    status = Math.max(status, r.status);
+    if (!r.json) { body = r.body; break; }
+    items = items.concat(ig.commentsFromJson(r.json, url, handle));
+    minId = ig.nextMinId(r.json);
+    if (!minId) break;
+    await sleep(1200 + Math.floor(Math.random() * 800));
+  }
+  return { ok: true, status, body, items };
 }
 
 // ---- DOM: X / Facebook / TikTok ----
-// FB: primer segmento de https://…facebook.com/<slug>/… como autor, salvo que
-// sea un path no-perfil (grupos, foto, permalink de post, profile.php?id=…).
-const FB_AUTHOR_SLUG = /facebook\.com\/([^/?#]+)/i;
-const FB_NON_PROFILE_SLUGS = new Set([
-  "profile.php", "story.php", "permalink.php", "people", "watch", "groups", "photo",
-  "posts", "hashtag", "events", "pages", "marketplace", "reel",
-]);
-function fbAuthorSlug(href) {
-  if (!href || /profile\.php\?id=/i.test(href)) return null;
-  const m = href.match(FB_AUTHOR_SLUG);
-  const slug = m && m[1];
-  if (!slug || FB_NON_PROFILE_SLUGS.has(slug.toLowerCase())) return null;
-  return slug;
-}
-// X: handle = path de un solo segmento (no rutas de la app como /i, /home, /explore).
-const X_HANDLE_PATH = /^\/[A-Za-z0-9_]{1,15}$/;
-const X_NON_HANDLE_PATHS = new Set(["/i", "/home", "/explore", "/search"]);
-function xAuthorFromLinks(links) {
-  for (const a of links) {
-    const href = a.getAttribute("href") || "";
-    if (X_HANDLE_PATH.test(href) && !X_NON_HANDLE_PATHS.has(href.toLowerCase())) return href.slice(1);
+async function scrollDown(passes, pauseMs) {
+  for (let i = 0; i < passes; i++) {
+    window.scrollBy(0, window.innerHeight * 2);
+    await sleep(pauseMs);
   }
-  return null;
 }
 
-function domX(handle) {
-  const out = [];
-  for (const t of document.querySelectorAll('article[data-testid="tweet"]')) {
-    const text = clean(t.querySelector('[data-testid="tweetText"]') && t.querySelector('[data-testid="tweetText"]').innerText);
-    if (text.length < 5) continue;
-    const link = t.querySelector('a[href*="/status/"]');
-    const url = link ? abs(link.getAttribute("href")) : null;
-    if (!url) continue;
-    const author = xAuthorFromLinks(t.querySelectorAll('[data-testid="User-Name"] a[href^="/"]')) || handle || undefined;
-    const time = t.querySelector("time[datetime]");
-    const publishedAt = time ? time.getAttribute("datetime") : undefined;
-    out.push({ site: "x", kind: "post", text: text.slice(0, 800), url, author, publishedAt });
+function isX(h) { return h === "x.com" || h.endsWith(".x.com") || h.includes("twitter.com"); }
+
+// Unidad completa de una cuenta de X/FB/TikTok desde su perfil.
+async function domProfile(handle, since) {
+  const { xdom, fbdom, ttdom } = await core();
+  const errors = [];
+  await scrollDown(SCROLL_PASSES, SCROLL_PAUSE_MS);
+  const h = location.hostname;
+  let profile = null;
+  let items = [];
+  if (isX(h)) {
+    profile = xdom.parseXProfile(document);
+    items = xdom.parseXTimeline(document, handle, since);
+    if (document.querySelectorAll("article").length === 0) errors.push({ step: "parse", detail: "0 artículos" });
+  } else if (h.includes("facebook.com")) {
+    profile = fbdom.parseFbProfile(document);
+    items = fbdom.parseFbTimeline(document, handle, profile ? profile.followers : undefined);
+    if (document.querySelectorAll('div[role="article"]').length === 0) errors.push({ step: "parse", detail: "0 artículos" });
+  } else if (h.includes("tiktok.com")) {
+    profile = ttdom.parseTikTokProfile(document);
+    items = ttdom.parseTikTokTimeline(document, handle, profile ? profile.followers : undefined);
+    if (document.querySelectorAll('a[href*="/video/"]').length === 0) errors.push({ step: "parse", detail: "0 videos" });
+  } else {
+    errors.push({ step: "dispatch", detail: `hostname sin parser: ${h}` });
   }
-  return out;
+  if (!profile) errors.push({ step: "profile", detail: "seguidores no encontrados en el DOM" });
+  // Los seguidores viajan en cada pieza: amplificación/adhesión son server-side.
+  if (profile && profile.followers != null) {
+    items = items.map((i) => ({ ...i, metrics: { ...i.metrics, followers: profile.followers } }));
+  }
+  const pieces = items
+    .filter((i) => i.kind === "post")
+    .map((i) => ({ url: i.url, replyCount: (i.metrics && i.metrics.replyCount) || 0 }));
+  return { ok: true, status: 200, items, pieces, profile, errors };
 }
-function domFacebook(handle) {
-  const out = [];
-  for (const art of document.querySelectorAll('div[role="article"]')) {
-    const text = clean(art.innerText).slice(0, 1000);
-    if (text.length < 25) continue;
-    let url = null;
-    for (const a of art.querySelectorAll("a[href]")) {
-      const h = a.getAttribute("href") || "";
-      if (/\/(posts|permalink|videos|reel)\/|pfbid|story_fbid/.test(h)) { url = abs(h); break; }
-    }
-    if (!url) continue;
-    const authorLink = art.querySelector("h3 a, h2 a, strong a");
-    let author = handle || undefined;
-    if (authorLink) {
-      const linkText = clean(authorLink.innerText || authorLink.textContent);
-      const authorHref = abs(authorLink.getAttribute("href") || "") || "";
-      author = fbAuthorSlug(authorHref) || linkText || handle || undefined;
-    }
-    out.push({ site: "facebook", kind: "post", text: text.slice(0, 800), url, author });
-  }
-  return out;
+
+// Respuestas de una pieza de X (la pestaña ya está en /status/<id>).
+async function domReplies(url, handle) {
+  const { xdom } = await core();
+  await scrollDown(2, 1500);
+  return { ok: true, status: 200, items: xdom.parseXReplies(document, url, handle) };
 }
-function domTikTok(handle) {
-  const out = [];
-  for (const d of document.querySelectorAll('[data-e2e="search-card-desc"], [data-e2e="browse-video-desc"], [data-e2e="video-desc"]')) {
-    const text = clean(d.innerText);
-    if (text.length < 10) continue;
-    const link = d.closest("div") && d.closest("div").querySelector('a[href*="/video/"]');
-    const url = link ? abs(link.getAttribute("href")) : abs(location.href);
-    if (!url || !/\/video\//.test(url)) continue;
-    out.push({ site: "tiktok", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
-  }
-  return out;
+
+// Búsquedas A/B por DOM (sin `since`: es descubrimiento, no seguimiento).
+async function domCollect(handle) {
+  const { xdom, fbdom, ttdom } = await core();
+  await scrollDown(1, 1500);
+  const h = location.hostname;
+  let items = [];
+  if (isX(h)) items = xdom.parseXTimeline(document, handle, undefined);
+  else if (h.includes("facebook.com")) items = fbdom.parseFbTimeline(document, handle, undefined);
+  else if (h.includes("tiktok.com")) items = ttdom.parseTikTokTimeline(document, handle, undefined);
+  return { ok: true, status: 200, items };
 }
 
 // Orquestador → content: ejecutá esta unidad y devolveme datos + status.
@@ -165,29 +201,20 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
   (async () => {
     try {
       if (msg.type === "ig-collect") {
-        const prof = await igProfile(msg.handle);
-        if (!prof.user) return sendResponse({ ok: true, status: prof.status, body: prof.body, items: [] });
-        const [feed, stories] = [
-          await igFeed(prof.user.id, msg.handle, prof.user.followers),
-          await igStories(prof.user.id, msg.handle, prof.user.followers),
-        ];
-        const worst = Math.max(prof.status, feed.status, stories.status);
-        sendResponse({ ok: true, status: worst, body: feed.body || stories.body, items: [...feed.items, ...stories.items] });
+        sendResponse(await igCollect(msg.handle, msg.since));
+      } else if (msg.type === "ig-comments") {
+        sendResponse(await igComments(msg.pk, msg.url, msg.handle));
+      } else if (msg.type === "dom-profile") {
+        sendResponse(await domProfile(msg.handle, msg.since));
+      } else if (msg.type === "dom-replies") {
+        sendResponse(await domReplies(msg.url, msg.handle));
       } else if (msg.type === "ig-search") {
         const r = await igFetch(`/api/v1/web/search/topsearch/?context=blended&query=${encodeURIComponent(msg.query)}`);
         sendResponse({ ok: true, status: r.status, body: r.body, json: r.json });
       } else if (msg.type === "dom-collect") {
-        // msg.query es solo informativo (lo usa el orquestador para armar candidatos);
-        // el autor siempre sale del DOM. Scroll corto antes de leer para cargar más.
-        window.scrollBy(0, 1200);
-        await new Promise((r) => setTimeout(r, 1500));
-        const h = location.hostname;
-        let items = [];
-        if (h.includes("facebook.com")) items = domFacebook(msg.handle);
-        else if (h.includes("tiktok.com")) items = domTikTok(msg.handle);
-        else if (h === "x.com" || h.includes("twitter.com")) items = domX(msg.handle);
-        const seen = new Set();
-        sendResponse({ ok: true, status: 200, items: items.filter((i) => i.url && !seen.has(i.url) && seen.add(i.url)) });
+        // msg.query es solo informativo (lo usa el orquestador para armar
+        // candidatos); el autor siempre sale del DOM.
+        sendResponse(await domCollect(msg.handle));
       } else {
         sendResponse({ ok: false, error: "tipo desconocido" });
       }

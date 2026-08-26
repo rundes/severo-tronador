@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tronador Monitor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Colector de escenario social dirigido por el tablero: navega las cuentas del plan (IG/X/FB/TikTok) con disciplina anti-bloqueo y aporta lo relevado al historial del proyecto.",
   "permissions": ["storage", "alarms", "notifications", "scripting", "tabs", "sidePanel"],
   "host_permissions": [
@@ -39,6 +39,18 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["core/parse.js", "core/ig.js", "core/xdom.js", "core/fbdom.js", "core/ttdom.js"],
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://*.instagram.com/*",
+        "https://x.com/*",
+        "https://twitter.com/*",
+        "https://*.tiktok.com/*"
+      ]
     }
   ]
 }
