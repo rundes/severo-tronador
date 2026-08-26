@@ -12,10 +12,14 @@ export type Inline =
 export type Block =
   | { t: "h"; level: 1 | 2 | 3; text: Inline[] }
   | { t: "p"; text: Inline[] }
+  | { t: "bajada"; text: Inline[] }
   | { t: "ul"; items: Inline[][] }
   | { t: "ol"; items: Inline[][] }
   | { t: "quote"; text: Inline[] }
   | { t: "table"; header: string[]; rows: string[][] }
+  | { t: "countdown"; items: { days: number; label: string; detail: string }[] }
+  | { t: "kpi"; items: { value: string; label: string; note: string }[] }
+  | { t: "callout"; kind: "inferencia" | "advertencia"; text: Inline[] }
   | { t: "hr" };
 
 export function escapeHtml(s: string): string {
@@ -65,15 +69,81 @@ const TABLE_SEP = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/;
 const splitRow = (line: string) =>
   line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 
+// Bloques cercados que el informe editorial usa como datos, no como código:
+// ```countdown (una línea por hito: días | etiqueta | detalle) y ```kpi (una
+// línea por número del día: valor | etiqueta | nota). Tolerantes: la línea
+// que no cumple se descarta y el resto del bloque sobrevive.
+const cells = (line: string) => line.split("|").map((c) => c.trim());
+
+function parseCountdownLines(raw: string[]): { days: number; label: string; detail: string }[] {
+  const out: { days: number; label: string; detail: string }[] = [];
+  for (const line of raw) {
+    const t = line.trim();
+    if (!t) continue;
+    const [d = "", label = "", detail = ""] = cells(t);
+    if (!/^-?\d+$/.test(d) || !label) continue;
+    out.push({ days: Number(d), label, detail });
+  }
+  return out.slice(0, 8);
+}
+
+function parseKpiLines(raw: string[]): { value: string; label: string; note: string }[] {
+  const out: { value: string; label: string; note: string }[] = [];
+  for (const line of raw) {
+    const t = line.trim();
+    if (!t) continue;
+    const [value = "", label = "", note = ""] = cells(t);
+    if (!value || !label) continue;
+    out.push({ value, label, note });
+  }
+  return out.slice(0, 4);
+}
+
+// "**Inferencia** …" / "**Advertencia**: …" → callout. Regla editorial: toda
+// lectura que no sea dato medido va etiquetada (brief de referencia §8).
+const CALLOUT_KIND: Record<string, "inferencia" | "advertencia"> = {
+  inferencia: "inferencia",
+  advertencia: "advertencia",
+};
+
+function calloutOf(text: Inline[]): { kind: "inferencia" | "advertencia"; text: Inline[] } | null {
+  const first = text[0];
+  if (!first || first.t !== "b") return null;
+  const kind = CALLOUT_KIND[first.v.trim().replace(/:$/, "").toLowerCase()];
+  if (!kind) return null;
+  const rest = text.slice(1);
+  const head = rest[0];
+  if (head && head.t === "text") rest[0] = { t: "text", v: head.v.replace(/^[\s:.—–-]+/, "") };
+  return { kind, text: rest };
+}
+
+// El primer párrafo después del h1 es la bajada (3-5 líneas que resumen el
+// día). El parser lo tipa aparte para que los tres renderers lo destaquen.
+function markBajada(blocks: Block[]): Block[] {
+  const i = blocks.findIndex((b) => b.t === "h" && b.level === 1);
+  if (i === -1) return blocks;
+  const next = blocks[i + 1];
+  if (!next || next.t !== "p") return blocks;
+  return blocks.map((b, j) => (j === i + 1 && b.t === "p" ? { t: "bajada", text: b.text } : b));
+}
+
+// Tesis del día: el texto plano del primer h1. null si el modelo no lo puso.
+export function reportTitle(markdown: string): string | null {
+  const m = /^#\s+(.+?)\s*#*\s*$/m.exec(markdown.replace(/\r\n?/g, "\n"));
+  if (!m) return null;
+  return inlineToText(parseInline(m[1])).trim() || null;
+}
+
 export function parseReportMarkdown(md: string): Block[] {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const blocks: Block[] = [];
   let para: string[] = [];
   const flushPara = () => {
-    if (para.length) {
-      blocks.push({ t: "p", text: parseInline(para.join(" ")) });
-      para = [];
-    }
+    if (!para.length) return;
+    const text = parseInline(para.join(" "));
+    const c = calloutOf(text);
+    blocks.push(c ? { t: "callout", kind: c.kind, text: c.text } : { t: "p", text });
+    para = [];
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -89,6 +159,17 @@ export function parseReportMarkdown(md: string): Block[] {
       while (i < lines.length && !/^```\s*$/.test(lines[i].trim())) {
         content.push(lines[i]);
         i++;
+      }
+      const lang = fence[1].toLowerCase();
+      if (lang === "countdown") {
+        const items = parseCountdownLines(content);
+        if (items.length > 0) blocks.push({ t: "countdown", items });
+        continue;
+      }
+      if (lang === "kpi") {
+        const items = parseKpiLines(content);
+        if (items.length > 0) blocks.push({ t: "kpi", items });
+        continue;
       }
       blocks.push({ t: "p", text: [{ t: "code", v: content.join("\n") }] });
       continue;
@@ -131,7 +212,7 @@ export function parseReportMarkdown(md: string): Block[] {
     para.push(trimmed);
   }
   flushPara();
-  return blocks;
+  return markBajada(blocks);
 }
 
 // Secciones por h2: título del h2 (texto plano) + bloques hasta el próximo h2.
