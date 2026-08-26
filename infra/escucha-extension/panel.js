@@ -9,6 +9,7 @@ async function refresh() {
     $("inserted").textContent = runStatus.inserted != null ? runStatus.inserted : 0;
     $("cuentas").textContent = runStatus.cuentas != null ? runStatus.cuentas : 0;
     $("busquedas").textContent = runStatus.busquedas != null ? runStatus.busquedas : 0;
+    $("candidatos").textContent = runStatus.candidatos != null ? runStatus.candidatos : 0;
     $("sugeridos").textContent = runStatus.sugeridos != null ? runStatus.sugeridos : 0;
   }
   const { escenario } = await chrome.storage.local.get("escenario");

@@ -83,3 +83,28 @@ export function mergeCandidates(lists) {
   }
   return [...by.values()];
 }
+
+// ¿`url` pertenece a `host` (mismo hostname o subdominio)? Comparación por
+// hostname parseado, nunca por substring: "dropbox.com" NO matchea "x.com".
+export function sameHost(url, host) {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    const target = String(host || "").toLowerCase().replace(/^www\./, "");
+    if (!target) return false;
+    return h === target || h.endsWith("." + target);
+  } catch {
+    return false;
+  }
+}
+
+// ¿La pestaña ya está en la URL pedida? Compara origin+pathname (ignora query/hash
+// y redirecciones a subrutas del mismo path).
+export function isOnTarget(tabUrl, expectedUrl) {
+  try {
+    const t = new URL(tabUrl);
+    const e = new URL(expectedUrl);
+    return t.origin === e.origin && t.pathname.startsWith(e.pathname);
+  } catch {
+    return false;
+  }
+}

@@ -1,6 +1,6 @@
 // tests/extension-nav.test.ts
 import { describe, it, expect } from "vitest";
-import { profileUrl, searchUrl, candidatesFromIgSearch, candidatesFromItems, mergeCandidates } from "../infra/escucha-extension/core/nav.js";
+import { profileUrl, searchUrl, candidatesFromIgSearch, candidatesFromItems, mergeCandidates, sameHost, isOnTarget } from "../infra/escucha-extension/core/nav.js";
 
 describe("nav · urls", () => {
   it("perfil por plataforma", () => {
@@ -101,5 +101,29 @@ describe("nav · robustez (handles válidos, topsearch null-safe, encode)", () =
   it("profileUrl codifica el handle", () => {
     expect(profileUrl("x", "a b/c?d")).toBe("https://x.com/a%20b%2Fc%3Fd");
     expect(profileUrl("instagram", "@ok")).toBe("https://www.instagram.com/ok/");
+  });
+});
+
+describe("nav · sameHost / isOnTarget", () => {
+  it("sameHost compara hostname, no substring", () => {
+    expect(sameHost("https://www.dropbox.com/home", "x.com")).toBe(false);
+    expect(sameHost("https://notx.com/", "x.com")).toBe(false);
+    expect(sameHost("https://www.x.com/a", "x.com")).toBe(true);
+    expect(sameHost("https://mobile.x.com/a", "x.com")).toBe(true);
+    expect(sameHost("https://x.com/a", "x.com")).toBe(true);
+    expect(sameHost("https://www.instagram.com/", "www.instagram.com")).toBe(true);
+  });
+  it("sameHost devuelve false con url inválida o host vacío", () => {
+    expect(sameHost("no es url", "x.com")).toBe(false);
+    expect(sameHost("", "x.com")).toBe(false);
+    expect(sameHost(undefined, "x.com")).toBe(false);
+    expect(sameHost("https://x.com/", "")).toBe(false);
+  });
+  it("isOnTarget compara origin+pathname e ignora query/hash", () => {
+    expect(isOnTarget("https://x.com/search?q=a&f=live", "https://x.com/search?q=a")).toBe(true);
+    expect(isOnTarget("https://x.com/DeSocios/with_replies", "https://x.com/DeSocios")).toBe(true);
+    expect(isOnTarget("https://x.com/otro", "https://x.com/DeSocios")).toBe(false);
+    expect(isOnTarget("https://www.x.com/DeSocios", "https://x.com/DeSocios")).toBe(false);
+    expect(isOnTarget("bad", "https://x.com/")).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
 // los candidatos a actor, y reporta señales anti-bloqueo al server.
 import { Budget, plausibleHour, shuffle, sleep } from "./core/budget.js";
 import { signalFromResponse } from "./core/breaker.js";
-import { profileUrl, searchUrl, candidatesFromIgSearch, candidatesFromItems, mergeCandidates } from "./core/nav.js";
+import { profileUrl, searchUrl, candidatesFromIgSearch, candidatesFromItems, mergeCandidates, sameHost, isOnTarget } from "./core/nav.js";
 
 const PLATFORM_HOME = {
   instagram: "https://www.instagram.com/",
@@ -35,32 +35,75 @@ function setStatus(patch) {
   });
 }
 
+// Pestañas abiertas por la extensión en esta corrida (platform → tabId). Se
+// prefieren siempre a cualquier otra pestaña del usuario; solo si no hay una
+// propia viva se reusa una pestaña ajena cuyo hostname sea el de la plataforma
+// (nunca por substring: "dropbox.com" no es "x.com").
+const ownTabs = new Map();
+
+async function liveTab(tabId) {
+  if (tabId == null) return null;
+  return chrome.tabs.get(tabId).catch(() => null);
+}
+
+async function findPlatformTab(platform) {
+  const own = await liveTab(ownTabs.get(platform));
+  if (own) return own;
+  ownTabs.delete(platform);
+  const host = new URL(PLATFORM_HOME[platform]).hostname.replace(/^www\./, "");
+  const tabs = await chrome.tabs.query({});
+  return tabs.find((t) => t.url && sameHost(t.url, host)) || null;
+}
+
 // Abre (o reusa) la pestaña de la plataforma y la navega de verdad a `url`
 // (nunca se lee el DOM de la home a secas); espera a que cargue + jitter.
 async function openIn(platform, url) {
-  const host = new URL(PLATFORM_HOME[platform]).hostname.replace("www.", "");
-  let tab = (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(host));
-  if (tab) await chrome.tabs.update(tab.id, { url, active: false });
-  else tab = await chrome.tabs.create({ url, active: false });
-  await waitLoaded(tab.id);
+  let tab = await findPlatformTab(platform);
+  if (tab) {
+    const loaded = waitLoaded(tab.id, url);
+    await chrome.tabs.update(tab.id, { url, active: false });
+    await loaded;
+  } else {
+    tab = await chrome.tabs.create({ url, active: false });
+    await waitLoaded(tab.id, url);
+  }
+  ownTabs.set(platform, tab.id);
   await sleep(2000 + Math.floor(Math.random() * 2000));
   return tab;
 }
-function waitLoaded(tabId, timeoutMs = 20000) {
+
+const LOAD_TIMEOUT_MS = 20000;
+// Resuelve cuando la pestaña `tabId` terminó de cargar (`status: complete`) y
+// está efectivamente en `expectedUrl` (origin+pathname). El listener se registra
+// ANTES de navegar para no perder el evento; si ya está cargada en destino,
+// resuelve de inmediato.
+function waitLoaded(tabId, expectedUrl, timeoutMs = LOAD_TIMEOUT_MS) {
   return new Promise((resolve) => {
-    const t = setTimeout(() => { chrome.tabs.onUpdated.removeListener(on); resolve(); }, timeoutMs);
-    function on(id, info) { if (id === tabId && info.status === "complete") { clearTimeout(t); chrome.tabs.onUpdated.removeListener(on); resolve(); } }
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(on); resolve(); };
+    const t = setTimeout(finish, timeoutMs);
+    function on(id, info, tab) {
+      if (id !== tabId || info.status !== "complete") return;
+      if (isOnTarget(tab && tab.url, expectedUrl)) finish();
+    }
     chrome.tabs.onUpdated.addListener(on);
+    // Carrera benigna: chequeo inicial por si ya estaba completa en destino.
+    liveTab(tabId).then((tab) => {
+      if (tab && tab.status === "complete" && isOnTarget(tab.url, expectedUrl)) finish();
+    });
   });
 }
 
+const SEND_TIMEOUT_MS = 45000;
 function send(tabId, msg) {
-  return new Promise((resolve) => {
+  const reply = new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, msg, (r) => {
       if (chrome.runtime.lastError) resolve({ ok: false, error: chrome.runtime.lastError.message });
       else resolve(r || { ok: false, error: "sin respuesta" });
     });
   });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve({ ok: false, error: "timeout" }), SEND_TIMEOUT_MS));
+  return Promise.race([reply, timeout]);
 }
 
 async function reportSignal(platform, signal) {
@@ -82,6 +125,7 @@ async function runCollection() {
   }
   await setStatus({ estado: "bajando plan…", inserted: 0, cuentas: 0, busquedas: 0, candidatos: 0, sugeridos: 0, errores: [] });
   const plan = await api("/api/extension/plan");
+  ownTabs.clear();
   const budget = new Budget(plan.budget);
   const cooled = new Set(Object.keys(plan.cooldowns || {}));
   const accounts = shuffle(plan.accounts).filter((a) => !cooled.has(a.platform));
@@ -104,7 +148,7 @@ async function runCollection() {
       if (platform === "instagram") {
         // La API interna de IG no depende del perfil visitado: se navega a la
         // home una sola vez por corrida y se reusa esa pestaña para cada cuenta.
-        if (!igTab) igTab = await openIn("instagram", PLATFORM_HOME.instagram);
+        if (!(await liveTab(igTab && igTab.id))) igTab = await openIn("instagram", PLATFORM_HOME.instagram);
         tab = igTab;
         msg = { type: "ig-collect", handle };
       } else {
@@ -112,10 +156,10 @@ async function runCollection() {
         msg = { type: "dom-collect", handle };
       }
       const res = await send(tab.id, msg);
-      await budget.spend(platform);
-      done++;
 
       if (res.ok) {
+        await budget.spend(platform);
+        done++;
         const sig = signalFromResponse(res.status, res.body);
         if (sig) {
           cooled.add(platform);
@@ -138,30 +182,32 @@ async function runCollection() {
   // quede. Cada búsqueda gasta 1 request del presupuesto de su plataforma y
   // produce candidatos a actor (cuentas vistas, no incorporadas automáticamente).
   const candidateLists = [];
-  const searches = [...(plan.searches?.a || []).map((q) => ({ q, dir: "A" })), ...(plan.searches?.b || []).map((q) => ({ q, dir: "B" }))];
+  const searches = [...(plan.searches?.a || []), ...(plan.searches?.b || [])];
   let busquedas = 0;
-  for (const { q } of searches) {
+  for (const q of searches) {
     for (const platform of ["instagram", "x", "facebook"]) {
       if (cooled.has(platform) || budget.remaining(platform) <= 0) continue;
       await setStatus({ estado: `búsqueda ${platform}: ${q}`, inserted, cuentas: done, busquedas });
       try {
         if (platform === "instagram") {
-          const tab = await openIn("instagram", PLATFORM_HOME.instagram);
-          const res = await send(tab.id, { type: "ig-search", query: q });
+          // ig-search es una llamada a la API interna: se reusa igTab sin re-navegar.
+          if (!(await liveTab(igTab && igTab.id))) igTab = await openIn("instagram", PLATFORM_HOME.instagram);
+          const res = await send(igTab.id, { type: "ig-search", query: q });
+          if (!res.ok) { errores.push(`búsqueda ${platform} "${q}": ${res.error || "sin respuesta"}`); continue; }
           await budget.spend(platform);
-          const sig = res.ok ? signalFromResponse(res.status, res.body) : null;
+          const sig = signalFromResponse(res.status, res.body);
           if (sig) { cooled.add(platform); await reportSignal(platform, sig); continue; }
-          if (res.ok && res.json) candidateLists.push(candidatesFromIgSearch(res.json, q));
+          if (res.json) candidateLists.push(candidatesFromIgSearch(res.json, q));
         } else {
           const tab = await openIn(platform, searchUrl(platform, q));
           const res = await send(tab.id, { type: "dom-collect", query: q });
+          if (!res.ok) { errores.push(`búsqueda ${platform} "${q}": ${res.error || "sin respuesta"}`); continue; }
           await budget.spend(platform);
-          if (res.ok) {
-            inserted += await pushItems(res.items || []);
-            candidateLists.push(candidatesFromItems(res.items || [], q));
-          }
+          inserted += await pushItems(res.items || []);
+          candidateLists.push(candidatesFromItems(res.items || [], q));
         }
         busquedas++;
+        await setStatus({ busquedas, inserted });
       } catch (e) {
         console.warn("búsqueda falló", platform, q, e);
         errores.push(`búsqueda ${platform} "${q}": ${String(e && e.message || e)}`);
