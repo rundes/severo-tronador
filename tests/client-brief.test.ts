@@ -171,6 +171,16 @@ describe("client-brief · brief maestro", () => {
   });
 });
 
+describe("client-brief · lectura defensiva", () => {
+  it("getClientBrief tolera entries/pendingUpdates/suggestions que no son arrays", async () => {
+    stored = { entries: "nope", pendingUpdates: { a: 1 }, suggestions: null };
+    const b = await getClientBrief("p1");
+    expect(b.entries).toEqual([]);
+    expect(b.pendingUpdates).toEqual([]);
+    expect(b.suggestions).toEqual([]);
+  });
+});
+
 describe("client-brief · propuestas de actualización", () => {
   it("mergeBriefUpdates agrega con id y status pending, dedupe por sección+texto y corta en 8", () => {
     const incoming = [
@@ -195,6 +205,23 @@ describe("client-brief · propuestas de actualización", () => {
     const b3 = mergeBriefUpdates(b2, [{ seccion: "7", texto: "Regla nueva" }], "2026-08-26T00:00:00.000Z");
     expect(b3.pendingUpdates).toHaveLength(1);
     expect(b3.pendingUpdates?.[0].status).toBe("dismissed");
+  });
+
+  it("mergeBriefUpdates poda las resueltas más viejas dejando 200; las pendientes nunca se podan", () => {
+    const oldPending = { id: "p-old", seccion: "1", texto: "pendiente vieja", reportAt: "2026-01-01T00:00:00.000Z", status: "pending" as const };
+    const resolved = Array.from({ length: 205 }, (_, i) => ({
+      id: `r${i}`, seccion: "7", texto: `resuelta ${i}`, reportAt: `2026-02-${String((i % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
+      status: (i % 2 ? "accepted" : "dismissed") as "accepted" | "dismissed",
+    }));
+    const b: ClientBrief = { ...EMPTY_BRIEF, pendingUpdates: [oldPending, ...resolved] };
+    const out = mergeBriefUpdates(b, [{ seccion: "9", texto: "nueva" }], NOW);
+    const pendientes = out.pendingUpdates!.filter((u) => u.status === "pending");
+    const resueltas = out.pendingUpdates!.filter((u) => u.status !== "pending");
+    expect(pendientes.map((u) => u.id)).toEqual(["p-old", pendientes[1].id]);
+    expect(resueltas).toHaveLength(200);
+    expect(resueltas[0].id).toBe("r5");
+    expect(resueltas[199].id).toBe("r204");
+    expect(b.pendingUpdates).toHaveLength(206);
   });
 
   it("setBriefUpdateStatus cambia solo la indicada", () => {

@@ -21,13 +21,24 @@ export function BriefMaster({
   by?: string;
 }) {
   const [text, setText] = useState(initial);
+  const [aviso, setAviso] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const excedido = text.length > max;
 
   const importar = (file: File | undefined) => {
     if (!file) return;
+    // Tope en bytes (UTF-8 ocupa hasta 4 por carácter): evita leer en memoria
+    // un archivo que igual no va a entrar en el límite de caracteres.
+    if (file.size > max * 4) {
+      setAviso(`El archivo es demasiado grande (${Math.round(file.size / 1024).toLocaleString("es-AR")} KB): el brief maestro admite ${max.toLocaleString("es-AR")} caracteres.`);
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = () => setText(String(reader.result ?? ""));
+    reader.onload = () => {
+      setAviso(null);
+      setText(String(reader.result ?? ""));
+    };
+    reader.onerror = () => setAviso("No pude leer el archivo.");
     reader.readAsText(file);
   };
 
@@ -74,7 +85,7 @@ export function BriefMaster({
         </button>
         {updatedAt && (
           <span className="text-xs text-zinc-500">
-            Última versión: {new Date(updatedAt).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+            Última versión: {new Date(updatedAt).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
             {by ? ` · ${by}` : ""}
           </span>
         )}
@@ -84,6 +95,11 @@ export function BriefMaster({
           </span>
         )}
       </div>
+      {aviso && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+          {aviso}
+        </p>
+      )}
     </form>
   );
 }

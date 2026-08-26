@@ -65,7 +65,13 @@ export function BriefPanel({
         />
         <FormStatus
           ok={flags.maestroSaved ? "Brief maestro guardado." : null}
-          error={flags.briefError === "too_long" ? `El brief maestro supera los ${MASTER_MAX_CHARS.toLocaleString("es-AR")} caracteres: no se guardó.` : null}
+          error={
+            flags.briefError === "too_long"
+              ? `El brief maestro supera los ${MASTER_MAX_CHARS.toLocaleString("es-AR")} caracteres: no se guardó.`
+              : flags.briefError === "maestro_vacio"
+                ? "El brief maestro está vacío: no se guardó."
+                : null
+          }
         />
 
         {pendientes.length > 0 && (
@@ -86,22 +92,12 @@ export function BriefPanel({
                   <span className="flex-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{u.texto}</span>
                   <form action={resolverBriefUpdate} className="flex shrink-0 items-center gap-2">
                     <input type="hidden" name="id" value={u.id} />
-                    <button
-                      type="submit"
-                      name="accion"
-                      value="aceptar"
-                      className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                    >
+                    <SubmitButton variant="secondary" name="accion" value="aceptar" pendingLabel="Guardando…" className="px-2 py-0.5 text-[11px]">
                       Aceptar
-                    </button>
-                    <button
-                      type="submit"
-                      name="accion"
-                      value="descartar"
-                      className="text-[11px] text-zinc-500 hover:text-red-600 dark:text-zinc-400"
-                    >
+                    </SubmitButton>
+                    <SubmitButton variant="secondary" name="accion" value="descartar" pendingLabel="…" className="px-2 py-0.5 text-[11px]">
                       Descartar
-                    </button>
+                    </SubmitButton>
                   </form>
                 </li>
               ))}

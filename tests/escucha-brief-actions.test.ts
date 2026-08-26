@@ -81,6 +81,13 @@ describe("guardarBriefMaestro", () => {
     expect(brief.master?.by).toBe("ana@x.ar");
   });
 
+  it("texto vacío: no guarda y avisa maestro_vacio", async () => {
+    const fd = new FormData();
+    fd.set("master", "   \n ");
+    expect(await run(() => guardarBriefMaestro(fd))).toBe("/escucha?tab=escenario&brief_error=maestro_vacio");
+    expect(saveClientBrief).not.toHaveBeenCalled();
+  });
+
   it("más de 60.000 caracteres: no guarda y avisa", async () => {
     const fd = new FormData();
     fd.set("master", "x".repeat(60001));
@@ -121,6 +128,19 @@ describe("resolverBriefUpdate", () => {
     await run(() => resolverBriefUpdate(fd));
     expect(brief.entries).toEqual([]);
     expect(brief.pendingUpdates?.[0].status).toBe("dismissed");
+  });
+
+  it("aceptar una propuesta ya aceptada: no suma un segundo aporte ni guarda", async () => {
+    const fd = new FormData();
+    fd.set("id", "u1");
+    fd.set("accion", "aceptar");
+    await run(() => resolverBriefUpdate(fd));
+    expect(brief.entries).toHaveLength(1);
+    saveClientBrief.mockClear();
+    expect(await run(() => resolverBriefUpdate(fd))).toBe("/escucha?tab=escenario");
+    expect(saveClientBrief).not.toHaveBeenCalled();
+    expect(brief.entries).toHaveLength(1);
+    expect(brief.pendingUpdates?.[0].status).toBe("accepted");
   });
 
   it("id inexistente: no guarda nada", async () => {

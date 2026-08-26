@@ -185,6 +185,19 @@ export function setMaster(
 const updateKey = (seccion: string, texto: string) =>
   `${seccion.trim().toLowerCase()}::${texto.trim().toLowerCase()}`;
 
+// Las resueltas (accepted/dismissed) se guardan como memoria de dedupe; con
+// un informe por día crecerían sin tope. Se conservan las últimas
+// MAX_RESOLVED_UPDATES; las pendientes nunca se podan.
+export const MAX_RESOLVED_UPDATES = 200;
+
+function pruneResolvedUpdates(updates: BriefUpdate[]): BriefUpdate[] {
+  const resolved = updates.filter((u) => u.status !== "pending");
+  const excess = resolved.length - MAX_RESOLVED_UPDATES;
+  if (excess <= 0) return updates;
+  const drop = new Set(resolved.slice(0, excess).map((u) => u.id));
+  return updates.filter((u) => !drop.has(u.id));
+}
+
 // Propuestas de actualización del brief que trae un informe. Fuera: las
 // vacías, las que ya se propusieron antes (en cualquier estado) y los
 // duplicados dentro de la misma tanda. Máximo 8 por informe (spec §5).
@@ -206,7 +219,7 @@ export function mergeBriefUpdates(
     known.add(k);
     added.push({ id: randomUUID(), seccion, texto, reportAt, status: "pending" });
   }
-  return { ...brief, pendingUpdates: [...current, ...added] };
+  return { ...brief, pendingUpdates: pruneResolvedUpdates([...current, ...added]) };
 }
 
 export function setBriefUpdateStatus(
@@ -289,14 +302,14 @@ export async function getClientBrief(projectId: string): Promise<ClientBrief> {
   if (!cfg) return EMPTY_BRIEF;
   const master = cfg.master ? MasterSchema.safeParse(cfg.master) : null;
   return {
-    entries: cfg.entries ?? [],
+    entries: Array.isArray(cfg.entries) ? cfg.entries : [],
     master: master?.success ? master.data : undefined,
-    pendingUpdates: (cfg.pendingUpdates ?? [])
+    pendingUpdates: (Array.isArray(cfg.pendingUpdates) ? cfg.pendingUpdates : [])
       .map((u) => BriefUpdateSchema.safeParse(u))
       .filter((r): r is { success: true; data: BriefUpdate } => r.success)
       .map((r) => r.data),
     proposal: cfg.proposal ? normalizeProposal(cfg.proposal) : undefined,
-    suggestions: cfg.suggestions ?? [],
+    suggestions: Array.isArray(cfg.suggestions) ? cfg.suggestions : [],
   };
 }
 

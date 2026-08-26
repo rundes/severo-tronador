@@ -121,7 +121,7 @@ ${JSON.stringify(input.current, null, 2)}
 ${JSON.stringify(input.current.audio, null, 2)}
 \`\`\`
 
-## Brief del cliente (aportes del operador, en orden)
+## Brief del cliente (brief maestro primero, luego aportes del operador en orden)
 ${input.brief}
 
 ## Reglas de salida
@@ -179,7 +179,7 @@ export type ProposeResult = { ok: true; proposal: ScenarioProposal } | { ok: fal
 
 export async function proposeScenario(projectId: string): Promise<ProposeResult> {
   const brief = await getClientBrief(projectId);
-  if (brief.entries.length === 0) return { ok: false, error: "El brief está vacío: agregá al menos un aporte" };
+  if (!briefText(brief).trim()) return { ok: false, error: "El brief está vacío: cargá el maestro o agregá un aporte" };
 
   const claudeCfg = await getConnectorConfig(CLAUDE_ID, projectId);
   const apiKey = claudeCfg.ANTHROPIC_API_KEY;

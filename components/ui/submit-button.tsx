@@ -14,17 +14,25 @@ export function SubmitButton({
   className,
   disabled,
   variant = "primary",
+  name,
+  value,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
   className?: string;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "danger" | "accent";
+  // name/value opcionales para que un mismo form tenga varios submits
+  // (ej. aceptar/descartar) y la action lea cuál se apretó.
+  name?: string;
+  value?: string;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
+      name={name}
+      value={value}
       disabled={disabled || pending}
       className={`${buttonClass(variant)} disabled:cursor-not-allowed ${className ?? ""}`}
     >

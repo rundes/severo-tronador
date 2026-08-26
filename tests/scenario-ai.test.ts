@@ -171,6 +171,28 @@ describe("proposeScenario", () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
+  it("solo maestro y sin aportes → llama al modelo (el maestro alcanza)", async () => {
+    briefStore.current = {
+      entries: [],
+      suggestions: [],
+      master: { text: "# BRIEF MAESTRO\n\nClub Ferro Carril Oeste.", updatedAt: "2026-08-25T00:00:00.000Z", by: "ana@x.ar" },
+    };
+    generateText.mockResolvedValue({ text: fence(VALID), inputTokens: 10, outputTokens: 20 });
+    const r = await proposeScenario("p1");
+    expect(r.ok).toBe(true);
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(generateText.mock.calls[0][0].prompt).toContain("Club Ferro Carril Oeste");
+    expect(generateText.mock.calls[0][0].prompt).toContain("## Brief del cliente (brief maestro primero, luego aportes del operador en orden)");
+  });
+
+  it("maestro en blanco y sin aportes → error sin llamar al modelo", async () => {
+    briefStore.current = { entries: [], suggestions: [], master: { text: "   ", updatedAt: "2026-08-25T00:00:00.000Z", by: "a" } };
+    const r = await proposeScenario("p1");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/maestro/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
   it("respuesta inválida → error y no guarda", async () => {
     generateText.mockResolvedValue({ text: "sin json", inputTokens: 1, outputTokens: 1 });
     const r = await proposeScenario("p1");

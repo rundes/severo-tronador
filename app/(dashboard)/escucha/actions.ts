@@ -316,6 +316,7 @@ export async function quitarAporteBrief(formData: FormData) {
 export async function guardarBriefMaestro(formData: FormData) {
   const { id: projectId } = await requireMember("editor");
   const text = String(formData.get("master") ?? "");
+  if (!text.trim()) redirect("/escucha?tab=escenario&brief_error=maestro_vacio");
   if (text.length > MASTER_MAX_CHARS) redirect("/escucha?tab=escenario&brief_error=too_long");
   const brief = await getClientBrief(projectId);
   await saveClientBrief(projectId, setMaster(brief, { by: await currentUserEmail(), text }));
@@ -331,9 +332,10 @@ export async function resolverBriefUpdate(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const accepted = String(formData.get("accion") ?? "") === "aceptar";
   const brief = await getClientBrief(projectId);
-  const u = (brief.pendingUpdates ?? []).find((x) => x.id === id);
+  const u = (brief.pendingUpdates ?? []).find((x) => x.id === id && x.status === "pending");
   if (!u) {
-    // Propuesta ya resuelta o inexistente (doble click / pestaña vieja).
+    // Propuesta ya resuelta o inexistente (doble click / pestaña vieja):
+    // no se vuelve a sumar el aporte ni se pisa el estado.
     revalidatePath("/escucha");
     redirect("/escucha?tab=escenario");
   }
