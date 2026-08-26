@@ -85,6 +85,10 @@ async function igStories(userId, handle, followers) {
 }
 
 // ---- DOM: X / Facebook / TikTok ----
+// FB: primer segmento de https://…facebook.com/<slug>/… como autor, salvo que
+// sea un path no-perfil (grupos, foto, permalink de post).
+const FB_AUTHOR_SLUG = /facebook\.com\/(?!groups\/|photo|posts\/)([^/?#]+)/i;
+
 function domX(handle) {
   const out = [];
   for (const t of document.querySelectorAll('article[data-testid="tweet"]')) {
@@ -93,7 +97,12 @@ function domX(handle) {
     const link = t.querySelector('a[href*="/status/"]');
     const url = link ? abs(link.getAttribute("href")) : null;
     if (!url) continue;
-    out.push({ site: "x", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
+    const nameLink = t.querySelector('[data-testid="User-Name"] a[href^="/"]');
+    const nameHref = nameLink ? nameLink.getAttribute("href") : null;
+    const author = (nameHref ? nameHref.split("/")[1] : null) || handle || undefined;
+    const time = t.querySelector("time[datetime]");
+    const publishedAt = time ? time.getAttribute("datetime") : undefined;
+    out.push({ site: "x", kind: "post", text: text.slice(0, 800), url, author, publishedAt });
   }
   return out;
 }
@@ -108,7 +117,15 @@ function domFacebook(handle) {
       if (/\/(posts|permalink|videos|reel)\/|pfbid|story_fbid/.test(h)) { url = abs(h); break; }
     }
     if (!url) continue;
-    out.push({ site: "facebook", kind: "post", text: text.slice(0, 800), url, author: handle || undefined });
+    const authorLink = art.querySelector("h3 a, h2 a, strong a");
+    let author = handle || undefined;
+    if (authorLink) {
+      const linkText = clean(authorLink.innerText || authorLink.textContent);
+      const authorHref = abs(authorLink.getAttribute("href") || "") || "";
+      const slugMatch = authorHref.match(FB_AUTHOR_SLUG);
+      author = (slugMatch && slugMatch[1]) || linkText || handle || undefined;
+    }
+    out.push({ site: "facebook", kind: "post", text: text.slice(0, 800), url, author });
   }
   return out;
 }
@@ -138,7 +155,14 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
         ];
         const worst = Math.max(prof.status, feed.status, stories.status);
         sendResponse({ ok: true, status: worst, body: feed.body || stories.body, items: [...feed.items, ...stories.items] });
+      } else if (msg.type === "ig-search") {
+        const r = await igFetch(`/api/v1/web/search/topsearch/?context=blended&query=${encodeURIComponent(msg.query)}`);
+        sendResponse({ ok: true, status: r.status, body: r.body, json: r.json });
       } else if (msg.type === "dom-collect") {
+        // msg.query es solo informativo (lo usa el orquestador para armar candidatos);
+        // el autor siempre sale del DOM. Scroll corto antes de leer para cargar más.
+        window.scrollBy(0, 1200);
+        await new Promise((r) => setTimeout(r, 1500));
         const h = location.hostname;
         let items = [];
         if (h.includes("facebook.com")) items = domFacebook(msg.handle);
