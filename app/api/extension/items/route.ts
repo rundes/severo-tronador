@@ -28,6 +28,7 @@ const ItemSchema = z.object({
       commentCount: z.number().int().nonnegative().optional(),
       viewCount: z.number().int().nonnegative().optional(),
       repostCount: z.number().int().nonnegative().optional(),
+      replyCount: z.number().int().nonnegative().optional(),
       takenAt: z.string().optional(),
       expiringAt: z.string().optional(),
     })

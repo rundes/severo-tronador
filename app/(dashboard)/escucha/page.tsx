@@ -26,6 +26,7 @@ import { Monitor } from "@/components/escucha/monitor";
 import type { SourceStatus } from "@/components/escucha/source-rows";
 import { getClientBrief } from "@/lib/client-brief";
 import { getConnectorConfig } from "@/lib/connectors/config";
+import { readExtensionRun } from "@/lib/extension-run";
 
 // Página autenticada con fetch vivo de fuentes externas (tab monitor): el
 // prerender de build pagaba todas esas llamadas (y con el enriquecimiento de
@@ -79,7 +80,7 @@ export default async function EscuchaPage({
 
   // El fetch de fuentes vivas (runListening) solo corre en el tab monitor;
   // el tab escenario lee stats del cache (baratas) en vez de pegarle a las APIs.
-  const [result, cfg, lastXUpdate, marcas, descartados, summary, counts, runs] =
+  const [result, cfg, lastXUpdate, marcas, descartados, summary, counts, runs, extensionRun] =
     await Promise.all([
       tab === "monitor" ? runListening(projectId) : Promise.resolve(null),
       getListeningConfig(projectId),
@@ -91,6 +92,7 @@ export default async function EscuchaPage({
         ? countsBySource(projectId)
         : Promise.resolve<SourceCounts>({ byConnector: {}, bySource: {} }),
       needsAgenda && persistOk ? listRecentRuns(projectId) : Promise.resolve([]),
+      tab === "escenario" ? readExtensionRun(projectId) : Promise.resolve(null),
     ]);
   const upcoming = needsAgenda ? agendaUpcoming(cfg.radioStreams) : [];
 
@@ -143,6 +145,7 @@ export default async function EscuchaPage({
           summary={summary}
           counts={counts}
           now={renderNow()}
+          extensionRun={extensionRun}
           lastXUpdate={lastXUpdate}
           upcoming={upcoming}
           runs={runs}

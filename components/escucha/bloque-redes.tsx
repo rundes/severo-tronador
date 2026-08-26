@@ -5,7 +5,7 @@ import { guardarRedes } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Bloque } from "@/components/escucha/bloque";
 import { MonitorHelp } from "@/components/escucha/monitor-help";
-import { Field, SourceRows, AutoRow, type SourceStatus } from "@/components/escucha/source-rows";
+import { Field, SourceRows, AutoRow, timeAgo, type SourceStatus } from "@/components/escucha/source-rows";
 import { controlClassName as inputCls } from "@/components/ui/field";
 import { partitionFeeds } from "@/lib/escucha-fuentes";
 import { accLine, diffLabel } from "@/lib/escenario-diff";
@@ -13,6 +13,7 @@ import type { ListeningConfig } from "@/lib/listening-config";
 import type { MonitorConfig } from "@/lib/monitor-config";
 import type { ScenarioProposal } from "@/lib/client-brief";
 import type { PullSummary, SourceCounts } from "@/lib/listening-cache";
+import type { ExtensionRun } from "@/lib/extension-run";
 
 const REDES_IDS = ["x-api"];
 const monoCls = `${inputCls} font-mono`;
@@ -25,6 +26,7 @@ export function BloqueRedes({
   summary,
   counts,
   now,
+  extensionRun,
   lastXUpdate,
   persistOk,
   params,
@@ -36,6 +38,7 @@ export function BloqueRedes({
   summary: PullSummary | null;
   counts: SourceCounts;
   now: number;
+  extensionRun: ExtensionRun | null;
   lastXUpdate?: string | null;
   persistOk: boolean;
   params: Record<string, string | undefined>;
@@ -58,6 +61,41 @@ export function BloqueRedes({
       params={params}
     >
       <form key={p?.at ?? "vigente"} action={guardarRedes} className="space-y-5">
+        <section
+          aria-label="Última corrida de la extensión"
+          className="rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900/40"
+        >
+          <span className="text-zinc-700 dark:text-zinc-200">
+            Última corrida de la extensión:{" "}
+            <span className="font-mono tabular-nums">{timeAgo(extensionRun?.at, now)}</span>
+            {extensionRun && (
+              <>
+                {" · "}
+                <span className="font-mono tabular-nums">{extensionRun.cuentas}</span> cuentas
+                {" · "}
+                <span className="font-mono tabular-nums">{extensionRun.items}</span> ítems
+                {" · "}
+                <span className={extensionRun.errores.length > 0 ? "text-red-600 dark:text-red-400" : "text-zinc-500"}>
+                  <span className="font-mono tabular-nums">{extensionRun.errores.length}</span> errores
+                </span>
+              </>
+            )}
+          </span>
+          {extensionRun && extensionRun.errores.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+              {extensionRun.errores.slice(0, 10).map((e, i) => (
+                <li key={`${e.platform}-${e.step}-${i}`} className="font-mono">
+                  {e.platform}
+                  {e.handle ? ` @${e.handle.replace(/^@/, "")}` : ""} · {e.step} · {e.detail}
+                </li>
+              ))}
+              {extensionRun.errores.length > 10 && (
+                <li className="text-zinc-500">y {extensionRun.errores.length - 10} más</li>
+              )}
+            </ul>
+          )}
+        </section>
+
         <div className="space-y-2">
           <Field
             label="Facebook · páginas y grupos públicos"

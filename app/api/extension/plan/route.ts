@@ -1,12 +1,14 @@
 // GET: plan de colecta para el plugin de Chrome (token por proyecto). El
 // plugin no decide a quién mirar: baja este plan y navega. Incluye cuentas
-// por plataforma, búsquedas simétricas, presupuesto anti-bloqueo por
-// plataforma y estado del circuit breaker (para no golpear una plataforma
-// enfriada). El plugin ejecuta con jitter y concurrencia 1 (spec §3).
+// por plataforma (cada una con su `since`), búsquedas simétricas, presupuesto
+// anti-bloqueo por plataforma y estado del circuit breaker (para no golpear
+// una plataforma enfriada). El plugin ejecuta con jitter y concurrencia 1
+// (spec §3); el shuffle de cuentas lo hace el plugin en runCollection.
 import { NextResponse } from "next/server";
 import { verifyExtensionToken } from "@/lib/extension-token";
 import { getMonitorConfig } from "@/lib/monitor-config";
 import { readBreakerState } from "@/lib/monitor-breaker";
+import { sinceByAccount, accountKey, defaultSince } from "@/lib/extension-since";
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization") ?? "";
@@ -20,8 +22,12 @@ export async function GET(req: Request) {
     readBreakerState(projectId),
   ]);
 
-  // Barajar cuentas: recorrer siempre en el mismo orden es una firma (spec §3.2).
-  const accounts = [...cfg.accounts];
+  // `since` por cuenta: el plugin filtra por fecha, nunca por posición.
+  const since = await sinceByAccount(projectId, cfg.accounts);
+  const accounts = cfg.accounts.map((a) => ({
+    ...a,
+    since: since[accountKey(a.platform, a.handle)] ?? defaultSince(),
+  }));
 
   return NextResponse.json({
     accounts,

@@ -21,6 +21,7 @@ import type { MonitorConfig } from "@/lib/monitor-config";
 import type { ClientBrief } from "@/lib/client-brief";
 import type { PullSummary, SourceCounts } from "@/lib/listening-cache";
 import type { RadioRun } from "@/lib/radio-runs";
+import type { ExtensionRun } from "@/lib/extension-run";
 
 export function EscenarioTab(props: {
   cfg: ListeningConfig;
@@ -31,6 +32,7 @@ export function EscenarioTab(props: {
   summary: PullSummary | null;
   counts: SourceCounts;
   now: number;
+  extensionRun: ExtensionRun | null;
   lastXUpdate: string | null;
   upcoming: Array<{ station: string; programa: string; startMs: number; endMs: number }>;
   runs: RadioRun[];
@@ -105,6 +107,7 @@ export function EscenarioTab(props: {
         summary={props.summary}
         counts={props.counts}
         now={props.now}
+        extensionRun={props.extensionRun}
         lastXUpdate={props.lastXUpdate}
         persistOk={props.persistOk}
         params={params}
