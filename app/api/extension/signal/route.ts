@@ -20,6 +20,7 @@ const BreakerSchema = z.object({
   ]),
 });
 
+const MAX_ERRORES = 50;
 const count = z.number().int().nonnegative();
 const RunSummarySchema = z.object({
   kind: z.literal("run-summary"),
@@ -37,8 +38,9 @@ const RunSummarySchema = z.object({
         detail: z.string().max(300),
       }),
     )
-    .max(50)
-    .default([]),
+    .default([])
+    // 51 errores no son un payload inválido: se recorta, no se rechaza.
+    .transform((a) => a.slice(0, MAX_ERRORES)),
 });
 
 const Schema = z.union([RunSummarySchema, BreakerSchema]);

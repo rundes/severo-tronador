@@ -47,6 +47,15 @@ describe("POST /api/extension/signal", () => {
     expect((saveRun.mock.calls[0] as unknown as [string, { errores: unknown[] }])[1].errores).toEqual([]);
   });
 
+  it("run-summary con 51 errores: no da 400, recorta a 50", async () => {
+    const errores = Array.from({ length: 51 }, (_, i) => ({ platform: "x", step: "feed", detail: `e${i}` }));
+    const res = await POST(req({ kind: "run-summary", cuentas: 1, busquedas: 0, items: 0, candidatos: 0, sugeridos: 0, errores }));
+    expect(res.status).toBe(200);
+    const saved = (saveRun.mock.calls[0] as unknown as [string, { errores: unknown[] }])[1].errores;
+    expect(saved).toHaveLength(50);
+    expect(saved[49]).toEqual({ platform: "x", step: "feed", detail: "e49" });
+  });
+
   it("400 con payload que no es ni señal ni run-summary", async () => {
     expect((await POST(req({ platform: "marte", signal: "http_429" }))).status).toBe(400);
     expect((await POST(req({ kind: "run-summary" }))).status).toBe(400);

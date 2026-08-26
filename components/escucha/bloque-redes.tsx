@@ -84,7 +84,7 @@ export function BloqueRedes({
           {extensionRun && extensionRun.errores.length > 0 && (
             <ul className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
               {extensionRun.errores.slice(0, 10).map((e, i) => (
-                <li key={`${e.platform}-${e.step}-${i}`} className="font-mono">
+                <li key={`${e.platform}-${e.step}-${i}`} className="font-mono break-words">
                   {e.platform}
                   {e.handle ? ` @${e.handle.replace(/^@/, "")}` : ""} · {e.step} · {e.detail}
                 </li>

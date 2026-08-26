@@ -7,7 +7,25 @@ let rows: Array<Record<string, unknown>> = [
   { author: "somosferro2026", source: "instagram/extension", kind: "story", published_at: "2026-08-24T10:00:00.000Z", created_at: "2026-08-24T10:00:00.000Z", text: "s0", url: null, parent_url: null, meta: { expiringAt: new Date(NOW - 3600_000).toISOString() } },
   { author: "somosferro2026", source: "instagram/extension", kind: "post", published_at: "2026-08-25T09:00:00.000Z", created_at: "2026-08-25T09:00:00.000Z", text: "carrusel", url: PIEZA, parent_url: null, meta: { followers: 1000, likeCount: 306 } },
 ];
-vi.mock("@/lib/db/supabase", () => ({ dbConfigured: () => true, getSupabase: () => ({ from: () => ({ select: () => ({ eq: () => ({ gte: () => ({ limit: async () => ({ data: rows }) }) }) }) }) }) }));
+type R = Record<string, unknown>;
+// Mock que aplica .eq()/.in() como Postgres y registra cada .in("parent_url")
+// para verificar que los comentarios se leen por lotes de URLs propias.
+const inCalls: Array<[string, unknown[]]> = [];
+function builder(pred: (r: R) => boolean = () => true) {
+  const b = {
+    select: () => b,
+    eq: (col: string, val: unknown) => (col === "project_id" ? b : builder((r) => pred(r) && r[col] === val)),
+    gte: () => b,
+    in: (col: string, vals: unknown[]) => {
+      inCalls.push([col, vals]);
+      return builder((r) => pred(r) && vals.includes(r[col]));
+    },
+    order: () => b,
+    limit: async () => ({ data: rows.filter(pred) }),
+  };
+  return b;
+}
+vi.mock("@/lib/db/supabase", () => ({ dbConfigured: () => true, getSupabase: () => ({ from: () => builder() }) }));
 vi.mock("@/lib/monitor-config", async (o) => ({ ...(await o<typeof import("@/lib/monitor-config")>()), getMonitorConfig: async () => ({ accounts: [{ handle: "somosferro2026", platform: "instagram", category: "organizacion" }], searchesA: [], searchesB: [], entidades: {}, noRepetir: [], calendar: [], budget: {} }) }));
 import { accountMetrics } from "@/lib/monitor-metrics";
 
@@ -48,6 +66,24 @@ describe("accountMetrics", () => {
       ["c1", "otra vez"],
       ["c2", "aguante"],
     ]);
+  });
+
+  it("los comentarios se piden por lotes de 200 parent_url propias", async () => {
+    const urls = Array.from({ length: 250 }, (_, i) => `https://www.instagram.com/p/U${i}/`);
+    rows = urls.map((url, i) => ({
+      author: "somosferro2026", source: "instagram/extension", kind: "post",
+      published_at: "2026-08-25T09:00:00.000Z", created_at: "2026-08-25T09:00:00.000Z",
+      text: `p${i}`, url, parent_url: null, meta: { followers: 1000 },
+    }));
+    rows.push({ author: "hincha9", source: "instagram/extension", kind: "comment", published_at: "2026-08-25T10:00:00.000Z", created_at: "2026-08-25T10:00:00.000Z", text: "último", url: `${urls[249]}#c`, parent_url: urls[249], meta: {} });
+    inCalls.length = 0;
+    const [m] = await accountMetrics("p1", 7, NOW);
+    const parentCalls = inCalls.filter(([col]) => col === "parent_url");
+    expect(parentCalls.map(([, v]) => v.length)).toEqual([200, 50]);
+    expect(parentCalls.flatMap(([, v]) => v)).toEqual(urls);
+    expect(inCalls.filter(([col]) => col === "kind").map(([, v]) => v)).toEqual([["post", "reel", "story"]]);
+    expect(m.piezas).toBe(250);
+    expect(m.comentarios).toBe(1);
   });
 
   it("sin comentarios: densidad null y contadores en 0", async () => {

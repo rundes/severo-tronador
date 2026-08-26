@@ -11,8 +11,9 @@ const PLATFORM_BY_CONNECTOR: Record<string, Platform> = {
   "fb-pages": "facebook",
   tiktok: "tiktok",
 };
-// Comentarios e historias ajenas no marcan el corte de las piezas propias.
-const PIECE_KINDS = ["post", "reel", "story"];
+// Sólo posts/reels marcan el corte: una historia es más nueva que el último
+// post casi siempre, y si moviera el since el feed quedaría sin relevar.
+const PIECE_KINDS = ["post", "reel"];
 const DEFAULT_DAYS = 7;
 
 interface Row {
@@ -44,6 +45,9 @@ export async function sinceByAccount(
     .select("author, connector_id, kind, published_at")
     .eq("project_id", projectId)
     .in("kind", PIECE_KINDS)
+    // Sin NULL ni conectores no sociales: no consumen el límite de filas.
+    .not("published_at", "is", null)
+    .in("connector_id", Object.keys(PLATFORM_BY_CONNECTOR))
     .order("published_at", { ascending: false })
     .limit(2000);
 

@@ -54,5 +54,40 @@ export async function readExtensionRun(
     .select("config")
     .eq("connector_id", key(projectId))
     .maybeSingle();
-  return (data?.config as ExtensionRun | undefined) ?? null;
+  return normalizeRun(data?.config);
+}
+
+// La fila la escribió otra versión del servidor o alguien a mano: el panel
+// no puede caerse por un contador que llegó como string o un errores que no
+// es array. Nunca lanza; devuelve null sólo si no hay objeto.
+const toCount = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+function normalizeError(e: unknown): ExtensionRunError | null {
+  if (!e || typeof e !== "object") return null;
+  const r = e as Record<string, unknown>;
+  const platform = str(r.platform);
+  const step = str(r.step);
+  const detail = str(r.detail);
+  if (!platform || !step || detail === undefined) return null;
+  const handle = str(r.handle);
+  return handle === undefined ? { platform, step, detail } : { platform, handle, step, detail };
+}
+
+export function normalizeRun(raw: unknown): ExtensionRun | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const errores = Array.isArray(r.errores)
+    ? r.errores.map(normalizeError).filter((e): e is ExtensionRunError => e !== null).slice(0, MAX_ERRORES)
+    : [];
+  return {
+    cuentas: toCount(r.cuentas),
+    busquedas: toCount(r.busquedas),
+    items: toCount(r.items),
+    candidatos: toCount(r.candidatos),
+    sugeridos: toCount(r.sugeridos),
+    errores,
+    at: str(r.at) ?? "",
+  };
 }
