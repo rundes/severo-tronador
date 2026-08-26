@@ -66,7 +66,7 @@ function blockHtml(b: Block): string {
       const line = adv ? "#b45309" : C.accent;
       const bg = adv ? "#fffbeb" : C.accentSoft;
       const label = adv ? "Advertencia" : "Inferencia";
-      return `<div data-callout="${b.kind}" style="margin:0 0 12px;padding:10px 14px;border-left:3px solid ${line};background:${bg}"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${line};margin-bottom:4px">${label}</div><div style="font-size:14px;line-height:1.55;color:${C.soft}">${inlineToHtml(b.text)}</div></div>`;
+      return `<div data-callout="${escapeHtml(b.kind)}" style="margin:0 0 12px;padding:10px 14px;border-left:3px solid ${line};background:${bg}"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${line};margin-bottom:4px">${label}</div><div style="font-size:14px;line-height:1.55;color:${C.soft}">${inlineToHtml(b.text)}</div></div>`;
     }
     case "hr":
       return `<hr style="border:0;border-top:1px solid ${C.border};margin:16px 0">`;

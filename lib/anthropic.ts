@@ -19,6 +19,10 @@ export interface GenerateResult {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  // stop_reason de la API ("end_turn", "max_tokens", …). Opcional: los
+  // consumidores viejos lo ignoran; los que cortan por longitud lo miran
+  // para no publicar una respuesta truncada como si estuviera completa.
+  stopReason?: string;
 }
 
 export async function generateText({
@@ -57,6 +61,7 @@ export async function generateText({
   const data = (await res.json()) as {
     content?: { type: string; text?: string }[];
     usage?: { input_tokens?: number; output_tokens?: number };
+    stop_reason?: string | null;
   };
   const text = (data.content ?? [])
     .filter((b) => b.type === "text" && typeof b.text === "string")
@@ -68,5 +73,6 @@ export async function generateText({
     text,
     inputTokens: data.usage?.input_tokens ?? 0,
     outputTokens: data.usage?.output_tokens ?? 0,
+    ...(data.stop_reason ? { stopReason: data.stop_reason } : {}),
   };
 }

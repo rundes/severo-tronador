@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { splitReport, countdownItems, countdownBlock, withCountdown, missingSections } from "@/lib/daily-report";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { generateText } from "@/lib/anthropic";
+import { splitReport, countdownItems, countdownBlock, withCountdown, missingSections, reportSections } from "@/lib/daily-report";
 
 describe("splitReport", () => {
   it("separa el markdown del bloque json de nuevosActores", () => {
@@ -66,6 +67,19 @@ describe("splitReport · briefUpdates", () => {
     const text = `T\n\`\`\`json\n${JSON.stringify({ briefUpdates: many })}\n\`\`\``;
     expect(splitReport(text).briefUpdates).toHaveLength(8);
   });
+
+  it("respuesta truncada: el bloque json sin cerrar no queda en el markdown", () => {
+    const text = '# Tesis\n\n## 10 Vigilancia\n\nTexto.\n\n```json\n{"nuevosActores":[{"handle":"@a","platf';
+    const { markdown, nuevosActores, briefUpdates } = splitReport(text);
+    expect(markdown).toBe("# Tesis\n\n## 10 Vigilancia\n\nTexto.");
+    expect(nuevosActores).toEqual([]);
+    expect(briefUpdates).toEqual([]);
+  });
+
+  it("un ```json cerrado más un ```json abierto: gana el cerrado", () => {
+    const text = 'Cuerpo\n```json\n{"nuevosActores":[]}\n```\n\n```json\n{"brief';
+    expect(splitReport(text).markdown).toBe("Cuerpo");
+  });
 });
 
 describe("countdown", () => {
@@ -81,6 +95,17 @@ describe("countdown", () => {
     expect(countdownItems(calendar, NOW)).toEqual([
       { days: 12, label: "Asamblea de socios", detail: "2 semanas" },
       { days: 40, label: "Elección de comisión", detail: "6 semanas" },
+    ]);
+  });
+
+  it("cuenta días de calendario en hora argentina, no en UTC", () => {
+    // 2026-08-27T01:00Z todavía es el 26 de agosto en Buenos Aires (UTC-3).
+    const madrugada = Date.parse("2026-08-27T01:00:00Z");
+    expect(countdownItems([{ label: "Asamblea", date: "2026-08-27" }], madrugada)).toEqual([
+      { days: 1, label: "Asamblea", detail: "mañana" },
+    ]);
+    expect(countdownItems([{ label: "Cierre de listas", date: "2026-08-26" }], madrugada)).toEqual([
+      { days: 0, label: "Cierre de listas", detail: "hoy" },
     ]);
   });
 
@@ -124,5 +149,70 @@ describe("missingSections", () => {
   it("sin Fuentes la reporta", () => {
     const md = ["# T", ...["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"].map((n) => `## ${n} S`)].join("\n\n");
     expect(missingSections(md)).toEqual(["Fuentes"]);
+  });
+
+  it("Fuentes con título largo cuenta como presente", () => {
+    const md = ["# T", ...["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"].map((n) => `## ${n} S`), "## Fuentes citadas"].join("\n\n");
+    expect(missingSections(md)).toEqual([]);
+  });
+
+  it("proyecto sin escenario electoral: solo pide la estructura reducida", () => {
+    const md = ["# T", "## 01 El escenario", "## 02 Lo que cambió", "## Fuentes"].join("\n\n");
+    expect(missingSections(md, false)).toEqual(["03", "04", "05", "06"]);
+    const completo = ["# T", ...["01", "02", "03", "04", "05", "06"].map((n) => `## ${n} S`), "## Fuentes"].join("\n\n");
+    expect(missingSections(completo, false)).toEqual([]);
+  });
+});
+
+describe("reportSections", () => {
+  it("la estructura electoral tiene las 10 secciones + Fuentes", () => {
+    expect(reportSections(true).map((s) => s.heading)).toEqual([
+      "01 El escenario",
+      "02 Lo que cambió",
+      "03 Línea de tiempo",
+      "04 Contenido efímero",
+      "05 Top 5 de discusiones",
+      "06 Tono y densidad por agrupación",
+      "07 Mapa por categorías",
+      "08 Cuentas nuevas y cuentas que operan",
+      "09 Normativo y calendario",
+      "10 Vigilancia",
+      "Fuentes",
+    ]);
+  });
+
+  it("la estructura reducida renumera y deja 6 secciones + Fuentes", () => {
+    expect(reportSections(false).map((s) => s.heading)).toEqual([
+      "01 El escenario",
+      "02 Lo que cambió",
+      "03 Línea de tiempo",
+      "04 Top 5 de discusiones",
+      "05 Vigilancia",
+      "06 Sugerencia operativa",
+      "Fuentes",
+    ]);
+    expect(reportSections(false).every((s) => s.guide.length > 0)).toBe(true);
+  });
+});
+
+// La truncación por max_tokens es la causa habitual de un informe sin
+// Fuentes y con el json a medias: el cliente la tiene que hacer visible.
+describe("generateText · stopReason", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const respond = (body: unknown) =>
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body })));
+
+  it("expone el stop_reason de la API", async () => {
+    respond({ content: [{ type: "text", text: "hola" }], usage: { input_tokens: 3, output_tokens: 5 }, stop_reason: "max_tokens" });
+    const r = await generateText({ apiKey: "k", prompt: "p" });
+    expect(r).toEqual({ text: "hola", inputTokens: 3, outputTokens: 5, stopReason: "max_tokens" });
+  });
+
+  it("sin stop_reason el resultado sigue siendo válido", async () => {
+    respond({ content: [{ type: "text", text: "ok" }] });
+    const r = await generateText({ apiKey: "k", prompt: "p" });
+    expect(r.text).toBe("ok");
+    expect(r.stopReason).toBeUndefined();
   });
 });

@@ -164,6 +164,29 @@ describe("bloques editoriales", () => {
     expect(b[0].t).toBe("p");
   });
 
+  it("una negrita heredada de Object.prototype no abre callout", () => {
+    const b = parseReportMarkdown("**constructor** x");
+    expect(b[0].t).toBe("p");
+    expect(parseReportMarkdown("**toString**: y")[0].t).toBe("p");
+  });
+
+  it("encabezado de tabla que arranca con la columna # no es h1", () => {
+    const b = parseReportMarkdown(
+      "# | Tema | Origen | Alcance | Amplificadores\n---|---|---|---|---\n1 | Cloacas | vecinos | alto | @radioibicuy",
+    );
+    expect(b.map((x) => x.t)).toEqual(["table"]);
+    const t = b[0];
+    if (t.t !== "table") throw new Error("esperaba table");
+    expect(t.header).toEqual(["#", "Tema", "Origen", "Alcance", "Amplificadores"]);
+    expect(t.header[0]).toBe("#");
+    expect(t.rows).toEqual([["1", "Cloacas", "vecinos", "alto", "@radioibicuy"]]);
+  });
+
+  it("un h1 con pipe que no encabeza tabla sigue siendo h1", () => {
+    const b = parseReportMarkdown("# Ferro | dividido\n\nBajada.");
+    expect(b.map((x) => x.t)).toEqual(["h", "bajada"]);
+  });
+
   it("reportTitle devuelve la tesis del h1 sin marcas, o null", () => {
     expect(reportTitle("# **Ferro** llega dividido a la asamblea\n\nBajada.")).toBe("Ferro llega dividido a la asamblea");
     expect(reportTitle("## 01 El escenario\nTexto")).toBeNull();

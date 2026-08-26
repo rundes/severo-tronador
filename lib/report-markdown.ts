@@ -109,8 +109,11 @@ const CALLOUT_KIND: Record<string, "inferencia" | "advertencia"> = {
 function calloutOf(text: Inline[]): { kind: "inferencia" | "advertencia"; text: Inline[] } | null {
   const first = text[0];
   if (!first || first.t !== "b") return null;
-  const kind = CALLOUT_KIND[first.v.trim().replace(/:$/, "").toLowerCase()];
-  if (!kind) return null;
+  const key = first.v.trim().replace(/:$/, "").toLowerCase();
+  // hasOwn y no acceso directo: "**constructor**" o "**toString**" heredan
+  // de Object.prototype y abrirían un callout fantasma.
+  if (!Object.hasOwn(CALLOUT_KIND, key)) return null;
+  const kind = CALLOUT_KIND[key];
   const rest = text.slice(1);
   const head = rest[0];
   if (head && head.t === "text") rest[0] = { t: "text", v: head.v.replace(/^[\s:.—–-]+/, "") };
@@ -175,7 +178,11 @@ export function parseReportMarkdown(md: string): Block[] {
       continue;
     }
 
-    const h = /^(#{1,3})\s+(.*)$/.exec(trimmed);
+    // Una fila "# | Tema | …" seguida de la línea de guiones es el encabezado
+    // de una tabla con columna de ranking, no un h1: la tesis del día se
+    // perdería y la tabla quedaría sin encabezado.
+    const isTableHeader = trimmed.includes("|") && Boolean(lines[i + 1]) && TABLE_SEP.test(lines[i + 1].trim());
+    const h = isTableHeader ? null : /^(#{1,3})\s+(.*)$/.exec(trimmed);
     if (h) { flushPara(); blocks.push({ t: "h", level: h[1].length as 1 | 2 | 3, text: parseInline(h[2].trim().replace(/\s*#+\s*$/, "")) }); continue; }
     if (/^(-{3,}|\*{3,})$/.test(trimmed)) { flushPara(); blocks.push({ t: "hr" }); continue; }
     if (/^>\s?/.test(trimmed)) { flushPara(); blocks.push({ t: "quote", text: parseInline(trimmed.replace(/^>\s?/, "")) }); continue; }
@@ -196,7 +203,7 @@ export function parseReportMarkdown(md: string): Block[] {
       else blocks.push({ t: "ol", items: [parseInline(ol[1])] });
       continue;
     }
-    if (trimmed.includes("|") && lines[i + 1] && TABLE_SEP.test(lines[i + 1].trim())) {
+    if (isTableHeader) {
       flushPara();
       const header = splitRow(trimmed);
       const rows: string[][] = [];

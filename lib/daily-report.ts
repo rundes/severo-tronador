@@ -23,16 +23,135 @@ import { renderDailyReportPdf } from "@/lib/pdf/daily-report-pdf";
 import { reportFilename } from "@/lib/report-file";
 
 const HISTORY_CAP = 14;
+// Techo de salida del informe. Si el modelo lo toca, el informe llega
+// truncado: se registra (daily_report.truncated) en vez de pasar inadvertido.
+const MAX_REPORT_TOKENS = 8000;
 const CLAUDE_ID = "claude-api";
 
-// Secciones fijas del informe editorial (spec §3). Si el modelo se saltea
-// alguna se loguea, pero el informe se guarda igual: el parser es tolerante.
-const REQUIRED_SECTIONS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"];
+// Secciones fijas del informe editorial (spec §3). Una sola fuente de verdad
+// para el prompt y para el control de faltantes: si divergieran, el informe
+// se marcaría incompleto por secciones que nunca se pidieron.
+export interface ReportSection {
+  // "01".."10" o "Fuentes": lo que se busca en el markdown del modelo.
+  id: string;
+  // Título exacto del h2 que el modelo tiene que escribir.
+  heading: string;
+  // Qué va adentro; se inyecta tal cual en el prompt.
+  guide: string;
+}
 
-export function missingSections(markdown: string): string[] {
+const SECTION_FUENTES: ReportSection = {
+  id: "Fuentes",
+  heading: "Fuentes",
+  guide: "Lista de URLs citadas, solo las que aparecen en las menciones de arriba o en el brief.",
+};
+
+// Proyecto con escenario electoral: cuentas del plan y/o calendario de hitos.
+const ELECTORAL_SECTIONS: ReportSection[] = [
+  {
+    id: "01",
+    heading: "01 El escenario",
+    guide: "Estado del tablero y qué se juega, narrando los hitos en días que faltan. NO escribas vos la cuenta regresiva: el sistema inserta el bloque acá.",
+  },
+  {
+    id: "02",
+    heading: "02 Lo que cambió",
+    guide: "Abrí con un bloque ```kpi de hasta 4 líneas con los números del día. Después, qué se movió respecto del informe anterior y qué no.",
+  },
+  {
+    id: "03",
+    heading: "03 Línea de tiempo",
+    guide: "Los hitos del día y de la semana en orden, con hora argentina. Una línea por hito.",
+  },
+  {
+    id: "04",
+    heading: "04 Contenido efímero",
+    guide: "Historias vivas y vencidas por cuenta: qué se dijo ahí que no está en el feed. Si no hay relevamiento del día, decilo en una línea.",
+  },
+  {
+    id: "05",
+    heading: "05 Top 5 de discusiones",
+    guide: "Tabla `| # | Tema | Origen | Alcance | Amplificadores |`, cinco filas como máximo, ordenadas por tracción.",
+  },
+  {
+    id: "06",
+    heading: "06 Tono y densidad por agrupación",
+    guide: "Tabla con una columna por agrupación: proporción de comentarios positivos y negativos, y densidad de comentaristas recurrentes. Leelo como potencial, no como resultado.",
+  },
+  {
+    id: "07",
+    heading: "07 Mapa por categorías",
+    guide: "Una tabla por categoría, ordenada por dentro por amplificación / adhesión / densidad. Marcá cuando el orden por estructura difiere del orden por tamaño. Nunca compares una categoría contra otra.",
+  },
+  {
+    id: "08",
+    heading: "08 Cuentas nuevas y cuentas que operan",
+    guide: "Cuentas que aparecieron hoy, cuántas en cada dirección del conflicto, y cuáles operan. Sin nómina de particulares.",
+  },
+  {
+    id: "09",
+    heading: "09 Normativo y calendario",
+    guide: "Reglamento, junta electoral, plazos y lo que falta confirmar.",
+  },
+  {
+    id: "10",
+    heading: "10 Vigilancia",
+    guide: "Tabla `| # | Qué vigilar | Por qué | Cuándo |`, con plazos concretos.",
+  },
+  SECTION_FUENTES,
+];
+
+// Proyecto sin escenario electoral (ni cuentas del plan ni calendario): las
+// secciones de categorías, contenido efímero y normativo quedarían vacías
+// todos los días. Estructura reducida y renumerada, mismo criterio editorial.
+const REDUCED_SECTIONS: ReportSection[] = [
+  {
+    id: "01",
+    heading: "01 El escenario",
+    guide: "Estado del tema y qué se juega hoy. Este proyecto no tiene calendario ni cuenta regresiva: no inventes fechas ni plazos.",
+  },
+  {
+    id: "02",
+    heading: "02 Lo que cambió",
+    guide: "Abrí con un bloque ```kpi de hasta 4 líneas con los números del día. Después, qué se movió respecto del informe anterior y qué no.",
+  },
+  {
+    id: "03",
+    heading: "03 Línea de tiempo",
+    guide: "Los hitos del día y de la semana en orden, con hora argentina. Una línea por hito.",
+  },
+  {
+    id: "04",
+    heading: "04 Top 5 de discusiones",
+    guide: "Tabla `| # | Tema | Origen | Alcance | Amplificadores |`, cinco filas como máximo, ordenadas por tracción.",
+  },
+  {
+    id: "05",
+    heading: "05 Vigilancia",
+    guide: "Tabla `| # | Qué vigilar | Por qué | Cuándo |`, con plazos concretos.",
+  },
+  {
+    id: "06",
+    heading: "06 Sugerencia operativa",
+    guide: "Dos o tres movimientos concretos para mañana, cada uno con el dato medido que lo justifica.",
+  },
+  SECTION_FUENTES,
+];
+
+// electoral = el proyecto tiene cuentas monitoreadas y/o calendario cargado.
+export function reportSections(electoral: boolean): ReportSection[] {
+  return electoral ? ELECTORAL_SECTIONS : REDUCED_SECTIONS;
+}
+
+// Si el modelo se saltea alguna sección se loguea, pero el informe se guarda
+// igual: el parser es tolerante.
+export function missingSections(markdown: string, electoral = true): string[] {
   const present = new Set([...markdown.matchAll(/^##\s+(\d\d)\b/gm)].map((m) => m[1]));
-  const missing = REQUIRED_SECTIONS.filter((n) => !present.has(n));
-  if (!/^##\s+Fuentes\s*$/im.test(markdown)) missing.push("Fuentes");
+  const missing = reportSections(electoral)
+    .filter((s) => s.id !== SECTION_FUENTES.id && !present.has(s.id))
+    .map((s) => s.id);
+  // "## Fuentes citadas" también cuenta: lo que importa es que la sección esté.
+  if (!/^##\s+.*Fuentes/im.test(markdown)) missing.push(SECTION_FUENTES.id);
   return missing;
 }
 
@@ -48,18 +167,45 @@ function countdownDetail(days: number): string {
   return `${Math.round(days / 30)} meses`;
 }
 
+const DAY_MS = 86400_000;
+const ART_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+// Día calendario como entero (días desde la época). La cuenta regresiva es una
+// diferencia de días de calendario en hora argentina, no de milisegundos: a las
+// 01:00 UTC del 27 todavía es 26 en Buenos Aires, y un hito del 27 tiene que
+// decir "falta 1 día", no "faltan 0".
+function artDayIndex(now: number): number {
+  const [y, m, d] = ART_DATE.format(new Date(now)).split("-").map(Number);
+  return Date.UTC(y, m - 1, d) / DAY_MS;
+}
+
+// La fecha del hito es un día de calendario (YYYY-MM-DD), no un instante: no
+// se convierte de zona, se compara contra el día argentino de hoy.
+function eventDayIndex(date: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date.trim());
+  if (!m) return null;
+  const idx = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / DAY_MS;
+  return Number.isFinite(idx) ? idx : null;
+}
+
 // Hitos futuros ordenados por cercanía. Los escribe el CÓDIGO, no el modelo:
 // así la cuenta regresiva nunca se equivoca ni inventa fechas.
 export function countdownItems(
   calendar: CalendarEvent[],
   now = Date.now(),
 ): { days: number; label: string; detail: string }[] {
+  const hoy = artDayIndex(now);
   return calendar
-    .map((e) => ({
-      label: e.label.replace(/\|/g, "/").trim(),
-      days: Math.ceil((+new Date(e.date) - now) / 86400_000),
-    }))
-    .filter((e) => Boolean(e.label) && Number.isFinite(e.days) && e.days >= 0)
+    .map((e) => ({ label: e.label.replace(/\|/g, "/").trim(), dia: eventDayIndex(e.date) }))
+    .filter((e): e is { label: string; dia: number } => Boolean(e.label) && e.dia !== null)
+    .map((e) => ({ label: e.label, days: e.dia - hoy }))
+    // El día del hito cuenta como 0 y entra: hasta las 23:59 ART todavía es hoy.
+    .filter((e) => e.days >= 0)
     .sort((a, b) => a.days - b.days)
     .slice(0, 6)
     .map((e) => ({ days: e.days, label: e.label, detail: countdownDetail(e.days) }));
@@ -153,7 +299,11 @@ export function splitReport(text: string): {
 } {
   const matches = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
   const m = matches.at(-1);
-  if (!m || m.index === undefined) return { markdown: text.trim(), nuevosActores: [], briefUpdates: [] };
+  // Sin bloque cerrado puede haber uno abierto: la respuesta se cortó por
+  // max_tokens en mitad del json. Ese resto no es informe, se descarta.
+  if (!m || m.index === undefined) {
+    return { markdown: text.replace(/\n*```json[\s\S]*$/i, "").trim(), nuevosActores: [], briefUpdates: [] };
+  }
   const markdown = text.slice(0, m.index).trim();
   try {
     const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[]; briefUpdates?: unknown[] };
@@ -201,6 +351,10 @@ export async function generateDailyReport(
     accountMetrics(projectId, 7),
   ]);
   const hitos = countdownItems(monitor.calendar);
+  // Sin cuentas del plan ni calendario no hay escenario electoral que mapear:
+  // el informe usa la estructura reducida (spec §3.1).
+  const electoral = monitor.accounts.length > 0 || monitor.calendar.length > 0;
+  const estructura = reportSections(electoral);
 
   const claudeCfg = await getConnectorConfig(CLAUDE_ID, projectId);
   const apiKey = claudeCfg.ANTHROPIC_API_KEY;
@@ -283,52 +437,21 @@ ${Object.entries(monitor.entidades).map(([k, v]) => `- ${k}: ${v}`).join("\n") |
 ## Estructura obligatoria del informe
 Abrí con \`# \` y la **tesis del día**: una sola oración con sujeto y consecuencia, nunca "Informe diario" ni la fecha.
 Debajo, un solo párrafo de 3 a 5 líneas: la **bajada**, que cuenta el día en prosa, sin listas y sin numeritos.
-Después, exactamente estas secciones, en este orden y con estos títulos, sin agregar ni renombrar ninguna:
+Después, exactamente estas secciones, en este orden y con estos títulos, sin agregar ni renombrar ninguna${electoral ? "" : " (este proyecto no tiene escenario electoral: estructura reducida)"}:
 
-## 01 El escenario
-Estado del tablero y qué se juega, narrando los hitos en días que faltan. NO escribas vos la cuenta regresiva: el sistema inserta el bloque acá.
-
-## 02 Lo que cambió
-Abrí con un bloque \`\`\`kpi de hasta 4 líneas con los números del día. Después, qué se movió respecto del informe anterior y qué no.
-
-## 03 Línea de tiempo
-Los hitos del día y de la semana en orden, con hora argentina. Una línea por hito.
-
-## 04 Contenido efímero
-Historias vivas y vencidas por cuenta: qué se dijo ahí que no está en el feed. Si no hay relevamiento del día, decilo en una línea.
-
-## 05 Top 5 de discusiones
-Tabla \`# | Tema | Origen | Alcance | Amplificadores\`, cinco filas como máximo, ordenadas por tracción.
-
-## 06 Tono y densidad por agrupación
-Tabla con una columna por agrupación: proporción de comentarios positivos y negativos, y densidad de comentaristas recurrentes. Leelo como potencial, no como resultado.
-
-## 07 Mapa por categorías
-Una tabla por categoría, ordenada por dentro por amplificación / adhesión / densidad. Marcá cuando el orden por estructura difiere del orden por tamaño. Nunca compares una categoría contra otra.
-
-## 08 Cuentas nuevas y cuentas que operan
-Cuentas que aparecieron hoy, cuántas en cada dirección del conflicto, y cuáles operan. Sin nómina de particulares.
-
-## 09 Normativo y calendario
-Reglamento, junta electoral, plazos y lo que falta confirmar.
-
-## 10 Vigilancia
-Tabla \`# | Qué vigilar | Por qué | Cuándo\`, con plazos concretos.
-
-## Fuentes
-Lista de URLs citadas, solo las que aparecen en las menciones de arriba o en el brief.
+${estructura.map((s) => `## ${s.heading}\n${s.guide}`).join("\n\n")}
 
 Ninguna sección se omite: si no hay material, escribila igual con una sola línea ("Sin novedades en el período").
 
 ## Convenciones de formato
-- **Inferencia:** párrafo que arranca con \`**Inferencia**\` y sigue con la lectura. Toda lectura que no sea dato medido va así.
+- **Inferencia:** párrafo que arranca con \`**Inferencia**\` y sigue con la lectura. Toda lectura que no sea dato medido va así: la inferencia va en un párrafo suelto, nunca como ítem de lista.
 - **Advertencia:** párrafo que arranca con \`**Advertencia**\` para declaraciones no verificadas, acusaciones y rumores.
 - **KPIs:** bloque cercado que abre con \`\`\`kpi y cierra con tres backticks, una línea por número: \`valor | etiqueta | nota\`, máximo 4 líneas. Solo en la sección 02.
-- **Cuenta regresiva:** no la escribas. El sistema inserta un bloque \`countdown\` al inicio de la sección 01; vos narrá los hitos en días.
-- **Tablas:** Markdown normal, con encabezado y línea de guiones.
+${electoral ? "- **Cuenta regresiva:** no la escribas. El sistema inserta un bloque \`countdown\` al inicio de la sección 01; vos narrá los hitos en días." : "- **Cuenta regresiva:** este proyecto no tiene calendario: no escribas cuentas regresivas ni fechas de hitos."}
+- **Tablas:** Markdown normal, con encabezado y línea de guiones; las tablas abren y cierran cada fila con \`|\`, encabezado y filas por igual.
 - No uses ningún otro bloque cercado además de \`\`\`kpi y el \`\`\`json final.
 
-Si casi no hay menciones nuevas, decilo sin inflar y sugerí ajustes de fuentes o keywords dentro de la sección 10.
+Si casi no hay menciones nuevas, decilo sin inflar y sugerí ajustes de fuentes o keywords dentro de la sección ${estructura.find((x) => /Vigilancia/.test(x.heading))?.id ?? "de vigilancia"}.
 
 ## Bloque interno de cierre
 Cerrá con un bloque \`\`\`json con este esquema exacto:
@@ -341,12 +464,17 @@ En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuent
     apiKey,
     system,
     prompt,
-    maxTokens: 8000,
+    maxTokens: MAX_REPORT_TOKENS,
   });
   await incrementUsage(CLAUDE_ID, result.inputTokens + result.outputTokens, projectId);
 
+  // Cortado por límite de tokens: el informe llega sin Fuentes y con el json a
+  // medias. Se guarda igual, pero queda registrado por qué salió incompleto.
+  if (result.stopReason === "max_tokens") {
+    log.warn("daily_report.truncated", { projectId, maxTokens: MAX_REPORT_TOKENS, outputTokens: result.outputTokens });
+  }
   const { markdown: cuerpo, nuevosActores, briefUpdates } = splitReport(result.text);
-  const faltantes = missingSections(cuerpo);
+  const faltantes = missingSections(cuerpo, electoral);
   if (faltantes.length > 0) log.warn("daily_report.structure_missing", { projectId, faltantes });
   const markdown = withCountdown(cuerpo, countdownBlock(monitor.calendar));
   const report: DailyReport = {
