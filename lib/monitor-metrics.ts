@@ -17,6 +17,10 @@ export interface AccountMetrics {
   densidad: number | null;
   piezas: number;
   ultimaActividad: string | null; // máx entre feed/historias (spec §7.2)
+  // Historias (stories) vigentes en este momento, según meta.expiringAt.
+  historiasVivas: number;
+  // Post/reel más reciente entre las piezas (excluye historias y comentarios).
+  ultimaPieza: { url?: string; text: string; likeCount?: number; at: string } | null;
 }
 
 interface Row {
@@ -27,6 +31,7 @@ interface Row {
   created_at: string | null;
   text: string | null;
   meta: Record<string, unknown> | null;
+  url: string | null;
 }
 
 function num(v: unknown): number | undefined {
@@ -37,14 +42,15 @@ function num(v: unknown): number | undefined {
 export async function accountMetrics(
   projectId: string,
   days = 7,
+  nowMs = Date.now(),
 ): Promise<AccountMetrics[]> {
   if (!dbConfigured()) return [];
   const cfg = await getMonitorConfig(projectId);
   if (cfg.accounts.length === 0) return [];
-  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const since = new Date(nowMs - days * 86400_000).toISOString();
   const { data } = await getSupabase()
     .from("listening_items")
-    .select("author, source, kind, published_at, created_at, text, meta")
+    .select("author, source, kind, published_at, created_at, text, meta, url")
     .eq("project_id", projectId)
     .gte("created_at", since)
     .limit(5000);
@@ -57,8 +63,11 @@ export async function accountMetrics(
       (r) => (r.author ?? "").replace(/^@/, "").toLowerCase() === h ||
              (r.source ?? "").toLowerCase().includes(h),
     );
-    const posts = own.filter((r) => r.kind !== "comment");
+    const posts = own.filter((r) => r.kind !== "comment" && r.kind !== "story");
     const comments = own.filter((r) => r.kind === "comment");
+    const historiasVivas = own.filter(
+      (r) => r.kind === "story" && typeof r.meta?.expiringAt === "string" && +new Date(r.meta.expiringAt as string) > nowMs,
+    ).length;
     let followers = 0;
     let views = 0;
     let likes = 0;
@@ -83,6 +92,17 @@ export async function accountMetrics(
       .filter(Boolean)
       .sort()
       .at(-1) ?? null;
+    const ultimaPiezaRow = [...posts].sort(
+      (a, b) => (a.published_at ?? a.created_at ?? "").localeCompare(b.published_at ?? b.created_at ?? ""),
+    ).at(-1) ?? null;
+    const ultimaPieza = ultimaPiezaRow
+      ? {
+          url: ultimaPiezaRow.url ?? undefined,
+          text: ultimaPiezaRow.text ?? "",
+          likeCount: num(ultimaPiezaRow.meta?.likeCount),
+          at: (ultimaPiezaRow.published_at ?? ultimaPiezaRow.created_at) as string,
+        }
+      : null;
 
     return {
       handle: acc.handle,
@@ -93,6 +113,8 @@ export async function accountMetrics(
       densidad: densidad !== null ? Number(densidad.toFixed(2)) : null,
       piezas: posts.length,
       ultimaActividad: ultima,
+      historiasVivas,
+      ultimaPieza,
     };
   });
 }

@@ -172,7 +172,7 @@ Cuentas monitoreadas por categoría (no se comparan entre categorías):
 ${monitor.accounts.map((a) => `- [${a.category}] @${a.handle.replace(/^@/, "")} (${a.platform})${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}`).join("\n")}
 
 ## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, densidad=comentaristas recurrentes)
-${metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}`).join("\n")}
+${metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} hist:${m.historiasVivas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}${m.ultimaPieza ? ` última pieza: "${m.ultimaPieza.text.slice(0, 60)}" (${m.ultimaPieza.likeCount ?? "s/d"} likes)` : ""}`).join("\n")}
 
 ## Memoria de errores (no repetir)
 ${monitor.noRepetir.length ? monitor.noRepetir.map((e) => `- ${e}`).join("\n") : "(sin correcciones registradas)"}
