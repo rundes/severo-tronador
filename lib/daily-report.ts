@@ -18,6 +18,9 @@ import { accountMetrics } from "@/lib/monitor-metrics";
 import { log } from "@/lib/logger";
 import { z } from "zod";
 import { getClientBrief, briefText, mergeSuggestions, saveClientBrief } from "@/lib/client-brief";
+import { renderReportEmail } from "@/lib/report-html";
+import { renderDailyReportPdf } from "@/lib/pdf/daily-report-pdf";
+import { reportFilename } from "@/lib/report-file";
 
 const HISTORY_CAP = 14;
 const CLAUDE_ID = "claude-api";
@@ -244,25 +247,28 @@ export async function emailDailyReport(
   const project = await getProject(projectId);
   const owners = (await listMembers(projectId)).filter((m) => m.role === "owner");
   if (owners.length === 0) return { sent: 0 };
-  const fecha = new Date(report.at).toLocaleDateString("es-AR");
-  // Markdown como <pre> estilado: suficiente para un mail interno de operación.
-  const html = `<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;color:#18181b;max-width:720px">${report.markdown
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")}</div>`;
+
+  const cfgEscucha = await getListeningConfig(projectId);
+  const projectName = project?.nombre ?? "Proyecto";
+  const appUrl = (process.env.APP_URL ?? "https://severo-tronador.vercel.app").replace(/\/$/, "");
+  const { subject, html, text } = renderReportEmail({ report, project: projectName, zona: cfgEscucha.zona ?? "", appUrl });
+
+  // El PDF completo va adjunto; si falla, el mail sale igual (el informe no
+  // depende del PDF).
+  let attachments: { filename: string; content: string }[] = [];
+  try {
+    const pdf = await renderDailyReportPdf({ report, project: projectName, zona: cfgEscucha.zona ?? "" });
+    attachments = [{ filename: reportFilename(projectName, report.at), content: pdf.toString("base64") }];
+  } catch (e) {
+    log.warn("daily_report.pdf_failed", { projectId, error: (e as Error).message });
+  }
+
   let sent = 0;
   for (const o of owners) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${cfg.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: cfg.RESEND_FROM,
-        to: o.email,
-        subject: `Informe de escucha · ${project?.nombre ?? ""} · ${fecha}`,
-        html,
-      }),
+      headers: { Authorization: `Bearer ${cfg.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: cfg.RESEND_FROM, to: o.email, subject, html, text, attachments }),
     });
     if (res.ok) sent++;
     else log.warn("daily_report.email_failed", { to: o.email, status: res.status });
