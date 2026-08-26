@@ -2,7 +2,7 @@
 // Helvetica (default de react-pdf): sin descarga de fuentes en Vercel.
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import type { DailyReport } from "@/lib/daily-report";
-import { parseReportMarkdown, sectionsOf, inlineToText, type Block, type Inline } from "@/lib/report-markdown";
+import { parseReportMarkdown, renderableSections, inlineToText, type Block, type Inline } from "@/lib/report-markdown";
 
 const C = { ink: "#18181b", soft: "#3f3f46", muted: "#71717a", border: "#e4e4e7", subtle: "#fafafa", accent: "#4f5bd5", accentSoft: "#eef0fb" };
 
@@ -81,7 +81,7 @@ export interface DailyReportPdfInput { report: DailyReport; project: string; zon
 
 export function DailyReportDocument({ report, project, zona }: DailyReportPdfInput) {
   const blocks = parseReportMarkdown(report.markdown);
-  const sections = sectionsOf(blocks);
+  const sections = renderableSections(blocks);
   const fecha = new Date(report.at).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
     <Document title={`Informe de escucha · ${project} · ${report.at.slice(0, 10)}`} author="Tronador">
@@ -96,7 +96,6 @@ export function DailyReportDocument({ report, project, zona }: DailyReportPdfInp
         </View>
         {blocks.length === 0 && <Text style={{ color: C.muted }}>Informe sin contenido.</Text>}
         {sections.map((sec, i) => {
-          if (i === 0 && !sec.title && sec.blocks.every((b) => b.t === "h")) return null;
           const t = sec.title.toLowerCase();
           if (/resumen ejecutivo/.test(t)) {
             return <View key={i} style={s.hero}><Text style={s.boxTitle}>{sec.title}</Text>{sec.blocks.map((b, j) => <BlockView key={j} b={b} />)}</View>;

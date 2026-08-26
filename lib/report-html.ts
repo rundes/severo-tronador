@@ -2,7 +2,7 @@
 // Outlook), paleta de DESIGN.md, sin imágenes remotas ni scripts. El PDF
 // adjunto lleva el informe completo; acá va el mismo contenido legible.
 import type { DailyReport } from "@/lib/daily-report";
-import { parseReportMarkdown, sectionsOf, inlineToHtml, escapeHtml, type Block } from "@/lib/report-markdown";
+import { parseReportMarkdown, renderableSections, inlineToHtml, escapeHtml, type Block } from "@/lib/report-markdown";
 
 const C = {
   ink: "#18181b", soft: "#3f3f46", muted: "#71717a", border: "#e4e4e7",
@@ -65,7 +65,7 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
   const { report, project, zona, appUrl } = input;
   const subject = `Informe de escucha · ${project} · ${fechaCorta(report.at)}`;
   const blocks = parseReportMarkdown(report.markdown);
-  const sections = sectionsOf(blocks);
+  const sections = renderableSections(blocks);
 
   const chips = [
     chip(`${report.items24h} menciones 24 h`),
@@ -78,11 +78,9 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
 
   const body = blocks.length === 0
     ? `<p style="font-size:14px;color:${C.muted}">Informe sin contenido.</p>`
-    : sections.map((s, i) => {
+    : sections.map((s) => {
         const t = s.title.toLowerCase();
         const variant = /resumen ejecutivo/.test(t) ? "hero" : /sugerencia operativa/.test(t) ? "accent" : "plain";
-        // el preámbulo (i === 0, sin título) solo lleva el h1 → se omite
-        if (i === 0 && !s.title && s.blocks.every((b) => b.t === "h")) return "";
         return sectionHtml(s.title, s.blocks, variant);
       }).join("");
 

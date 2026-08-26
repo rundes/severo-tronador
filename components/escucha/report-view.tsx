@@ -1,6 +1,6 @@
 // Render del informe diario en el panel: mismo árbol de bloques que el mail
 // y el PDF, con Tailwind y dark mode.
-import { parseReportMarkdown, sectionsOf, type Block, type Inline } from "@/lib/report-markdown";
+import { parseReportMarkdown, renderableSections, type Block, type Inline } from "@/lib/report-markdown";
 
 function InlineText({ text }: { text: Inline[] }) {
   return (
@@ -8,7 +8,7 @@ function InlineText({ text }: { text: Inline[] }) {
       {text.map((x, i) =>
         x.t === "b" ? <strong key={i} className="font-semibold text-zinc-900 dark:text-zinc-100">{x.v}</strong>
         : x.t === "i" ? <em key={i}>{x.v}</em>
-        : x.t === "code" ? <code key={i} className="rounded bg-zinc-100 px-1 font-mono text-[12px] dark:bg-zinc-800">{x.v}</code>
+        : x.t === "code" ? <code key={i} className="whitespace-pre-wrap rounded bg-zinc-100 px-1 font-mono text-[12px] dark:bg-zinc-800">{x.v}</code>
         : <span key={i}>{x.v}</span>,
       )}
     </>
@@ -49,8 +49,7 @@ export function ReportView({ markdown }: { markdown: string }) {
   if (blocks.length === 0) return <p className="text-sm text-zinc-500">Informe sin contenido.</p>;
   return (
     <div>
-      {sectionsOf(blocks).map((sec, i) => {
-        if (i === 0 && !sec.title && sec.blocks.every((b) => b.t === "h")) return null;
+      {renderableSections(blocks).map((sec, i) => {
         const t = sec.title.toLowerCase();
         const box = /resumen ejecutivo/.test(t)
           ? "rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40"

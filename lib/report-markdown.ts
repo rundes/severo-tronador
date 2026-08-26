@@ -55,7 +55,7 @@ export function inlineToHtml(inl: Inline[]): string {
       const v = escapeHtml(x.v);
       if (x.t === "b") return `<strong>${v}</strong>`;
       if (x.t === "i") return `<em>${v}</em>`;
-      if (x.t === "code") return `<code>${v}</code>`;
+      if (x.t === "code") return x.v.includes("\n") ? `<code style="white-space:pre-wrap">${v}</code>` : `<code>${v}</code>`;
       return v;
     })
     .join("");
@@ -81,8 +81,21 @@ export function parseReportMarkdown(md: string): Block[] {
     const trimmed = line.trim();
     if (!trimmed) { flushPara(); continue; }
 
+    const fence = /^```(\w*)\s*$/.exec(trimmed);
+    if (fence) {
+      flushPara();
+      const content: string[] = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i].trim())) {
+        content.push(lines[i]);
+        i++;
+      }
+      blocks.push({ t: "p", text: [{ t: "code", v: content.join("\n") }] });
+      continue;
+    }
+
     const h = /^(#{1,3})\s+(.*)$/.exec(trimmed);
-    if (h) { flushPara(); blocks.push({ t: "h", level: h[1].length as 1 | 2 | 3, text: parseInline(h[2].trim()) }); continue; }
+    if (h) { flushPara(); blocks.push({ t: "h", level: h[1].length as 1 | 2 | 3, text: parseInline(h[2].trim().replace(/\s*#+\s*$/, "")) }); continue; }
     if (/^(-{3,}|\*{3,})$/.test(trimmed)) { flushPara(); blocks.push({ t: "hr" }); continue; }
     if (/^>\s?/.test(trimmed)) { flushPara(); blocks.push({ t: "quote", text: parseInline(trimmed.replace(/^>\s?/, "")) }); continue; }
 
@@ -102,12 +115,12 @@ export function parseReportMarkdown(md: string): Block[] {
       else blocks.push({ t: "ol", items: [parseInline(ol[1])] });
       continue;
     }
-    if (trimmed.startsWith("|") && lines[i + 1] && TABLE_SEP.test(lines[i + 1].trim())) {
+    if (trimmed.includes("|") && lines[i + 1] && TABLE_SEP.test(lines[i + 1].trim())) {
       flushPara();
       const header = splitRow(trimmed);
       const rows: string[][] = [];
       i += 2;
-      while (i < lines.length && lines[i].trim().startsWith("|")) {
+      while (i < lines.length && lines[i].includes("|")) {
         rows.push(splitRow(lines[i]));
         i++;
       }
@@ -130,4 +143,15 @@ export function sectionsOf(blocks: Block[]): { title: string; blocks: Block[] }[
     else out[out.length - 1].blocks.push(b);
   }
   return out.filter((s, i) => i > 0 || s.blocks.length > 0);
+}
+
+// Secciones listas para renderizar: igual que sectionsOf pero descarta la
+// primera sección sin título cuando solo contiene headings (el h1/preámbulo
+// sin cuerpo, que ya se muestra aparte en el encabezado de cada renderer).
+export function renderableSections(blocks: Block[]): { title: string; blocks: Block[] }[] {
+  const sections = sectionsOf(blocks);
+  if (sections.length > 0 && !sections[0].title && sections[0].blocks.every((b) => b.t === "h")) {
+    return sections.slice(1);
+  }
+  return sections;
 }
