@@ -85,7 +85,10 @@ export function parseCandidateJson(text: string, candidates: Candidate[]): Actor
 }
 
 // Presupuesto de salida proporcional al lote: ~60 tokens por candidato + margen.
-export const candidateMaxTokens = (n: number): number => Math.min(4096, 300 + n * 60);
+// Cada candidato cuesta ~150 tokens de salida (razon ≤200 chars + evidencia +
+// claves). Piso 1500: con 5 candidatos y 600 tokens el JSON se truncaba y el
+// parse tiraba todo el lote (smoke Ferro 2026-08-26).
+export const candidateMaxTokens = (n: number): number => Math.min(4096, Math.max(1500, 400 + n * 150));
 
 export async function classifyCandidates(projectId: string, candidates: Candidate[]): Promise<ActorSuggestionInput[]> {
   if (candidates.length === 0) return [];

@@ -45,7 +45,8 @@ describe("candidate-ai", () => {
   });
 
   it("candidateMaxTokens crece con el lote y se tapa en 4096", () => {
-    expect(candidateMaxTokens(2)).toBe(420);
+    expect(candidateMaxTokens(2)).toBe(1500);
+    expect(candidateMaxTokens(10)).toBe(1900);
     expect(candidateMaxTokens(100)).toBe(4096);
   });
 });
