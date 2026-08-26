@@ -6,6 +6,11 @@ import { useState, useTransition } from "react";
 import { resolverActorSugerido } from "@/app/(dashboard)/escucha/actions";
 import type { ActorSuggestion } from "@/lib/client-brief";
 
+// La evidencia viene de la extensión/IA: solo se linkea si es http(s).
+function safeUrl(u: string): boolean {
+  try { return /^https?:$/.test(new URL(u).protocol); } catch { return false; }
+}
+
 const formatFollowers = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
 
@@ -64,7 +69,10 @@ export function ActorSuggestions({ suggestions }: { suggestions: ActorSuggestion
                 <td className="py-1.5 pr-3">{s.direccion}</td>
                 <td className="py-1.5 pr-3 text-zinc-600 dark:text-zinc-300">
                   {s.razon}
-                  {s.evidencia && (
+                  {s.evidencia && !safeUrl(s.evidencia) && (
+                    <span className="break-all text-zinc-400"> {s.evidencia}</span>
+                  )}
+                  {s.evidencia && safeUrl(s.evidencia) && (
                     <>
                       {" "}
                       <a
