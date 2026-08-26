@@ -17,6 +17,23 @@ function fecha(iso: string): string {
   });
 }
 
+// Lo que el modelo observó sobre la herramienta, la config o la calidad del
+// dato. Es para el operador: va arriba del informe, no adentro (el informe no
+// habla de sí mismo) y tampoco viaja en el PDF.
+function NotaOperativa({ texto }: { texto: string }) {
+  return (
+    <aside
+      data-block="nota-operativa"
+      className="rounded-lg border border-amber-300 border-l-[3px] border-l-amber-600 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:border-l-amber-500 dark:bg-amber-950/30"
+    >
+      <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
+        Nota operativa
+      </div>
+      <p className="max-w-[80ch] text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300">{texto}</p>
+    </aside>
+  );
+}
+
 export function InformePanel({
   latest,
   history,
@@ -61,6 +78,8 @@ export function InformePanel({
         ok={generado ? "Informe generado y enviado a los owners por mail." : null}
         error={null}
       />
+
+      {latest?.notaOperativa && <NotaOperativa texto={latest.notaOperativa} />}
 
       {latest && (
         <article className="rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">

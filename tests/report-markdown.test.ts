@@ -159,6 +159,21 @@ describe("bloques editoriales", () => {
     expect(adv.t === "callout" && inlineToText(adv.text)).toBe("la acusación es una declaración pública, no un hecho.");
   });
 
+  it("acepta la puntuación adentro de la negrita: **Inferencia:** / **Advertencia.**", () => {
+    const b = parseReportMarkdown(
+      "**Inferencia:** texto\n\n**Advertencia:** la acusación no está verificada.\n\n**Inferencia.** el tono cayó.\n\n**Advertencia —** rumor sin fuente.",
+    );
+    expect(b.map((x) => x.t)).toEqual(["callout", "callout", "callout", "callout"]);
+    expect(b[0].t === "callout" && b[0].kind).toBe("inferencia");
+    expect(b[0].t === "callout" && inlineToText(b[0].text)).toBe("texto");
+    expect(b[1].t === "callout" && b[1].kind).toBe("advertencia");
+    expect(b[1].t === "callout" && inlineToText(b[1].text)).toBe("la acusación no está verificada.");
+    expect(b[2].t === "callout" && b[2].kind).toBe("inferencia");
+    expect(b[2].t === "callout" && inlineToText(b[2].text)).toBe("el tono cayó.");
+    expect(b[3].t === "callout" && b[3].kind).toBe("advertencia");
+    expect(b[3].t === "callout" && inlineToText(b[3].text)).toBe("rumor sin fuente.");
+  });
+
   it("un párrafo que solo empieza en negrita no es callout", () => {
     const b = parseReportMarkdown("**Cloacas** — volumen alto.");
     expect(b[0].t).toBe("p");

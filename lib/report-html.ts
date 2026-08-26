@@ -7,6 +7,7 @@ import { parseReportMarkdown, renderableSections, inlineToHtml, escapeHtml, repo
 const C = {
   ink: "#18181b", soft: "#3f3f46", muted: "#71717a", border: "#e4e4e7",
   subtle: "#fafafa", accent: "#4f5bd5", accentSoft: "#eef0fb", danger: "#dc2626",
+  warn: "#b45309", warnSoft: "#fffbeb", warnBorder: "#fde68a",
 };
 const FONT = "Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
@@ -116,6 +117,12 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
         return sectionHtml(s.title, s.blocks, variant);
       }).join("");
 
+  // Nota operativa: es para el operador (config, calidad del dato), no parte
+  // del informe. Va afuera de la tarjeta del cuerpo y no entra al PDF.
+  const nota = report.notaOperativa?.trim()
+    ? `<tr><td style="padding:0 0 12px"><div data-block="nota-operativa" style="padding:10px 14px;border:1px solid ${C.warnBorder};border-left:3px solid ${C.warn};border-radius:8px;background:${C.warnSoft}"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${C.warn};margin-bottom:4px">Nota operativa</div><div style="font-size:13px;line-height:1.5;color:${C.soft}">${escapeHtml(report.notaOperativa.trim())}</div></div></td></tr>`
+    : "";
+
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;padding:24px 12px;background:${C.subtle};font-family:${FONT};color:${C.ink}">
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td align="center">
@@ -126,7 +133,7 @@ export function renderReportEmail(input: { report: DailyReport; project: string;
   <div style="font-size:13px;color:${C.muted};margin-top:2px">${titulo ? `${escapeHtml(project)} · ` : ""}${escapeHtml(fechaLarga(report.at))}${zona ? ` · ${escapeHtml(zona)}` : ""}</div>
   <div style="margin-top:10px">${chips}</div>
 </td></tr>
-<tr><td style="background:#fff;border:1px solid ${C.border};border-radius:10px;padding:22px 24px">
+${nota}<tr><td style="background:#fff;border:1px solid ${C.border};border-radius:10px;padding:22px 24px">
 ${body}
 <div style="margin-top:26px;padding-top:16px;border-top:1px solid ${C.border};text-align:center">
   <a href="${escapeHtml(appUrl)}/escucha?tab=informe" style="display:inline-block;padding:9px 16px;border-radius:6px;background:${C.accent};color:#fff;font-size:13px;font-weight:600;text-decoration:none">Abrir en Tronador</a>

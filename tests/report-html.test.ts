@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderReportEmail } from "@/lib/report-html";
+import { escapeHtml } from "@/lib/report-markdown";
 import { reportFilename } from "@/lib/report-file";
 
 const report = {
@@ -35,6 +36,36 @@ describe("renderReportEmail", () => {
     expect(out.html).toContain("&lt;script&gt;x&lt;/script&gt;");
     expect(out.html).not.toMatch(/<script/i);
     expect(out.html).not.toMatch(/<link|@import|url\(/i);
+  });
+
+  it("la nota operativa va en una caja ámbar entre la cabecera y el informe, y no está si no hay", () => {
+    const nota = "Las 3 cuentas del plan figuran con 0 seguidores: revisar el conector de métricas.";
+    const con = renderReportEmail({
+      report: { ...report, notaOperativa: nota },
+      project: "Ibicuy",
+      zona: "",
+      appUrl: "https://a",
+    });
+    expect(con.html).toContain('data-block="nota-operativa"');
+    expect(con.html).toContain("Nota operativa");
+    expect(con.html).toContain(escapeHtml(nota));
+    // Entre la cabecera (la tesis) y el cuerpo del informe.
+    expect(con.html.indexOf("nota-operativa")).toBeGreaterThan(con.html.indexOf("Tronador · Escucha"));
+    expect(con.html.indexOf("nota-operativa")).toBeLessThan(con.html.indexOf("Resumen ejecutivo"));
+
+    expect(out.html).not.toContain("nota-operativa");
+    expect(out.html).not.toContain("Nota operativa");
+  });
+
+  it("escapa la nota operativa (no inyecta HTML)", () => {
+    const r = renderReportEmail({
+      report: { ...report, notaOperativa: "<script>x</script> revisar" },
+      project: "P",
+      zona: "",
+      appUrl: "https://a",
+    });
+    expect(r.html).toContain("&lt;script&gt;x&lt;/script&gt; revisar");
+    expect(r.html).not.toMatch(/<script/i);
   });
 
   it("markdown vacío → placeholder", () => {

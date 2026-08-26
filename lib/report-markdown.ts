@@ -101,6 +101,10 @@ function parseKpiLines(raw: string[]): { value: string; label: string; note: str
 
 // "**Inferencia** …" / "**Advertencia**: …" → callout. Regla editorial: toda
 // lectura que no sea dato medido va etiquetada (brief de referencia §8).
+// El modelo mete la puntuación adentro o afuera de la negrita según el día
+// (**Inferencia:**, **Inferencia.**, **Inferencia** —): se acepta todo y se
+// limpia, porque si no el párrafo cae como texto suelto sin etiqueta.
+const LABEL_TRIM = /^[\s:.;,·—–-]+|[\s:.;,·—–-]+$/g;
 const CALLOUT_KIND: Record<string, "inferencia" | "advertencia"> = {
   inferencia: "inferencia",
   advertencia: "advertencia",
@@ -109,14 +113,14 @@ const CALLOUT_KIND: Record<string, "inferencia" | "advertencia"> = {
 function calloutOf(text: Inline[]): { kind: "inferencia" | "advertencia"; text: Inline[] } | null {
   const first = text[0];
   if (!first || first.t !== "b") return null;
-  const key = first.v.trim().replace(/:$/, "").toLowerCase();
+  const key = first.v.replace(LABEL_TRIM, "").toLowerCase();
   // hasOwn y no acceso directo: "**constructor**" o "**toString**" heredan
   // de Object.prototype y abrirían un callout fantasma.
   if (!Object.hasOwn(CALLOUT_KIND, key)) return null;
   const kind = CALLOUT_KIND[key];
   const rest = text.slice(1);
   const head = rest[0];
-  if (head && head.t === "text") rest[0] = { t: "text", v: head.v.replace(/^[\s:.—–-]+/, "") };
+  if (head && head.t === "text") rest[0] = { t: "text", v: head.v.replace(/^[\s:.;,·—–-]+/, "") };
   return { kind, text: rest };
 }
 

@@ -51,7 +51,7 @@ const ELECTORAL_SECTIONS: ReportSection[] = [
   {
     id: "01",
     heading: "01 El escenario",
-    guide: "Estado del tablero y qué se juega, narrando los hitos en días que faltan. NO escribas vos la cuenta regresiva: el sistema inserta el bloque acá.",
+    guide: "Estado del tablero y qué se juega, narrando los hitos en días que faltan. NO escribas vos la cuenta regresiva ni un bloque ```countdown: el sistema lo inserta acá y descarta el tuyo.",
   },
   {
     id: "02",
@@ -217,14 +217,25 @@ export function countdownBlock(calendar: CalendarEvent[], now = Date.now()): str
   return ["```countdown", ...items.map((i) => `${i.days} | ${i.label} | ${i.detail}`), "```"].join("\n");
 }
 
+// El modelo escribe su propio ```countdown aunque el prompt se lo prohíba, y
+// con fechas inventadas. La cuenta regresiva la genera el código: cualquier
+// bloque countdown del modelo se borra antes de insertar el nuestro.
+function stripModelCountdowns(markdown: string): string {
+  const out = markdown.replace(/^[ \t]*```countdown[ \t]*\n[\s\S]*?^[ \t]*```[ \t]*$\n?/gim, "");
+  // Solo se normalizan los saltos si hubo recorte: el hueco que deja el
+  // bloque borrado no tiene que abrir un espacio de tres líneas.
+  return out === markdown ? markdown : out.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 // El bloque va al inicio de "01 El escenario"; si el modelo no escribió ese
 // heading, arriba de todo.
 export function withCountdown(markdown: string, block: string): string {
-  if (!block) return markdown;
-  const m = /^##\s+01\b.*$/m.exec(markdown);
-  if (!m) return `${block}\n\n${markdown}`;
+  const limpio = stripModelCountdowns(markdown);
+  if (!block) return limpio;
+  const m = /^##\s+01\b.*$/m.exec(limpio);
+  if (!m) return `${block}\n\n${limpio}`;
   const end = m.index + m[0].length;
-  return `${markdown.slice(0, end)}\n\n${block}${markdown.slice(end)}`;
+  return `${limpio.slice(0, end)}\n\n${block}${limpio.slice(end)}`;
 }
 
 export interface DailyReport {
@@ -233,6 +244,11 @@ export interface DailyReport {
   items24h: number;
   items7d: number;
   pull?: PullSummary;
+  // Observación del modelo sobre la herramienta / la config / la calidad del
+  // dato (cuentas en cero, handles que no coinciden con el brief, sin
+  // menciones). Es para el operador, no para el informe: se muestra en el
+  // panel y en el mail, nunca en el cuerpo ni en el PDF.
+  notaOperativa?: string;
 }
 
 interface ReportStore {
@@ -292,10 +308,20 @@ const BriefUpdateInputSchema = z.object({
 });
 export type BriefUpdateInput = z.infer<typeof BriefUpdateInputSchema>;
 
+// Nota operativa: texto libre y corto. Tolerante — lo que no sea string con
+// contenido se descarta sin romper el informe.
+const NOTA_CAP = 600;
+function parseNotaOperativa(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const t = raw.trim();
+  return t ? t.slice(0, NOTA_CAP) : undefined;
+}
+
 export function splitReport(text: string): {
   markdown: string;
   nuevosActores: NuevoActor[];
   briefUpdates: BriefUpdateInput[];
+  notaOperativa?: string;
 } {
   const matches = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
   const m = matches.at(-1);
@@ -306,7 +332,7 @@ export function splitReport(text: string): {
   }
   const markdown = text.slice(0, m.index).trim();
   try {
-    const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[]; briefUpdates?: unknown[] };
+    const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[]; briefUpdates?: unknown[]; notaOperativa?: unknown };
     const actores = (raw.nuevosActores ?? [])
       .map((a) => ActorSchema.safeParse(a))
       .filter((r): r is { success: true; data: NuevoActor } => r.success)
@@ -316,7 +342,7 @@ export function splitReport(text: string): {
       .filter((r): r is { success: true; data: BriefUpdateInput } => r.success)
       .map((r) => r.data)
       .slice(0, 8);
-    return { markdown, nuevosActores: actores, briefUpdates: updates };
+    return { markdown, nuevosActores: actores, briefUpdates: updates, notaOperativa: parseNotaOperativa(raw.notaOperativa) };
   } catch {
     log.warn("daily_report.actors_parse_failed", { head: m[1].slice(0, 200) });
     return { markdown, nuevosActores: [], briefUpdates: [] };
@@ -391,7 +417,10 @@ export async function generateDailyReport(
     "7. Fechá con hora argentina (UTC-3): a las 02:00 UTC todavía es el día " +
     "anterior en Buenos Aires.\n" +
     "8. El informe no habla de sí mismo: sin menciones al método, a la " +
-    "herramienta, a cambios de criterio ni a limitaciones técnicas.\n" +
+    "herramienta, a cambios de criterio ni a limitaciones técnicas. Si el " +
+    "panel de fuentes, las cuentas cargadas o los datos del sistema parecen " +
+    "mal configurados o incompletos, eso va en \"notaOperativa\" del bloque " +
+    "json final — nunca en el cuerpo.\n" +
     "9. No publiques nómina de particulares; sí agregados, densidades y " +
     "cuentas con relevancia organizativa.\n" +
     "10. Un resultado deportivo apaga la conversación política unas 12 h: no " +
@@ -447,7 +476,7 @@ Ninguna sección se omite: si no hay material, escribila igual con una sola lín
 - **Inferencia:** párrafo que arranca con \`**Inferencia**\` y sigue con la lectura. Toda lectura que no sea dato medido va así: la inferencia va en un párrafo suelto, nunca como ítem de lista.
 - **Advertencia:** párrafo que arranca con \`**Advertencia**\` para declaraciones no verificadas, acusaciones y rumores.
 - **KPIs:** bloque cercado que abre con \`\`\`kpi y cierra con tres backticks, una línea por número: \`valor | etiqueta | nota\`, máximo 4 líneas. Solo en la sección 02.
-${electoral ? "- **Cuenta regresiva:** no la escribas. El sistema inserta un bloque \`countdown\` al inicio de la sección 01; vos narrá los hitos en días." : "- **Cuenta regresiva:** este proyecto no tiene calendario: no escribas cuentas regresivas ni fechas de hitos."}
+${electoral ? "- **Cuenta regresiva:** No escribas ningún bloque \`\`\`countdown: el sistema lo inserta al inicio de la sección 01. Si lo escribís, se descarta. Vos narrá los hitos en días." : "- **Cuenta regresiva:** este proyecto no tiene calendario: no escribas cuentas regresivas ni fechas de hitos, ni ningún bloque \`\`\`countdown."}
 - **Tablas:** Markdown normal, con encabezado y línea de guiones; las tablas abren y cierran cada fila con \`|\`, encabezado y filas por igual.
 - No uses ningún otro bloque cercado además de \`\`\`kpi y el \`\`\`json final.
 
@@ -455,10 +484,11 @@ Si casi no hay menciones nuevas, decilo sin inflar y sugerí ajustes de fuentes 
 
 ## Bloque interno de cierre
 Cerrá con un bloque \`\`\`json con este esquema exacto:
-{ "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }], "briefUpdates": [{ "seccion": "número o nombre de la sección del brief maestro", "texto": "el hecho nuevo, redactado para pegar en el brief" }] }
+{ "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }], "briefUpdates": [{ "seccion": "número o nombre de la sección del brief maestro", "texto": "el hecho nuevo, redactado para pegar en el brief" }], "notaOperativa": "" }
 El bloque es interno (el operador lo revisa aparte): no lo menciones ni lo describas en el cuerpo del informe.
 En "nuevosActores", solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle.replace(/^@/, "")).join(", ")})` : ""}. Si no hay, dejá el array vacío.
-En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuenta nueva con seguidores, hito confirmado, hallazgo que se rompió (anotá que se rompió, no lo borres), error propio detectado redactado como regla. Si no hay, dejá el array vacío.`;
+En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuenta nueva con seguidores, hito confirmado, hallazgo que se rompió (anotá que se rompió, no lo borres), error propio detectado redactado como regla. Si no hay, dejá el array vacío.
+En "notaOperativa" (opcional, hasta 600 caracteres, para el operador y no para el lector del informe), lo que observaste sobre la herramienta, la configuración o la calidad del dato: cuentas cargadas con 0 seguidores, handles que no coinciden con el brief, fuentes sin menciones, keywords que no traen nada, métricas faltantes. Toda observación de este tipo va ACÁ y solo acá: nunca en el cuerpo del informe. Si no tenés nada que señalar, omití el campo.`;
 
   const result = await generateText({
     apiKey,
@@ -473,7 +503,7 @@ En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuent
   if (result.stopReason === "max_tokens") {
     log.warn("daily_report.truncated", { projectId, maxTokens: MAX_REPORT_TOKENS, outputTokens: result.outputTokens });
   }
-  const { markdown: cuerpo, nuevosActores, briefUpdates } = splitReport(result.text);
+  const { markdown: cuerpo, nuevosActores, briefUpdates, notaOperativa } = splitReport(result.text);
   const faltantes = missingSections(cuerpo, electoral);
   if (faltantes.length > 0) log.warn("daily_report.structure_missing", { projectId, faltantes });
   const markdown = withCountdown(cuerpo, countdownBlock(monitor.calendar));
@@ -483,6 +513,7 @@ En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuent
     items24h: items24.length,
     items7d: items7.length,
     pull,
+    notaOperativa,
   };
   await saveReport(projectId, report);
   try {

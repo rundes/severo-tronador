@@ -82,6 +82,27 @@ describe("splitReport · briefUpdates", () => {
   });
 });
 
+describe("splitReport · notaOperativa", () => {
+  it("extrae la nota operativa del bloque interno", () => {
+    const text = '# Tesis\n\nCuerpo.\n\n```json\n{"nuevosActores":[],"briefUpdates":[],"notaOperativa":"Las 3 cuentas del plan figuran con 0 seguidores: revisar el conector."}\n```';
+    const { markdown, notaOperativa } = splitReport(text);
+    expect(markdown).toBe("# Tesis\n\nCuerpo.");
+    expect(notaOperativa).toBe("Las 3 cuentas del plan figuran con 0 seguidores: revisar el conector.");
+  });
+
+  it("nota ausente, vacía o de otro tipo → undefined", () => {
+    expect(splitReport('T\n```json\n{"nuevosActores":[]}\n```').notaOperativa).toBeUndefined();
+    expect(splitReport('T\n```json\n{"notaOperativa":"   "}\n```').notaOperativa).toBeUndefined();
+    expect(splitReport('T\n```json\n{"notaOperativa":42}\n```').notaOperativa).toBeUndefined();
+    expect(splitReport("# Solo texto").notaOperativa).toBeUndefined();
+  });
+
+  it("recorta la nota a 600 caracteres", () => {
+    const text = `T\n\`\`\`json\n${JSON.stringify({ notaOperativa: "x".repeat(900) })}\n\`\`\``;
+    expect(splitReport(text).notaOperativa).toHaveLength(600);
+  });
+});
+
 describe("countdown", () => {
   const NOW = Date.UTC(2026, 7, 26, 12);
   const calendar = [
@@ -125,6 +146,40 @@ describe("countdown", () => {
     expect(withCountdown(md, "```countdown\n3 | X | esta semana\n```")).toBe(
       "# Tesis\n\nBajada.\n\n## 01 El escenario\n\n```countdown\n3 | X | esta semana\n```\n\nNarrativa.",
     );
+  });
+
+  it("withCountdown descarta el countdown que escribió el modelo: queda uno solo, el nuestro", () => {
+    const md = [
+      "# Tesis",
+      "",
+      "## 01 El escenario",
+      "",
+      "```countdown",
+      "9 | Inventado por el modelo | esta semana",
+      "```",
+      "",
+      "Narrativa.",
+      "",
+      "## 02 Lo que cambió",
+      "",
+      "```countdown",
+      "30 | Otro inventado | un mes",
+      "```",
+    ].join("\n");
+    const out = withCountdown(md, "```countdown\n3 | X | esta semana\n```");
+    expect(out.match(/```countdown/g)).toHaveLength(1);
+    expect(out).toContain("3 | X | esta semana");
+    expect(out).not.toContain("Inventado por el modelo");
+    expect(out).not.toContain("Otro inventado");
+    expect(out.indexOf("```countdown")).toBeGreaterThan(out.indexOf("## 01 El escenario"));
+    expect(out).toContain("Narrativa.");
+  });
+
+  it("sin bloque propio, el countdown del modelo igual se descarta", () => {
+    const md = "# Tesis\n\n## 01 El escenario\n\n```countdown\n9 | Inventado | ya\n```\n\nNarrativa.";
+    const out = withCountdown(md, "");
+    expect(out).not.toContain("```countdown");
+    expect(out).toContain("Narrativa.");
   });
 
   it("withCountdown sin heading 01 lo pone arriba de todo; bloque vacío no toca nada", () => {
