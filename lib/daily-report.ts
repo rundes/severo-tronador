@@ -13,17 +13,73 @@ import { getConnectorConfig } from "@/lib/connectors/config";
 import { generateText } from "@/lib/anthropic";
 import { incrementUsage } from "@/lib/quota";
 import { getProject, listMembers } from "@/lib/projects";
-import { getMonitorConfig, nextCountdown } from "@/lib/monitor-config";
+import { getMonitorConfig, type CalendarEvent } from "@/lib/monitor-config";
 import { accountMetrics } from "@/lib/monitor-metrics";
 import { log } from "@/lib/logger";
 import { z } from "zod";
-import { getClientBrief, briefText, mergeSuggestions, saveClientBrief } from "@/lib/client-brief";
+import { getClientBrief, briefText, mergeSuggestions, mergeBriefUpdates, saveClientBrief } from "@/lib/client-brief";
 import { renderReportEmail } from "@/lib/report-html";
 import { renderDailyReportPdf } from "@/lib/pdf/daily-report-pdf";
 import { reportFilename } from "@/lib/report-file";
 
 const HISTORY_CAP = 14;
 const CLAUDE_ID = "claude-api";
+
+// Secciones fijas del informe editorial (spec §3). Si el modelo se saltea
+// alguna se loguea, pero el informe se guarda igual: el parser es tolerante.
+const REQUIRED_SECTIONS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"];
+
+export function missingSections(markdown: string): string[] {
+  const present = new Set([...markdown.matchAll(/^##\s+(\d\d)\b/gm)].map((m) => m[1]));
+  const missing = REQUIRED_SECTIONS.filter((n) => !present.has(n));
+  if (!/^##\s+Fuentes\s*$/im.test(markdown)) missing.push("Fuentes");
+  return missing;
+}
+
+// Detalle en palabras, nunca una fecha suelta (regla editorial del brief:
+// la cuenta regresiva se expresa en días que faltan).
+function countdownDetail(days: number): string {
+  if (days === 0) return "hoy";
+  if (days === 1) return "mañana";
+  if (days <= 7) return "esta semana";
+  // Hasta ocho semanas la cuenta se lee mejor en semanas; recién ahí pasa a
+  // meses (a 8 semanas ya son ~2 meses, así que el salto no pierde precisión).
+  if (days <= 56) return `${Math.round(days / 7)} semanas`;
+  return `${Math.round(days / 30)} meses`;
+}
+
+// Hitos futuros ordenados por cercanía. Los escribe el CÓDIGO, no el modelo:
+// así la cuenta regresiva nunca se equivoca ni inventa fechas.
+export function countdownItems(
+  calendar: CalendarEvent[],
+  now = Date.now(),
+): { days: number; label: string; detail: string }[] {
+  return calendar
+    .map((e) => ({
+      label: e.label.replace(/\|/g, "/").trim(),
+      days: Math.ceil((+new Date(e.date) - now) / 86400_000),
+    }))
+    .filter((e) => Boolean(e.label) && Number.isFinite(e.days) && e.days >= 0)
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 6)
+    .map((e) => ({ days: e.days, label: e.label, detail: countdownDetail(e.days) }));
+}
+
+export function countdownBlock(calendar: CalendarEvent[], now = Date.now()): string {
+  const items = countdownItems(calendar, now);
+  if (items.length === 0) return "";
+  return ["```countdown", ...items.map((i) => `${i.days} | ${i.label} | ${i.detail}`), "```"].join("\n");
+}
+
+// El bloque va al inicio de "01 El escenario"; si el modelo no escribió ese
+// heading, arriba de todo.
+export function withCountdown(markdown: string, block: string): string {
+  if (!block) return markdown;
+  const m = /^##\s+01\b.*$/m.exec(markdown);
+  if (!m) return `${block}\n\n${markdown}`;
+  const end = m.index + m[0].length;
+  return `${markdown.slice(0, end)}\n\n${block}${markdown.slice(end)}`;
+}
 
 export interface DailyReport {
   at: string;
@@ -81,21 +137,39 @@ const ActorSchema = z.object({
 });
 export type NuevoActor = z.infer<typeof ActorSchema>;
 
-export function splitReport(text: string): { markdown: string; nuevosActores: NuevoActor[] } {
+// Propuesta de actualización del brief maestro (spec §5): hechos nuevos que
+// deberían entrar al maestro. Se guardan como pendientes; el operador acepta
+// o descarta desde el panel.
+const BriefUpdateInputSchema = z.object({
+  seccion: z.string().trim().min(1),
+  texto: z.string().trim().min(1),
+});
+export type BriefUpdateInput = z.infer<typeof BriefUpdateInputSchema>;
+
+export function splitReport(text: string): {
+  markdown: string;
+  nuevosActores: NuevoActor[];
+  briefUpdates: BriefUpdateInput[];
+} {
   const matches = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
   const m = matches.at(-1);
-  if (!m || m.index === undefined) return { markdown: text.trim(), nuevosActores: [] };
+  if (!m || m.index === undefined) return { markdown: text.trim(), nuevosActores: [], briefUpdates: [] };
   const markdown = text.slice(0, m.index).trim();
   try {
-    const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[] };
+    const raw = JSON.parse(m[1]) as { nuevosActores?: unknown[]; briefUpdates?: unknown[] };
     const actores = (raw.nuevosActores ?? [])
       .map((a) => ActorSchema.safeParse(a))
       .filter((r): r is { success: true; data: NuevoActor } => r.success)
       .map((r) => r.data);
-    return { markdown, nuevosActores: actores };
+    const updates = (raw.briefUpdates ?? [])
+      .map((u) => BriefUpdateInputSchema.safeParse(u))
+      .filter((r): r is { success: true; data: BriefUpdateInput } => r.success)
+      .map((r) => r.data)
+      .slice(0, 8);
+    return { markdown, nuevosActores: actores, briefUpdates: updates };
   } catch {
     log.warn("daily_report.actors_parse_failed", { head: m[1].slice(0, 200) });
-    return { markdown, nuevosActores: [] };
+    return { markdown, nuevosActores: [], briefUpdates: [] };
   }
 }
 
@@ -126,8 +200,7 @@ export async function generateDailyReport(
     getMonitorConfig(projectId),
     accountMetrics(projectId, 7),
   ]);
-  const countdown = nextCountdown(monitor);
-  const isElectoral = monitor.accounts.length > 0;
+  const hitos = countdownItems(monitor.calendar);
 
   const claudeCfg = await getConnectorConfig(CLAUDE_ID, projectId);
   const apiKey = claudeCfg.ANTHROPIC_API_KEY;
@@ -136,79 +209,146 @@ export async function generateDailyReport(
   const previous = (await readDailyReports(projectId)).latest;
 
   const brief = await getClientBrief(projectId);
-  const briefSection = brief.entries.length
-    ? `## Brief del cliente (aportes del operador, en orden)\n${briefText(brief)}\n\n`
+  const briefBody = briefText(brief);
+  const briefSection = briefBody
+    ? `## Brief maestro del cliente (fuente de verdad para el contexto)\n${briefBody}\n\n`
     : "";
 
   const system =
-    "Sos analista de opinión pública de un centro de estudios. Escribís " +
-    "informes diarios para operadores: sobrios, densos en dato, sin marketing. " +
-    "Español rioplatense, Markdown. Reglas editoriales innegociables: separá " +
-    "hecho verificado de inferencia y etiquetá la inferencia; una acusación de " +
-    "un usuario es una declaración pública, no un hecho; nunca atribuyas una " +
-    "operación a una organización sin evidencia (dos cuentas contra el mismo " +
-    "blanco, o creadas el mismo mes, no prueban coordinación); la tracción de " +
-    "una pieza se mide a las 24 h, por debajo es provisoria; el informe no " +
-    "habla de sí mismo ni de la herramienta; no publiques nómina de " +
-    "particulares, sí agregados y cuentas con relevancia organizativa.";
+    "Sos analista de opinión pública de un centro de estudios. Escribís el " +
+    "informe editorial diario para un operador: sobrio, denso en dato, sin " +
+    "marketing y sin relleno. Español rioplatense, Markdown. Reglas " +
+    "editoriales innegociables:\n" +
+    "1. Separá hecho verificado de inferencia y etiquetá la inferencia: toda " +
+    "lectura que no sea dato medido va en un párrafo que empieza con " +
+    "**Inferencia**.\n" +
+    "2. Una acusación de un usuario es una declaración pública, no un hecho: " +
+    "va en un párrafo que empieza con **Advertencia**, sin atenuantes.\n" +
+    "3. Nunca atribuyas una operación a una organización sin evidencia. Que " +
+    "dos cuentas apunten al mismo blanco, o se hayan creado el mismo mes, no " +
+    "prueba coordinación.\n" +
+    "4. La tracción de una pieza se mide a las 24 h; por debajo es provisoria " +
+    "y se declara como tal.\n" +
+    "5. NO compares alcance entre categorías (medios partidarios contra " +
+    "agrupaciones contra individuales contra institucional): cada categoría " +
+    "se ordena por dentro y nunca contra otra.\n" +
+    "6. La cuenta regresiva se expresa en días que faltan, nunca en fechas " +
+    "sueltas.\n" +
+    "7. Fechá con hora argentina (UTC-3): a las 02:00 UTC todavía es el día " +
+    "anterior en Buenos Aires.\n" +
+    "8. El informe no habla de sí mismo: sin menciones al método, a la " +
+    "herramienta, a cambios de criterio ni a limitaciones técnicas.\n" +
+    "9. No publiques nómina de particulares; sí agregados, densidades y " +
+    "cuentas con relevancia organizativa.\n" +
+    "10. Un resultado deportivo apaga la conversación política unas 12 h: no " +
+    "leas esa caída de tracción como muerte del tema.\n" +
+    "11. Verificá antes de reportar una primicia; si no podés verificarla, va " +
+    "como **Advertencia**.\n" +
+    "12. La rutina no es novedad: reportá el cambio, no la existencia.\n" +
+    "13. No infieras ausencia a partir de una observación parcial: que una " +
+    "cuenta no aparezca en el feed no significa que esté callada.";
 
-  const prompt = `${briefSection}## Contexto del cliente (config del panel)
+  const ahora = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+  const prompt = `${briefSection}## Datos del sistema (mediciones de hoy)
+Si el brief y estos datos se contradicen: el brief manda para el contexto, estos números mandan para las cifras medidas hoy.
 Proyecto: ${project?.nombre ?? projectId}
 Zona: ${cfg.zona || "sin definir"} (${cfg.pais})
 Keywords monitoreadas: ${cfg.keywords.join(", ") || "ninguna"}
+Momento de la corrida (hora argentina): ${ahora}
 
-## Informe anterior (para continuidad; puede no existir)
-${previous ? previous.markdown.slice(0, 3000) : "(primer informe)"}
+## Hitos en días (cuenta regresiva)
+${hitos.length ? hitos.map((h) => `- faltan ${h.days} días para ${h.label} (${h.detail})`).join("\n") : "(sin hitos cargados)"}
+
+## Cuentas monitoreadas por categoría (no se comparan entre categorías)
+${monitor.accounts.length ? monitor.accounts.map((a) => `- [${a.category}] @${a.handle.replace(/^@/, "")} (${a.platform})${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}${a.nota ? ` · ${a.nota}` : ""}`).join("\n") : "(sin cuentas cargadas)"}
+
+## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, densidad=comentaristas recurrentes)
+${metrics.length ? metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} hist:${m.historiasVivas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}${m.ultimaPieza ? ` última pieza: "${m.ultimaPieza.text.slice(0, 60)}" (${m.ultimaPieza.likeCount ?? "s/d"} likes)` : ""}`).join("\n") : "(sin métricas)"}
 
 ## Menciones de las últimas 24 horas (${items24.length})
 ${fmtItems(items24, 120) || "(sin menciones nuevas)"}
 
 ## Muestra de los últimos 7 días (${items7.length} total, para baseline)
-${fmtItems(items7.slice(items24.length), 60)}
-${isElectoral ? `
-## Escenario electoral
-${countdown ? `Cuenta regresiva: faltan ${countdown.days} días para ${countdown.label}.` : "Sin fecha clave cargada."}
-Cuentas monitoreadas por categoría (no se comparan entre categorías):
-${monitor.accounts.map((a) => `- [${a.category}] @${a.handle.replace(/^@/, "")} (${a.platform})${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}`).join("\n")}
+${fmtItems(items7.slice(items24.length), 60) || "(sin muestra)"}
 
-## Métricas por cuenta (ventana 7 días; amplificación=vistas/seg, adhesión=likes/seg, densidad=comentaristas recurrentes)
-${metrics.map((m) => `- @${m.handle.replace(/^@/, "")} [${m.category}] seg:${m.followers} amp:${m.amplificacion ?? "s/d"} adh:${m.adhesion ?? "s/d"} dens:${m.densidad ?? "s/d"} piezas:${m.piezas} hist:${m.historiasVivas} última:${m.ultimaActividad?.slice(0, 10) ?? "s/d"}${m.ultimaPieza ? ` última pieza: "${m.ultimaPieza.text.slice(0, 60)}" (${m.ultimaPieza.likeCount ?? "s/d"} likes)` : ""}`).join("\n")}
+## Informe anterior (para continuidad; puede no existir)
+${previous ? previous.markdown.slice(0, 3000) : "(primer informe)"}
 
 ## Memoria de errores (no repetir)
 ${monitor.noRepetir.length ? monitor.noRepetir.map((e) => `- ${e}`).join("\n") : "(sin correcciones registradas)"}
 
 ## Definiciones (lugares/personas/cargos)
 ${Object.entries(monitor.entidades).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "(ninguna)"}
-` : ""}
 
-## Tarea
-Escribí el informe diario de temas relevantes para este cliente:
-1. **Resumen ejecutivo** (3-5 líneas: qué importa hoy).
-2. **Temas del día** — cada tema con: volumen aproximado, fuentes donde aparece, tono, y si es nuevo / crece / decrece respecto del informe anterior.
-3. **Menciones destacadas** — 3-5 citas textuales cortas con fuente.
-4. **Señales a vigilar** — temas incipientes o cambios de tono.
-5. **Sugerencia operativa** — 1-2 acciones concretas (ej: pregunta para encuesta, keyword a agregar).
-${isElectoral ? `
-Además, por ser monitoreo electoral:
-6. **Mapa por categorías** — ordená las cuentas DENTRO de cada categoría por amplificación/adhesión/densidad (no compares categorías entre sí); notá cuando el orden por estructura difiere del orden por tamaño.
-7. **Cuentas que operan y cuentas nuevas** — declarando cuántas nuevas de cada dirección del conflicto aparecieron.
-8. **Cuenta regresiva** — expresá los hitos en días que faltan, no en fechas.` : ""}
-Si casi no hay menciones nuevas, decilo sin inflar, y sugerí ajustes de fuentes/keywords.
+## Estructura obligatoria del informe
+Abrí con \`# \` y la **tesis del día**: una sola oración con sujeto y consecuencia, nunca "Informe diario" ni la fecha.
+Debajo, un solo párrafo de 3 a 5 líneas: la **bajada**, que cuenta el día en prosa, sin listas y sin numeritos.
+Después, exactamente estas secciones, en este orden y con estos títulos, sin agregar ni renombrar ninguna:
 
-Cerrá el informe con un bloque \`\`\`json\`\`\` con este esquema exacto:
-{ "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }] }
+## 01 El escenario
+Estado del tablero y qué se juega, narrando los hitos en días que faltan. NO escribas vos la cuenta regresiva: el sistema inserta el bloque acá.
+
+## 02 Lo que cambió
+Abrí con un bloque \`\`\`kpi de hasta 4 líneas con los números del día. Después, qué se movió respecto del informe anterior y qué no.
+
+## 03 Línea de tiempo
+Los hitos del día y de la semana en orden, con hora argentina. Una línea por hito.
+
+## 04 Contenido efímero
+Historias vivas y vencidas por cuenta: qué se dijo ahí que no está en el feed. Si no hay relevamiento del día, decilo en una línea.
+
+## 05 Top 5 de discusiones
+Tabla \`# | Tema | Origen | Alcance | Amplificadores\`, cinco filas como máximo, ordenadas por tracción.
+
+## 06 Tono y densidad por agrupación
+Tabla con una columna por agrupación: proporción de comentarios positivos y negativos, y densidad de comentaristas recurrentes. Leelo como potencial, no como resultado.
+
+## 07 Mapa por categorías
+Una tabla por categoría, ordenada por dentro por amplificación / adhesión / densidad. Marcá cuando el orden por estructura difiere del orden por tamaño. Nunca compares una categoría contra otra.
+
+## 08 Cuentas nuevas y cuentas que operan
+Cuentas que aparecieron hoy, cuántas en cada dirección del conflicto, y cuáles operan. Sin nómina de particulares.
+
+## 09 Normativo y calendario
+Reglamento, junta electoral, plazos y lo que falta confirmar.
+
+## 10 Vigilancia
+Tabla \`# | Qué vigilar | Por qué | Cuándo\`, con plazos concretos.
+
+## Fuentes
+Lista de URLs citadas, solo las que aparecen en las menciones de arriba o en el brief.
+
+Ninguna sección se omite: si no hay material, escribila igual con una sola línea ("Sin novedades en el período").
+
+## Convenciones de formato
+- **Inferencia:** párrafo que arranca con \`**Inferencia**\` y sigue con la lectura. Toda lectura que no sea dato medido va así.
+- **Advertencia:** párrafo que arranca con \`**Advertencia**\` para declaraciones no verificadas, acusaciones y rumores.
+- **KPIs:** bloque cercado que abre con \`\`\`kpi y cierra con tres backticks, una línea por número: \`valor | etiqueta | nota\`, máximo 4 líneas. Solo en la sección 02.
+- **Cuenta regresiva:** no la escribas. El sistema inserta un bloque \`countdown\` al inicio de la sección 01; vos narrá los hitos en días.
+- **Tablas:** Markdown normal, con encabezado y línea de guiones.
+- No uses ningún otro bloque cercado además de \`\`\`kpi y el \`\`\`json final.
+
+Si casi no hay menciones nuevas, decilo sin inflar y sugerí ajustes de fuentes o keywords dentro de la sección 10.
+
+## Bloque interno de cierre
+Cerrá con un bloque \`\`\`json con este esquema exacto:
+{ "nuevosActores": [{ "handle": "", "platform": "instagram|x|facebook|tiktok", "category": "organizacion|medio|individual|institucional|opera", "direccion": "A|B|?", "evidencia": "url de la mención", "razon": "por qué vale seguirla" }], "briefUpdates": [{ "seccion": "número o nombre de la sección del brief maestro", "texto": "el hecho nuevo, redactado para pegar en el brief" }] }
 El bloque es interno (el operador lo revisa aparte): no lo menciones ni lo describas en el cuerpo del informe.
-Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle.replace(/^@/, "")).join(", ")})` : ""}. Si no hay, "nuevosActores": [].`;
+En "nuevosActores", solo cuentas que aparecen en las menciones de arriba y NO están en el plan${monitor.accounts.length ? ` (plan: ${monitor.accounts.map((a) => "@" + a.handle.replace(/^@/, "")).join(", ")})` : ""}. Si no hay, dejá el array vacío.
+En "briefUpdates", hasta 8 propuestas de actualización del brief maestro: cuenta nueva con seguidores, hito confirmado, hallazgo que se rompió (anotá que se rompió, no lo borres), error propio detectado redactado como regla. Si no hay, dejá el array vacío.`;
 
   const result = await generateText({
     apiKey,
     system,
     prompt,
-    maxTokens: 3500,
+    maxTokens: 8000,
   });
   await incrementUsage(CLAUDE_ID, result.inputTokens + result.outputTokens, projectId);
 
-  const { markdown, nuevosActores } = splitReport(result.text);
+  const { markdown: cuerpo, nuevosActores, briefUpdates } = splitReport(result.text);
+  const faltantes = missingSections(cuerpo);
+  if (faltantes.length > 0) log.warn("daily_report.structure_missing", { projectId, faltantes });
+  const markdown = withCountdown(cuerpo, countdownBlock(monitor.calendar));
   const report: DailyReport = {
     at: new Date().toISOString(),
     markdown,
@@ -217,21 +357,24 @@ Solo cuentas que aparecen en las menciones de arriba y NO están en el plan${mon
     pull,
   };
   await saveReport(projectId, report);
-  if (nuevosActores.length > 0) {
-    try {
-      const merged = mergeSuggestions(brief, nuevosActores, monitor.accounts, report.at);
-      if (merged.suggestions.length !== brief.suggestions.length) {
-        await saveClientBrief(projectId, merged);
-      }
-    } catch (e) {
-      // El informe ya está guardado: una falla acá no puede frenar el mail.
-      log.warn("daily_report.suggestions_save_failed", { projectId, error: (e as Error).message });
-    }
+  try {
+    let next = brief;
+    if (nuevosActores.length > 0) next = mergeSuggestions(next, nuevosActores, monitor.accounts, report.at);
+    if (briefUpdates.length > 0) next = mergeBriefUpdates(next, briefUpdates, report.at);
+    const changed =
+      next.suggestions.length !== brief.suggestions.length ||
+      (next.pendingUpdates?.length ?? 0) !== (brief.pendingUpdates?.length ?? 0);
+    if (changed) await saveClientBrief(projectId, next);
+  } catch (e) {
+    // El informe ya está guardado: una falla acá no puede frenar el mail.
+    log.warn("daily_report.suggestions_save_failed", { projectId, error: (e as Error).message });
   }
   log.info("daily_report.generated", {
     projectId,
     items24h: items24.length,
     nuevosActores: nuevosActores.length,
+    briefUpdates: briefUpdates.length,
+    faltantes: faltantes.length,
     tokens: result.inputTokens + result.outputTokens,
   });
   return report;

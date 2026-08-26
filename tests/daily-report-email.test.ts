@@ -15,7 +15,12 @@ vi.mock("@/lib/pdf/daily-report-pdf", () => ({ renderDailyReportPdf: (...a: unkn
 
 import { emailDailyReport } from "@/lib/daily-report";
 
-const report = { at: "2026-08-25T12:00:00.000Z", markdown: "## 1. Resumen ejecutivo\nHola.", items24h: 1, items7d: 2 };
+const report = {
+  at: "2026-08-25T12:00:00.000Z",
+  markdown: "# Ferro llega dividido a la asamblea\n\nLas tres agrupaciones cerraron sin fórmula.\n\n## 01 El escenario\nHola.",
+  items24h: 1,
+  items7d: 2,
+};
 
 describe("emailDailyReport", () => {
   beforeEach(() => { fetchMock.mockClear(); pdfMock.mockReset(); pdfMock.mockResolvedValue(Buffer.from("%PDF-1.4 fake")); });
@@ -25,8 +30,10 @@ describe("emailDailyReport", () => {
     expect(r.sent).toBe(1);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.to).toBe("o@x.ar");
-    expect(body.subject).toMatch(/Ibicuy/);
-    expect(body.html).toContain("Resumen ejecutivo");
+    expect(body.subject).toBe("Ibicuy · Ferro llega dividido a la asamblea");
+    expect(body.html).toContain("Ferro llega dividido a la asamblea");
+    expect(body.html).toContain("Las tres agrupaciones cerraron sin fórmula.");
+    expect(body.html).toContain("01 El escenario");
     expect(body.html).not.toContain("white-space:pre-wrap");
     expect(body.text).toBe(report.markdown);
     expect(body.attachments).toHaveLength(1);
