@@ -23,6 +23,10 @@ import {
   getClientBrief,
   saveClientBrief,
   appliedCount,
+  MASTER_MAX_CHARS,
+  setMaster,
+  mergeBriefUpdates,
+  setBriefUpdateStatus,
   type ClientBrief,
   type ActorSuggestion,
 } from "@/lib/client-brief";
@@ -137,5 +141,85 @@ describe("client-brief · propuesta por bloque", () => {
     expect((await getClientBrief("p1")).proposal?.applied).toEqual({ audio: NOW });
     stored = { entries: [], proposal: { at: NOW, briefHash: "h", tipo: "territorial", resumen: "", keywords: [], searchesA: [], searchesB: [], accounts: [], entidades: {}, calendar: [], appliedMonitorAt: NOW } };
     expect((await getClientBrief("p1")).proposal?.applied).toEqual({ redes: NOW, reglas: NOW });
+  });
+});
+
+describe("client-brief · brief maestro", () => {
+  it("setMaster guarda texto, autor y fecha; briefText pone el maestro antes de los aportes", () => {
+    const b0 = addEntry(EMPTY_BRIEF, { by: "ana@x.ar", text: "La lista opositora se llama Verde", at: NOW });
+    const b1 = setMaster(b0, { text: "# BRIEF MAESTRO\n\nClub Ferro Carril Oeste.", by: "ana@x.ar", at: NOW });
+    expect(b1.master).toEqual({ text: "# BRIEF MAESTRO\n\nClub Ferro Carril Oeste.", updatedAt: NOW, by: "ana@x.ar" });
+    expect(briefText(b1)).toBe("# BRIEF MAESTRO\n\nClub Ferro Carril Oeste.\n\n[2026-08-25 · ana@x.ar] La lista opositora se llama Verde");
+    expect(b0.master).toBeUndefined();
+  });
+
+  it("setMaster con texto vacío borra el maestro", () => {
+    const b = setMaster(setMaster(EMPTY_BRIEF, { text: "x", by: "a", at: NOW }), { text: "   ", by: "a", at: NOW });
+    expect(b.master).toBeUndefined();
+    expect(briefText(b)).toBe("");
+  });
+
+  it("setMaster rechaza más de 60.000 caracteres", () => {
+    expect(MASTER_MAX_CHARS).toBe(60000);
+    expect(() => setMaster(EMPTY_BRIEF, { text: "x".repeat(60001), by: "a", at: NOW })).toThrow(/60/);
+  });
+
+  it("briefHash cambia cuando cambia el maestro", () => {
+    expect(briefHash(setMaster(EMPTY_BRIEF, { text: "a", by: "x", at: NOW }))).not.toBe(
+      briefHash(setMaster(EMPTY_BRIEF, { text: "b", by: "x", at: NOW })),
+    );
+  });
+});
+
+describe("client-brief · propuestas de actualización", () => {
+  it("mergeBriefUpdates agrega con id y status pending, dedupe por sección+texto y corta en 8", () => {
+    const incoming = [
+      { seccion: "3.5", texto: "Cuenta nueva @identidadverdolaga, 1.2k seguidores" },
+      { seccion: "3.5", texto: "  cuenta nueva @IdentidadVerdolaga, 1.2k seguidores  " },
+      { seccion: "9", texto: "" },
+      ...Array.from({ length: 9 }, (_, i) => ({ seccion: "7", texto: `regla ${i}` })),
+    ];
+    const out = mergeBriefUpdates(EMPTY_BRIEF, incoming, NOW);
+    expect(out.pendingUpdates).toHaveLength(8);
+    expect(out.pendingUpdates?.[0]).toMatchObject({ seccion: "3.5", status: "pending", reportAt: NOW });
+    expect(out.pendingUpdates?.[0].id).toBeTruthy();
+    expect(out.pendingUpdates?.map((u) => u.texto)).toEqual([
+      "Cuenta nueva @identidadverdolaga, 1.2k seguidores",
+      "regla 0", "regla 1", "regla 2", "regla 3", "regla 4", "regla 5", "regla 6",
+    ]);
+  });
+
+  it("mergeBriefUpdates no repite una propuesta ya resuelta", () => {
+    const b1 = mergeBriefUpdates(EMPTY_BRIEF, [{ seccion: "7", texto: "regla nueva" }], NOW);
+    const b2 = setBriefUpdateStatus(b1, b1.pendingUpdates![0].id, "dismissed");
+    const b3 = mergeBriefUpdates(b2, [{ seccion: "7", texto: "Regla nueva" }], "2026-08-26T00:00:00.000Z");
+    expect(b3.pendingUpdates).toHaveLength(1);
+    expect(b3.pendingUpdates?.[0].status).toBe("dismissed");
+  });
+
+  it("setBriefUpdateStatus cambia solo la indicada", () => {
+    const b = mergeBriefUpdates(EMPTY_BRIEF, [{ seccion: "a", texto: "1" }, { seccion: "b", texto: "2" }], NOW);
+    const out = setBriefUpdateStatus(b, b.pendingUpdates![1].id, "accepted");
+    expect(out.pendingUpdates?.map((u) => u.status)).toEqual(["pending", "accepted"]);
+  });
+
+  it("getClientBrief normaliza con zod: maestro inválido y propuestas rotas se descartan", async () => {
+    stored = {
+      entries: [],
+      master: { text: 42, updatedAt: NOW, by: "a" },
+      pendingUpdates: [
+        { id: "u1", seccion: "7", texto: "regla", reportAt: NOW, status: "pending" },
+        { id: "u2", seccion: "7", texto: "", reportAt: NOW, status: "pending" },
+        { id: "u3", seccion: "7", texto: "otra", reportAt: NOW, status: "raro" },
+      ],
+    };
+    const b = await getClientBrief("p1");
+    expect(b.master).toBeUndefined();
+    expect(b.pendingUpdates).toEqual([{ id: "u1", seccion: "7", texto: "regla", reportAt: NOW, status: "pending" }]);
+  });
+
+  it("getClientBrief acepta un maestro válido", async () => {
+    stored = { entries: [], master: { text: "# BRIEF", updatedAt: NOW, by: "ana@x.ar" } };
+    expect((await getClientBrief("p1")).master).toEqual({ text: "# BRIEF", updatedAt: NOW, by: "ana@x.ar" });
   });
 });

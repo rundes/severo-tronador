@@ -11,6 +11,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { dbConfigured, getSupabase } from "@/lib/db/supabase";
 import { upsertConectorConfig } from "@/lib/db/conector-config";
 import { log } from "@/lib/logger";
+import { z } from "zod";
 import type { CalendarEvent, Category, MonitorAccount, Platform } from "@/lib/monitor-config";
 import type { AudioProgram } from "@/lib/audio-programs";
 
@@ -19,6 +20,28 @@ export interface BriefEntry {
   at: string; // ISO
   by: string; // email del operador
   text: string;
+}
+
+// Brief maestro: el documento que el operador mantiene (mapa de actores,
+// métricas medidas, hallazgos establecidos, reglas editoriales). Es la fuente
+// de verdad del prompt del informe; los `entries` son notas incrementales
+// entre versiones del maestro.
+export interface BriefMaster {
+  text: string;
+  updatedAt: string; // ISO
+  by: string; // email del operador
+}
+
+export const MASTER_MAX_CHARS = 60000;
+
+// Hecho nuevo que el informe propone incorporar al maestro (spec §5). Nunca
+// se edita el maestro solo: el operador acepta (→ aporte) o descarta.
+export interface BriefUpdate {
+  id: string;
+  seccion: string;
+  texto: string;
+  reportAt: string; // ISO del informe que la propuso
+  status: "pending" | "accepted" | "dismissed";
 }
 
 export type ProposalBlock = "territorio" | "redes" | "audio" | "reglas";
@@ -74,11 +97,13 @@ export interface ActorSuggestion {
 
 export interface ClientBrief {
   entries: BriefEntry[];
+  master?: BriefMaster;
+  pendingUpdates?: BriefUpdate[];
   proposal?: ScenarioProposal;
   suggestions: ActorSuggestion[];
 }
 
-export const EMPTY_BRIEF: ClientBrief = { entries: [], suggestions: [] };
+export const EMPTY_BRIEF: ClientBrief = { entries: [], pendingUpdates: [], suggestions: [] };
 
 const key = (projectId: string) => `brief:${projectId}`;
 
@@ -108,6 +133,22 @@ function normalizeProposal(raw: Partial<ScenarioProposal> & { appliedKeywordsAt?
   };
 }
 
+// Lo guardado en conector_config es JSON libre: se valida al leer y lo que no
+// cumple se descarta (un maestro roto no puede tirar abajo el panel).
+const MasterSchema = z.object({
+  text: z.string(),
+  updatedAt: z.string(),
+  by: z.string(),
+});
+
+const BriefUpdateSchema = z.object({
+  id: z.string().min(1),
+  seccion: z.string().min(1),
+  texto: z.string().min(1),
+  reportAt: z.string().min(1),
+  status: z.enum(["pending", "accepted", "dismissed"]),
+});
+
 // ── Helpers puros (inmutables) ──────────────────────────────────────────
 
 export function addEntry(
@@ -129,11 +170,65 @@ export function removeEntry(brief: ClientBrief, id: string): ClientBrief {
   return { ...brief, entries: brief.entries.filter((e) => e.id !== id) };
 }
 
-// Texto del brief tal como lo lee el modelo: una línea por aporte, en orden.
+export function setMaster(
+  brief: ClientBrief,
+  input: { text: string; by: string; at?: string },
+): ClientBrief {
+  if (input.text.length > MASTER_MAX_CHARS) {
+    throw new Error(`El brief maestro supera los ${MASTER_MAX_CHARS} caracteres`);
+  }
+  const text = input.text.trim();
+  if (!text) return { ...brief, master: undefined };
+  return { ...brief, master: { text, updatedAt: input.at ?? new Date().toISOString(), by: input.by } };
+}
+
+const updateKey = (seccion: string, texto: string) =>
+  `${seccion.trim().toLowerCase()}::${texto.trim().toLowerCase()}`;
+
+// Propuestas de actualización del brief que trae un informe. Fuera: las
+// vacías, las que ya se propusieron antes (en cualquier estado) y los
+// duplicados dentro de la misma tanda. Máximo 8 por informe (spec §5).
+export function mergeBriefUpdates(
+  brief: ClientBrief,
+  incoming: { seccion: string; texto: string }[],
+  reportAt = new Date().toISOString(),
+): ClientBrief {
+  const current = brief.pendingUpdates ?? [];
+  const known = new Set(current.map((u) => updateKey(u.seccion, u.texto)));
+  const added: BriefUpdate[] = [];
+  for (const u of incoming) {
+    if (added.length >= 8) break;
+    const seccion = u.seccion.trim();
+    const texto = u.texto.trim();
+    if (!seccion || !texto) continue;
+    const k = updateKey(seccion, texto);
+    if (known.has(k)) continue;
+    known.add(k);
+    added.push({ id: randomUUID(), seccion, texto, reportAt, status: "pending" });
+  }
+  return { ...brief, pendingUpdates: [...current, ...added] };
+}
+
+export function setBriefUpdateStatus(
+  brief: ClientBrief,
+  id: string,
+  status: BriefUpdate["status"],
+): ClientBrief {
+  return {
+    ...brief,
+    pendingUpdates: (brief.pendingUpdates ?? []).map((u) => (u.id === id ? { ...u, status } : u)),
+  };
+}
+
+// Texto del brief tal como lo lee el modelo: primero el maestro completo,
+// después los aportes (una línea por aporte, en orden).
 export function briefText(brief: ClientBrief): string {
-  return brief.entries
-    .map((e) => `[${e.at.slice(0, 10)} · ${e.by}] ${e.text}`)
-    .join("\n");
+  const parts: string[] = [];
+  const master = brief.master?.text.trim();
+  if (master) parts.push(master);
+  const aportes = brief.entries.map((e) => `[${e.at.slice(0, 10)} · ${e.by}] ${e.text}`).join("\n");
+  if (aportes) parts.push(aportes);
+  return parts.join("\n\n");
 }
 
 export function briefHash(brief: ClientBrief): string {
@@ -192,8 +287,14 @@ export async function getClientBrief(projectId: string): Promise<ClientBrief> {
     .maybeSingle();
   const cfg = data?.config as Partial<ClientBrief> | undefined;
   if (!cfg) return EMPTY_BRIEF;
+  const master = cfg.master ? MasterSchema.safeParse(cfg.master) : null;
   return {
     entries: cfg.entries ?? [],
+    master: master?.success ? master.data : undefined,
+    pendingUpdates: (cfg.pendingUpdates ?? [])
+      .map((u) => BriefUpdateSchema.safeParse(u))
+      .filter((r): r is { success: true; data: BriefUpdate } => r.success)
+      .map((r) => r.data),
     proposal: cfg.proposal ? normalizeProposal(cfg.proposal) : undefined,
     suggestions: cfg.suggestions ?? [],
   };
