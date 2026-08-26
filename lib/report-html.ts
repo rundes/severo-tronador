@@ -39,6 +39,35 @@ function blockHtml(b: Block): string {
       const tr = b.rows.map((r) => `<tr>${r.map((c) => `<td style="padding:6px 8px;border-bottom:1px solid ${C.border};font-size:13px;color:${C.soft}">${escapeHtml(c)}</td>`).join("")}</tr>`).join("");
       return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 12px"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
     }
+    case "bajada":
+      return `<p style="margin:0 0 16px;font-size:15.5px;line-height:1.6;color:${C.ink}">${inlineToHtml(b.text)}</p>`;
+    case "countdown": {
+      const w = Math.floor(100 / Math.max(b.items.length, 1));
+      const tds = b.items
+        .map(
+          (it) =>
+            `<td width="${w}%" style="padding:0 6px 8px 0;vertical-align:top"><div style="border:1px solid ${C.border};border-radius:8px;padding:10px 12px;background:#fff"><div style="font-size:24px;font-weight:600;line-height:1;color:${C.accent}">${escapeHtml(String(it.days))}</div><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${C.muted};margin-top:3px">días</div><div style="font-size:13px;line-height:1.35;color:${C.ink};margin-top:7px">${escapeHtml(it.label)}</div>${it.detail ? `<div style="font-size:12px;color:${C.muted};margin-top:2px">${escapeHtml(it.detail)}</div>` : ""}</div></td>`,
+        )
+        .join("");
+      return `<table role="presentation" data-block="countdown" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;margin:0 0 14px"><tr>${tds}</tr></table>`;
+    }
+    case "kpi": {
+      const w = Math.floor(100 / Math.max(b.items.length, 1));
+      const tds = b.items
+        .map(
+          (it) =>
+            `<td width="${w}%" style="padding:0 6px 8px 0;vertical-align:top"><div style="border:1px solid ${C.border};border-radius:8px;padding:10px 12px;background:${C.subtle}"><div style="font-size:22px;font-weight:600;line-height:1;color:${C.ink}">${escapeHtml(it.value)}</div><div style="font-size:12px;line-height:1.35;color:${C.soft};margin-top:5px">${escapeHtml(it.label)}</div>${it.note ? `<div style="font-size:11px;color:${C.muted};margin-top:2px">${escapeHtml(it.note)}</div>` : ""}</div></td>`,
+        )
+        .join("");
+      return `<table role="presentation" data-block="kpi" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;margin:0 0 14px"><tr>${tds}</tr></table>`;
+    }
+    case "callout": {
+      const adv = b.kind === "advertencia";
+      const line = adv ? "#b45309" : C.accent;
+      const bg = adv ? "#fffbeb" : C.accentSoft;
+      const label = adv ? "Advertencia" : "Inferencia";
+      return `<div data-callout="${b.kind}" style="margin:0 0 12px;padding:10px 14px;border-left:3px solid ${line};background:${bg}"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${line};margin-bottom:4px">${label}</div><div style="font-size:14px;line-height:1.55;color:${C.soft}">${inlineToHtml(b.text)}</div></div>`;
+    }
     case "hr":
       return `<hr style="border:0;border-top:1px solid ${C.border};margin:16px 0">`;
   }

@@ -19,6 +19,15 @@ const s = StyleSheet.create({
   boxTitle: { fontSize: 8, letterSpacing: 1.5, color: C.muted, textTransform: "uppercase", marginBottom: 4 },
   h3: { fontSize: 11, color: C.ink, marginTop: 8, marginBottom: 3 },
   p: { marginBottom: 6 },
+  bajada: { fontSize: 12, color: C.ink, lineHeight: 1.5, marginBottom: 12 },
+  cards: { flexDirection: "row", flexWrap: "wrap", marginBottom: 10 },
+  card: { borderWidth: 1, borderColor: C.border, borderRadius: 6, padding: 8, marginRight: 6, marginBottom: 6, width: 120 },
+  cardBig: { fontSize: 17, fontFamily: "Helvetica-Bold", color: C.accent },
+  cardBigInk: { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.ink },
+  cardLabel: { fontSize: 9, color: C.ink, marginTop: 3 },
+  cardNote: { fontSize: 8, color: C.muted, marginTop: 1 },
+  callout: { borderLeftWidth: 2, paddingLeft: 8, paddingRight: 8, paddingVertical: 5, marginBottom: 8 },
+  calloutLabel: { fontSize: 7.5, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 2 },
   li: { flexDirection: "row", marginBottom: 3 },
   bullet: { width: 12 },
   quote: { borderLeftWidth: 2, borderLeftColor: C.border, backgroundColor: C.subtle, paddingVertical: 5, paddingHorizontal: 9, marginBottom: 6, fontStyle: "italic" as const },
@@ -72,6 +81,42 @@ function BlockView({ b }: { b: Block }) {
           ))}
         </View>
       );
+    case "bajada":
+      return <View style={s.bajada}><InlineText text={b.text} /></View>;
+    case "countdown":
+      return (
+        <View style={s.cards}>
+          {b.items.map((it, i) => (
+            <View key={i} style={s.card}>
+              <Text style={s.cardBig}>{it.days} días</Text>
+              <Text style={s.cardLabel}>{it.label}</Text>
+              {it.detail ? <Text style={s.cardNote}>{it.detail}</Text> : null}
+            </View>
+          ))}
+        </View>
+      );
+    case "kpi":
+      return (
+        <View style={s.cards}>
+          {b.items.map((it, i) => (
+            <View key={i} style={s.card}>
+              <Text style={s.cardBigInk}>{it.value}</Text>
+              <Text style={s.cardLabel}>{it.label}</Text>
+              {it.note ? <Text style={s.cardNote}>{it.note}</Text> : null}
+            </View>
+          ))}
+        </View>
+      );
+    case "callout": {
+      const adv = b.kind === "advertencia";
+      const line = adv ? "#b45309" : C.accent;
+      return (
+        <View style={[s.callout, { borderLeftColor: line, backgroundColor: adv ? "#fffbeb" : C.accentSoft }]}>
+          <Text style={[s.calloutLabel, { color: line }]}>{adv ? "Advertencia" : "Inferencia"}</Text>
+          <InlineText text={b.text} />
+        </View>
+      );
+    }
     case "hr":
       return <View style={s.hr} />;
   }

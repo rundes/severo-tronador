@@ -18,7 +18,8 @@ function InlineText({ text }: { text: Inline[] }) {
 function BlockView({ b }: { b: Block }) {
   switch (b.t) {
     case "h":
-      if (b.level === 1) return null;
+      if (b.level === 1)
+        return <h2 className="mb-3 text-[19px] font-semibold leading-snug text-zinc-900 dark:text-zinc-100"><InlineText text={b.text} /></h2>;
       return b.level === 2
         ? <h3 className="mt-5 mb-2 border-l-2 border-[oklch(52%_0.13_255)] pl-2.5 text-[15px] font-semibold text-zinc-900 dark:text-zinc-100"><InlineText text={b.text} /></h3>
         : <h4 className="mt-3 mb-1 text-[13px] font-semibold text-zinc-800 dark:text-zinc-200"><InlineText text={b.text} /></h4>;
@@ -39,6 +40,47 @@ function BlockView({ b }: { b: Block }) {
           </table>
         </div>
       );
+    case "bajada":
+      return <p className="mb-4 text-[15px] leading-relaxed text-zinc-800 dark:text-zinc-200"><InlineText text={b.text} /></p>;
+    case "countdown":
+      return (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {b.items.map((it, i) => (
+            <div key={i} className="min-w-[120px] flex-1 rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+              <div className="text-[22px] font-semibold leading-none tabular-nums text-[oklch(52%_0.13_255)]">{it.days}</div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-zinc-500">días</div>
+              <div className="mt-1.5 text-[13px] leading-snug text-zinc-900 dark:text-zinc-100">{it.label}</div>
+              {it.detail && <div className="text-[12px] text-zinc-500">{it.detail}</div>}
+            </div>
+          ))}
+        </div>
+      );
+    case "kpi":
+      return (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {b.items.map((it, i) => (
+            <div key={i} className="min-w-[120px] flex-1 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/40">
+              <div className="text-[20px] font-semibold leading-none tabular-nums text-zinc-900 dark:text-zinc-100">{it.value}</div>
+              <div className="mt-1 text-[12px] leading-snug text-zinc-700 dark:text-zinc-300">{it.label}</div>
+              {it.note && <div className="text-[11px] text-zinc-500">{it.note}</div>}
+            </div>
+          ))}
+        </div>
+      );
+    case "callout": {
+      const adv = b.kind === "advertencia";
+      return (
+        <div
+          data-callout={b.kind}
+          className={`mb-3 border-l-2 px-3 py-2 ${adv ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" : "border-[oklch(52%_0.13_255)] bg-[oklch(52%_0.13_255)]/8"}`}
+        >
+          <div className={`mb-1 text-[10px] font-medium uppercase tracking-[0.14em] ${adv ? "text-amber-700 dark:text-amber-400" : "text-[oklch(52%_0.13_255)]"}`}>
+            {adv ? "Advertencia" : "Inferencia"}
+          </div>
+          <p className="text-[13.5px] leading-relaxed text-zinc-700 dark:text-zinc-300"><InlineText text={b.text} /></p>
+        </div>
+      );
+    }
     case "hr":
       return <hr className="my-4 border-zinc-200 dark:border-zinc-800" />;
   }
