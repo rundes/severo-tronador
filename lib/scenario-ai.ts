@@ -22,7 +22,9 @@ import { log } from "@/lib/logger";
 
 const CLAUDE_ID = "claude-api";
 export const MAX_KEYWORDS = 16; // gdelt-worker lotea de a 7; 16 = 3 lotes
-const MAX_TOKENS = 2000;
+// Un brief maestro (30-60k chars) propone 40+ cuentas con categoría, dirección
+// y razón: con 2000 tokens el JSON salía truncado (Ferro, 2026-08-26).
+const MAX_TOKENS = 8000;
 
 // ── Esquema de salida del modelo ────────────────────────────────────────
 
@@ -200,6 +202,10 @@ export async function proposeScenario(projectId: string): Promise<ProposeResult>
   const result = await generateText({ apiKey, system, prompt, maxTokens: MAX_TOKENS });
   await incrementUsage(CLAUDE_ID, result.inputTokens + result.outputTokens, projectId);
 
+  if (result.stopReason === "max_tokens") {
+    log.warn("scenario_ai.truncated", { projectId, maxTokens: MAX_TOKENS, outputTokens: result.outputTokens });
+    return { ok: false, error: "La IA se quedó sin espacio para responder (brief muy largo). Probá de nuevo o acortá el brief." };
+  }
   const parsed = parseScenarioJson(result.text);
   if (!parsed.ok) {
     log.warn("scenario_ai.parse_failed", { projectId, error: parsed.error, head: result.text.slice(0, 300) });
