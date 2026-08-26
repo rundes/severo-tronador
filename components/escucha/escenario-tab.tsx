@@ -9,7 +9,13 @@ import { BloqueRedes } from "@/components/escucha/bloque-redes";
 import { BloqueAudio } from "@/components/escucha/bloque-audio";
 import { BloqueReglas } from "@/components/escucha/bloque-reglas";
 import { timeAgo, type SourceStatus } from "@/components/escucha/source-rows";
-import { RefreshOnSave, PULL_BLOCKS } from "@/components/escucha/refresh-on-save";
+import { RefreshOnSave } from "@/components/escucha/refresh-on-save";
+
+// Bloques cuyo Guardar dispara la carga inicial en background (after()).
+// Vive acá (server) y no en refresh-on-save ("use client"): un export no
+// componente de un módulo cliente llega al servidor como referencia cliente
+// y `.includes()` rompe el render de RSC (bug en prod, 2026-08-26).
+const PULL_BLOCKS = ["territorio", "prensa", "redes"] as const;
 import type { ListeningConfig } from "@/lib/listening-config";
 import type { MonitorConfig } from "@/lib/monitor-config";
 import type { ClientBrief } from "@/lib/client-brief";
