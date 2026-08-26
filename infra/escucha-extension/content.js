@@ -86,8 +86,29 @@ async function igStories(userId, handle, followers) {
 
 // ---- DOM: X / Facebook / TikTok ----
 // FB: primer segmento de https://…facebook.com/<slug>/… como autor, salvo que
-// sea un path no-perfil (grupos, foto, permalink de post).
-const FB_AUTHOR_SLUG = /facebook\.com\/(?!groups\/|photo|posts\/)([^/?#]+)/i;
+// sea un path no-perfil (grupos, foto, permalink de post, profile.php?id=…).
+const FB_AUTHOR_SLUG = /facebook\.com\/([^/?#]+)/i;
+const FB_NON_PROFILE_SLUGS = new Set([
+  "profile.php", "story.php", "permalink.php", "people", "watch", "groups", "photo",
+  "posts", "hashtag", "events", "pages", "marketplace", "reel",
+]);
+function fbAuthorSlug(href) {
+  if (!href || /profile\.php\?id=/i.test(href)) return null;
+  const m = href.match(FB_AUTHOR_SLUG);
+  const slug = m && m[1];
+  if (!slug || FB_NON_PROFILE_SLUGS.has(slug.toLowerCase())) return null;
+  return slug;
+}
+// X: handle = path de un solo segmento (no rutas de la app como /i, /home, /explore).
+const X_HANDLE_PATH = /^\/[A-Za-z0-9_]{1,15}$/;
+const X_NON_HANDLE_PATHS = new Set(["/i", "/home", "/explore", "/search"]);
+function xAuthorFromLinks(links) {
+  for (const a of links) {
+    const href = a.getAttribute("href") || "";
+    if (X_HANDLE_PATH.test(href) && !X_NON_HANDLE_PATHS.has(href.toLowerCase())) return href.slice(1);
+  }
+  return null;
+}
 
 function domX(handle) {
   const out = [];
@@ -97,9 +118,7 @@ function domX(handle) {
     const link = t.querySelector('a[href*="/status/"]');
     const url = link ? abs(link.getAttribute("href")) : null;
     if (!url) continue;
-    const nameLink = t.querySelector('[data-testid="User-Name"] a[href^="/"]');
-    const nameHref = nameLink ? nameLink.getAttribute("href") : null;
-    const author = (nameHref ? nameHref.split("/")[1] : null) || handle || undefined;
+    const author = xAuthorFromLinks(t.querySelectorAll('[data-testid="User-Name"] a[href^="/"]')) || handle || undefined;
     const time = t.querySelector("time[datetime]");
     const publishedAt = time ? time.getAttribute("datetime") : undefined;
     out.push({ site: "x", kind: "post", text: text.slice(0, 800), url, author, publishedAt });
@@ -122,8 +141,7 @@ function domFacebook(handle) {
     if (authorLink) {
       const linkText = clean(authorLink.innerText || authorLink.textContent);
       const authorHref = abs(authorLink.getAttribute("href") || "") || "";
-      const slugMatch = authorHref.match(FB_AUTHOR_SLUG);
-      author = (slugMatch && slugMatch[1]) || linkText || handle || undefined;
+      author = fbAuthorSlug(authorHref) || linkText || handle || undefined;
     }
     out.push({ site: "facebook", kind: "post", text: text.slice(0, 800), url, author });
   }

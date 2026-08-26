@@ -84,6 +84,9 @@ export function parseCandidateJson(text: string, candidates: Candidate[]): Actor
   return out;
 }
 
+// Presupuesto de salida proporcional al lote: ~60 tokens por candidato + margen.
+export const candidateMaxTokens = (n: number): number => Math.min(4096, 300 + n * 60);
+
 export async function classifyCandidates(projectId: string, candidates: Candidate[]): Promise<ActorSuggestionInput[]> {
   if (candidates.length === 0) return [];
   const cfg = await getConnectorConfig(CLAUDE_ID, projectId);
@@ -94,7 +97,7 @@ export async function classifyCandidates(projectId: string, candidates: Candidat
     brief: briefText(brief), accounts: monitor.accounts, searchesA: monitor.searchesA, searchesB: monitor.searchesB,
     entidades: monitor.entidades, noRepetir: monitor.noRepetir, candidates,
   });
-  const res = await generateText({ apiKey, system, prompt, maxTokens: 1500 });
+  const res = await generateText({ apiKey, system, prompt, maxTokens: candidateMaxTokens(candidates.length) });
   await incrementUsage(CLAUDE_ID, res.inputTokens + res.outputTokens, projectId);
   const out = parseCandidateJson(res.text, candidates);
   log.info("candidate_ai.classified", { projectId, evaluated: candidates.length, relevant: out.length });

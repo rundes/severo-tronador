@@ -71,7 +71,9 @@ export async function accountMetrics(
     let followers = 0;
     let views = 0;
     let likes = 0;
-    for (const r of posts) {
+    // Seguidores/vistas/likes sobre todo lo propio (historias incluidas); `posts`
+    // excluye historias y sólo alimenta piezas/ultimaPieza.
+    for (const r of own.filter((r) => r.kind !== "comment")) {
       followers = Math.max(followers, num(r.meta?.followers) ?? 0);
       views += num(r.meta?.viewCount) ?? 0;
       likes += num(r.meta?.likeCount) ?? 0;

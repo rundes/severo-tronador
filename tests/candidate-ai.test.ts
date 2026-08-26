@@ -6,7 +6,7 @@ vi.mock("@/lib/quota", () => ({ incrementUsage: vi.fn().mockResolvedValue(undefi
 vi.mock("@/lib/client-brief", async (o) => ({ ...(await o<typeof import("@/lib/client-brief")>()), getClientBrief: async () => ({ entries: [{ id: "1", at: "2026-08-25T00:00:00.000Z", by: "a", text: "Club Ferro, elecciones en septiembre" }], suggestions: [] }) }));
 vi.mock("@/lib/monitor-config", async (o) => ({ ...(await o<typeof import("@/lib/monitor-config")>()), getMonitorConfig: async () => ({ accounts: [{ handle: "ferrocarriloeste", platform: "instagram", category: "institucional" }], searchesA: ["Ferro oficialismo"], searchesB: ["Ferro oposición"], entidades: { Etcheverri: "estadio" }, noRepetir: ["no atribuir sin evidencia"], calendar: [], budget: {} }) }));
 
-import { buildCandidatePrompt, parseCandidateJson, classifyCandidates } from "@/lib/candidate-ai";
+import { buildCandidatePrompt, parseCandidateJson, classifyCandidates, candidateMaxTokens } from "@/lib/candidate-ai";
 
 const CANDS = [
   { platform: "x" as const, handle: "desocios", displayName: "De Socios", followers: 900, sample: [{ url: "https://x.com/DeSocios/status/1", text: "acaban de perder las elecciones antes de las elecciones", at: "2026-08-25" }] },
@@ -41,5 +41,11 @@ describe("candidate-ai", () => {
     const r = await classifyCandidates("p1", CANDS);
     expect(r.map((x) => x.handle)).toEqual(["desocios"]);
     expect(generateText.mock.calls[0][0].prompt).toContain("Ferro oficialismo");
+    expect(generateText.mock.calls[0][0].maxTokens).toBe(candidateMaxTokens(CANDS.length));
+  });
+
+  it("candidateMaxTokens crece con el lote y se tapa en 4096", () => {
+    expect(candidateMaxTokens(2)).toBe(420);
+    expect(candidateMaxTokens(100)).toBe(4096);
   });
 });
