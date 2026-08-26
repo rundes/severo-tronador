@@ -1,7 +1,7 @@
 // PDF de un informe diario guardado (vigente o historial) para el proyecto
 // activo. ?at=<iso del informe>. Descarga (attachment).
 import { NextResponse } from "next/server";
-import { getActiveProject } from "@/lib/workspace";
+import { requireProject } from "@/lib/workspace";
 import { getListeningConfig } from "@/lib/listening-config";
 import { readDailyReports } from "@/lib/daily-report";
 import { renderDailyReportPdf } from "@/lib/pdf/daily-report-pdf";
@@ -11,8 +11,7 @@ import { log } from "@/lib/logger";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  const active = await getActiveProject();
-  if (!active) return NextResponse.json({ error: "no_project" }, { status: 403 });
+  const active = await requireProject();
   const at = new URL(req.url).searchParams.get("at") ?? "";
   const store = await readDailyReports(active.id);
   const report = [store.latest, ...store.history].find((r) => r && r.at === at);

@@ -67,6 +67,7 @@ export function InformePanel({
           <div className="mb-3 flex justify-end">
             <a
               href={`/escucha/informe-diario?at=${encodeURIComponent(latest.at)}`}
+              aria-label={`Descargar PDF del informe del ${fecha(latest.at)}`}
               className="rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
               Descargar PDF
@@ -93,6 +94,7 @@ export function InformePanel({
                   <div className="mt-2 flex justify-end">
                     <a
                       href={`/escucha/informe-diario?at=${encodeURIComponent(r.at)}`}
+                      aria-label={`Descargar PDF del informe del ${fecha(r.at)}`}
                       className="rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     >
                       Descargar PDF
