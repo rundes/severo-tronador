@@ -14,6 +14,23 @@ const PLATFORM_HOME = {
   tiktok: "https://www.tiktok.com/",
 };
 
+// Techos por cuenta y corrida (spec §3 y §4).
+const IG_COMMENT_PIECES = 6;
+const X_REPLY_PIECES = 2;
+const MAX_ERRORES = 50;
+
+// Error de corrida con forma estable: lo consume el panel y el server
+// (POST /api/extension/signal kind:"run-summary").
+function pushError(errores, platform, handle, step, detail) {
+  if (errores.length >= MAX_ERRORES) return;
+  errores.push({
+    platform,
+    handle: handle || undefined,
+    step,
+    detail: String(detail == null ? "" : detail).slice(0, 300),
+  });
+}
+
 async function cfg() {
   return chrome.storage.sync.get({ appUrl: "", token: "" });
 }
@@ -116,6 +133,19 @@ async function pushItems(items) {
   return r.inserted || 0;
 }
 
+// Resumen final de la corrida: sin esto nadie ve que una plataforma viene
+// fallando hace días (IG devolvió 400 durante una semana sin que se notara).
+async function reportRun(summary) {
+  try {
+    await api("/api/extension/signal", {
+      method: "POST",
+      body: JSON.stringify({ kind: "run-summary", ...summary }),
+    });
+  } catch (e) {
+    console.warn("run-summary report failed", e);
+  }
+}
+
 // Una corrida completa: cuentas del plan → búsquedas A/B → candidatos a actor,
 // todo dentro del presupuesto.
 async function runCollection() {
@@ -133,50 +163,96 @@ async function runCollection() {
   let inserted = 0;
   let done = 0;
   const errores = [];
-  let igTab = null;
-
   for (const acc of accounts) {
     const platform = acc.platform;
     if (cooled.has(platform)) continue;
     if (budget.remaining(platform) <= 0) continue;
-    await setStatus({ estado: `${platform}: @${acc.handle} (${done + 1}/${accounts.length})`, inserted, cuentas: done });
+    const handle = acc.handle.replace(/^@/, "");
+    await setStatus({ estado: `${platform}: @${handle} (${done + 1}/${accounts.length})`, inserted, cuentas: done });
 
     try {
-      const handle = acc.handle.replace(/^@/, "");
-      let tab;
-      let msg;
-      if (platform === "instagram") {
-        // La API interna de IG no depende del perfil visitado: se navega a la
-        // home una sola vez por corrida y se reusa esa pestaña para cada cuenta.
-        if (!(await liveTab(igTab && igTab.id))) igTab = await openIn("instagram", PLATFORM_HOME.instagram);
-        tab = igTab;
-        msg = { type: "ig-collect", handle };
-      } else {
-        tab = await openIn(platform, profileUrl(platform, handle));
-        msg = { type: "dom-collect", handle };
-      }
-      const res = await send(tab.id, msg);
+      const url = profileUrl(platform, handle);
+      if (!url) { pushError(errores, platform, handle, "plan", "plataforma sin URL de perfil"); continue; }
+      // Cada navegación gasta 1 request del presupuesto de la plataforma.
+      const tab = await openIn(platform, url);
+      await budget.spend(platform);
+      const res = await send(
+        tab.id,
+        platform === "instagram"
+          ? { type: "ig-collect", handle, since: acc.since }
+          : { type: "dom-profile", handle, since: acc.since },
+      );
+      if (!res.ok) { pushError(errores, platform, handle, "colecta", res.error || "sin respuesta"); continue; }
+      done++;
 
-      if (res.ok) {
-        await budget.spend(platform);
-        done++;
-        const sig = signalFromResponse(res.status, res.body);
-        if (sig) {
-          cooled.add(platform);
-          await reportSignal(platform, sig);
-          await setStatus({ estado: `${platform} enfriado (${sig})`, inserted, cuentas: done });
-          continue; // nunca reintentar en la misma corrida
+      const sig = signalFromResponse(res.status, res.body);
+      if (sig) {
+        cooled.add(platform);
+        await reportSignal(platform, sig);
+        pushError(errores, platform, handle, "breaker", sig);
+        await setStatus({ estado: `${platform} enfriado (${sig})`, inserted, cuentas: done });
+        continue; // nunca reintentar en la misma corrida
+      }
+      for (const e of res.errors || []) pushError(errores, platform, handle, e.step, e.detail);
+      inserted += await pushItems(res.items || []);
+      await setStatus({ inserted, cuentas: done });
+
+      const pieces = res.pieces || [];
+      if (platform === "instagram") {
+        // Comentarios de las piezas nuevas con más comentarios (máx. 6).
+        const conComentarios = [...pieces]
+          .filter((p) => (p.commentCount || 0) > 0)
+          .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0))
+          .slice(0, IG_COMMENT_PIECES);
+        for (const p of conComentarios) {
+          if (cooled.has(platform) || budget.remaining(platform) <= 0) break;
+          await setStatus({ estado: `instagram: comentarios de @${handle}`, inserted, cuentas: done });
+          await budget.spend(platform);
+          const cr = await send(tab.id, { type: "ig-comments", pk: p.pk, url: p.url, handle });
+          if (!cr.ok) { pushError(errores, platform, handle, "comentarios", cr.error || "sin respuesta"); continue; }
+          const csig = signalFromResponse(cr.status, cr.body);
+          if (csig) {
+            cooled.add(platform);
+            await reportSignal(platform, csig);
+            pushError(errores, platform, handle, "breaker", csig);
+            break;
+          }
+          inserted += await pushItems(cr.items || []);
+          await setStatus({ inserted });
         }
-        inserted += await pushItems(res.items || []);
-        await setStatus({ inserted, cuentas: done });
-      } else {
-        errores.push(`${platform}:@${acc.handle}: ${res.error || "sin respuesta"}`);
+      } else if (platform === "x") {
+        // Respuestas de las 2 piezas con más respuestas de esta corrida.
+        const conRespuestas = [...pieces]
+          .filter((p) => (p.replyCount || 0) > 0)
+          .sort((a, b) => (b.replyCount || 0) - (a.replyCount || 0))
+          .slice(0, X_REPLY_PIECES);
+        for (const p of conRespuestas) {
+          if (cooled.has(platform) || budget.remaining(platform) <= 0) break;
+          await setStatus({ estado: `x: respuestas de @${handle}`, inserted, cuentas: done });
+          const rtab = await openIn(platform, p.url);
+          await budget.spend(platform);
+          const rr = await send(rtab.id, { type: "dom-replies", url: p.url, handle });
+          if (!rr.ok) { pushError(errores, platform, handle, "respuestas", rr.error || "sin respuesta"); continue; }
+          const rsig = signalFromResponse(rr.status, rr.body);
+          if (rsig) {
+            cooled.add(platform);
+            await reportSignal(platform, rsig);
+            pushError(errores, platform, handle, "breaker", rsig);
+            break;
+          }
+          inserted += await pushItems(rr.items || []);
+          await setStatus({ inserted });
+        }
       }
     } catch (e) {
       console.warn("colecta falló", platform, acc.handle, e);
-      errores.push(`${platform}:@${acc.handle}: ${String(e && e.message || e)}`);
+      pushError(errores, platform, handle, "excepción", String((e && e.message) || e));
     }
   }
+
+  // Pestaña de Instagram para las búsquedas (ig-search es API, sirve
+  // cualquier pestaña de instagram.com).
+  let igTab = await findPlatformTab("instagram");
 
   // Búsquedas A/B: se ejecutan después de las cuentas, con el presupuesto que
   // quede. Cada búsqueda gasta 1 request del presupuesto de su plataforma y
@@ -193,7 +269,7 @@ async function runCollection() {
           // ig-search es una llamada a la API interna: se reusa igTab sin re-navegar.
           if (!(await liveTab(igTab && igTab.id))) igTab = await openIn("instagram", PLATFORM_HOME.instagram);
           const res = await send(igTab.id, { type: "ig-search", query: q });
-          if (!res.ok) { errores.push(`búsqueda ${platform} "${q}": ${res.error || "sin respuesta"}`); continue; }
+          if (!res.ok) { pushError(errores, platform, undefined, "búsqueda", `"${q}": ${res.error || "sin respuesta"}`); continue; }
           await budget.spend(platform);
           const sig = signalFromResponse(res.status, res.body);
           if (sig) { cooled.add(platform); await reportSignal(platform, sig); continue; }
@@ -201,7 +277,7 @@ async function runCollection() {
         } else {
           const tab = await openIn(platform, searchUrl(platform, q));
           const res = await send(tab.id, { type: "dom-collect", query: q });
-          if (!res.ok) { errores.push(`búsqueda ${platform} "${q}": ${res.error || "sin respuesta"}`); continue; }
+          if (!res.ok) { pushError(errores, platform, undefined, "búsqueda", `"${q}": ${res.error || "sin respuesta"}`); continue; }
           await budget.spend(platform);
           inserted += await pushItems(res.items || []);
           candidateLists.push(candidatesFromItems(res.items || [], q));
@@ -210,7 +286,7 @@ async function runCollection() {
         await setStatus({ busquedas, inserted });
       } catch (e) {
         console.warn("búsqueda falló", platform, q, e);
-        errores.push(`búsqueda ${platform} "${q}": ${String(e && e.message || e)}`);
+        pushError(errores, platform, undefined, "búsqueda", `"${q}": ${String((e && e.message) || e)}`);
       }
     }
   }
@@ -223,18 +299,27 @@ async function runCollection() {
       sugeridos = r.suggested || 0;
     } catch (e) {
       console.warn("candidatos falló", e);
-      errores.push(`candidatos: ${String(e && e.message || e)}`);
+      pushError(errores, "server", undefined, "candidatos", String((e && e.message) || e));
     }
   }
 
+  await reportRun({
+    cuentas: done,
+    busquedas,
+    items: inserted,
+    candidatos: candidates.length,
+    sugeridos,
+    errores,
+  });
+
   await setStatus({
-    estado: `listo — ${inserted} nuevos · ${candidates.length} candidatos → ${sugeridos} sugeridos`,
+    estado: `listo — ${inserted} nuevos · ${candidates.length} candidatos → ${sugeridos} sugeridos${errores.length ? ` · ${errores.length} errores` : ""}`,
     inserted, cuentas: done, busquedas, candidatos: candidates.length, sugeridos, errores, finishedAt: Date.now(),
   });
   chrome.notifications.create({
     type: "basic", iconUrl: "icons/icon128.png",
     title: "Monitor: corrida completa",
-    message: `${done} cuentas, ${busquedas} búsquedas, ${inserted} menciones nuevas, ${sugeridos} actores sugeridos.`,
+    message: `${done} cuentas, ${busquedas} búsquedas, ${inserted} menciones nuevas, ${sugeridos} actores sugeridos, ${errores.length} errores.`,
   });
 }
 

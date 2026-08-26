@@ -19,6 +19,8 @@
   .counters { display: flex; gap: 10px; margin-top: 10px; }
   .counters .box { flex: 1; margin-top: 0; }
   .num-sm { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+  #errores-lista { margin: 6px 0 0; padding-left: 16px; }
+  #errores-lista li { font-size: 12px; color: #71717a; margin-bottom: 3px; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -48,6 +50,14 @@
       <div class="num-sm" id="sugeridos">0</div>
       <div class="muted">actores sugeridos por IA</div>
     </div>
+    <div class="box">
+      <div class="num-sm warn" id="errores">0</div>
+      <div class="muted">errores</div>
+    </div>
+  </div>
+  <div class="box" id="errores-box" hidden>
+    <div class="muted">Errores de la corrida</div>
+    <ul id="errores-lista"></ul>
   </div>
   <p class="muted" id="hint">El plugin navega las cuentas del plan del tablero con pausas largas entre cada una: una corrida puede tardar varios minutos. No cierres el navegador.</p>
   <script src="panel.js"></script>
