@@ -73,6 +73,11 @@ describe("client-brief · helpers puros", () => {
     expect(out.suggestions).toHaveLength(3);
   });
 
+  it("mergeSuggestions conserva origen, followers y displayName", () => {
+    const out = mergeSuggestions(EMPTY_BRIEF, [{ handle: "x", platform: "x", category: "medio", direccion: "?", razon: "r", origen: "barrido", followers: 12, displayName: "X" }], [], NOW);
+    expect(out.suggestions[0]).toMatchObject({ origen: "barrido", followers: 12, displayName: "X", status: "pending" });
+  });
+
   it("setSuggestionStatus cambia solo la indicada", () => {
     const b: ClientBrief = {
       ...EMPTY_BRIEF,

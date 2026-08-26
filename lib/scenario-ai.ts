@@ -146,7 +146,9 @@ Esquema:
 
 export type ParseResult = { ok: true; data: ScenarioOutput } | { ok: false; error: string };
 
-function extractJsonCandidate(text: string): string | null {
+// Exportada para reutilizarla desde lib/candidate-ai.ts (mismo formato de
+// respuesta: bloque ```json``` o, a falta de eso, el primer {…} del texto).
+export function extractJsonCandidate(text: string): string | null {
   const fenced = text.match(/```json\s*([\s\S]*?)```/i);
   if (fenced) return fenced[1];
   const start = text.indexOf("{");

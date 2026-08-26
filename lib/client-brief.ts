@@ -64,6 +64,12 @@ export interface ActorSuggestion {
   razon: string;
   suggestedAt: string;
   status: "pending" | "accepted" | "dismissed";
+  // "barrido": propuesta por lib/candidate-ai a partir de una cuenta vista en
+  // las búsquedas A/B de la extensión; "informe": propuesta por el informe
+  // diario (lib/daily-report). Sin origen: sugerencias previas a este campo.
+  origen?: "informe" | "barrido";
+  followers?: number;
+  displayName?: string;
 }
 
 export interface ClientBrief {
