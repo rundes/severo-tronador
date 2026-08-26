@@ -5,6 +5,7 @@ import Link from "next/link";
 import { generarInformeAhora } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { ExtensionTokenButton } from "@/components/escucha/extension-token-button";
+import { ReportView } from "@/components/escucha/report-view";
 import type { DailyReport } from "@/lib/daily-report";
 
 function fecha(iso: string): string {
@@ -63,9 +64,15 @@ export function InformePanel({
 
       {latest && (
         <article className="rounded-lg border border-zinc-200 p-5 shadow-[var(--shadow-rest)] dark:border-zinc-800">
-          <div className="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-zinc-800 dark:text-zinc-200">
-            {latest.markdown}
+          <div className="mb-3 flex justify-end">
+            <a
+              href={`/escucha/informe-diario?at=${encodeURIComponent(latest.at)}`}
+              className="rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Descargar PDF
+            </a>
           </div>
+          <ReportView markdown={latest.markdown} />
         </article>
       )}
 
@@ -83,8 +90,16 @@ export function InformePanel({
                     {" · "}
                     {r.items24h} menciones
                   </summary>
-                  <div className="mt-2 whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-zinc-700 dark:text-zinc-300">
-                    {r.markdown}
+                  <div className="mt-2 flex justify-end">
+                    <a
+                      href={`/escucha/informe-diario?at=${encodeURIComponent(r.at)}`}
+                      className="rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      Descargar PDF
+                    </a>
+                  </div>
+                  <div className="mt-2">
+                    <ReportView markdown={r.markdown} />
                   </div>
                 </details>
               </li>
