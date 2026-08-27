@@ -18,17 +18,41 @@ const PLATFORM_HOME = {
 const IG_COMMENT_PIECES = 6;
 const X_REPLY_PIECES = 2;
 const MAX_ERRORES = 50;
+// Requests que se le reservan a cada plataforma para las búsquedas A/B: sin
+// esta reserva las primeras cuentas se comen el presupuesto pidiendo
+// comentarios y la corrida se queda sin descubrimiento de actores.
+const RESERVA_BUSQUEDAS = 10;
+// Techo global de pedidos de comentarios/respuestas por corrida.
+const MAX_COMENTARIOS_CORRIDA = 20;
+// MV3 apaga el service worker a los ~30s sin actividad de API; una corrida dura
+// horas. Un ping periódico a chrome.* lo mantiene vivo mientras dura.
+const KEEP_ALIVE_MS = 20000;
+
+// Largos del contrato de errores (el server los recorta igual; mejor no mandar
+// media página de HTML como "detail").
+const MAX_PLATFORM = 20;
+const MAX_HANDLE = 120;
+const MAX_STEP = 40;
+const MAX_DETAIL = 300;
 
 // Error de corrida con forma estable: lo consume el panel y el server
 // (POST /api/extension/signal kind:"run-summary").
 function pushError(errores, platform, handle, step, detail) {
   if (errores.length >= MAX_ERRORES) return;
   errores.push({
-    platform,
-    handle: handle || undefined,
-    step,
-    detail: String(detail == null ? "" : detail).slice(0, 300),
+    platform: String(platform == null ? "?" : platform).slice(0, MAX_PLATFORM),
+    handle: handle ? String(handle).slice(0, MAX_HANDLE) : undefined,
+    step: String(step == null || step === "" ? "?" : step).slice(0, MAX_STEP),
+    detail: String(detail == null ? "" : detail).slice(0, MAX_DETAIL),
   });
+}
+
+// ¿Se puede pedir un lote más de comentarios/respuestas? Devuelve el motivo por
+// el que NO, para que quede escrito en el resumen de la corrida.
+function motivoSinFanOut(budget, platform, comentarios) {
+  if (comentarios >= MAX_COMENTARIOS_CORRIDA) return "techo de comentarios de la corrida";
+  if (budget.remaining(platform) <= RESERVA_BUSQUEDAS) return "reserva para búsquedas";
+  return null;
 }
 
 async function cfg() {
@@ -77,7 +101,15 @@ async function findPlatformTab(platform) {
 async function openIn(platform, url) {
   let tab = await findPlatformTab(platform);
   if (tab) {
-    const loaded = waitLoaded(tab.id, url);
+    // El atajo "ya estamos en destino" solo vale chequeado ANTES del update:
+    // después, la pestaña sigue reportando la URL vieja y el chequeo daba por
+    // cargada una página que recién empezaba a navegar.
+    if (tab.status === "complete" && isOnTarget(tab.url, url)) {
+      ownTabs.set(platform, tab.id);
+      await sleep(2000 + Math.floor(Math.random() * 2000));
+      return tab;
+    }
+    const loaded = waitLoaded(tab.id, url, LOAD_TIMEOUT_MS, false);
     await chrome.tabs.update(tab.id, { url, active: false });
     await loaded;
   } else {
@@ -94,7 +126,7 @@ const LOAD_TIMEOUT_MS = 20000;
 // está efectivamente en `expectedUrl` (origin+pathname). El listener se registra
 // ANTES de navegar para no perder el evento; si ya está cargada en destino,
 // resuelve de inmediato.
-function waitLoaded(tabId, expectedUrl, timeoutMs = LOAD_TIMEOUT_MS) {
+function waitLoaded(tabId, expectedUrl, timeoutMs = LOAD_TIMEOUT_MS, checkNow = true) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = () => { if (settled) return; settled = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(on); resolve(); };
@@ -104,10 +136,14 @@ function waitLoaded(tabId, expectedUrl, timeoutMs = LOAD_TIMEOUT_MS) {
       if (isOnTarget(tab && tab.url, expectedUrl)) finish();
     }
     chrome.tabs.onUpdated.addListener(on);
-    // Carrera benigna: chequeo inicial por si ya estaba completa en destino.
-    liveTab(tabId).then((tab) => {
-      if (tab && tab.status === "complete" && isOnTarget(tab.url, expectedUrl)) finish();
-    });
+    // Chequeo inicial por si ya estaba completa en destino. No se hace cuando
+    // el llamador ya está por navegar: ahí la URL vieja todavía figura como
+    // actual y resolvería antes de que cargue la nueva.
+    if (checkNow) {
+      liveTab(tabId).then((tab) => {
+        if (tab && tab.status === "complete" && isOnTarget(tab.url, expectedUrl)) finish();
+      });
+    }
   });
 }
 
@@ -146,9 +182,22 @@ async function reportRun(summary) {
   }
 }
 
+// Una corrida dura horas y MV3 apaga el worker a los 30s de silencio: sin este
+// keep-alive la corrida muere a mitad de camino y nadie se entera.
+async function runCollection() {
+  const keepAlive = setInterval(() => {
+    try { chrome.runtime.getPlatformInfo().catch(() => {}); } catch { /* worker cerrándose */ }
+  }, KEEP_ALIVE_MS);
+  try {
+    await collectOnce();
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
 // Una corrida completa: cuentas del plan → búsquedas A/B → candidatos a actor,
 // todo dentro del presupuesto.
-async function runCollection() {
+async function collectOnce() {
   if (!plausibleHour()) {
     await setStatus({ estado: "fuera de horario (08:00–01:00)" });
     return;
@@ -162,12 +211,17 @@ async function runCollection() {
 
   let inserted = 0;
   let done = 0;
+  let comentarios = 0;
   const errores = [];
   for (const acc of accounts) {
     const platform = acc.platform;
     if (cooled.has(platform)) continue;
-    if (budget.remaining(platform) <= 0) continue;
     const handle = acc.handle.replace(/^@/, "");
+    // Saltear en silencio hacía que media corrida sin mirar pareciera exitosa.
+    if (budget.remaining(platform) <= 0) {
+      pushError(errores, platform, handle, "presupuesto", "sin requests");
+      continue;
+    }
     await setStatus({ estado: `${platform}: @${handle} (${done + 1}/${accounts.length})`, inserted, cuentas: done });
 
     try {
@@ -183,7 +237,12 @@ async function runCollection() {
           : { type: "dom-profile", handle, since: acc.since },
       );
       if (!res.ok) { pushError(errores, platform, handle, "colecta", res.error || "sin respuesta"); continue; }
-      done++;
+      // La unidad de API en página de IG (feed + historias) es otro request del
+      // presupuesto, aparte de la navegación (spec §8).
+      if (platform === "instagram") await budget.spend(platform);
+      // Los errores de la unidad se guardan siempre, también cuando enfriamos:
+      // son justo los que explican por qué apareció la señal.
+      for (const e of res.errors || []) pushError(errores, platform, handle, e.step, e.detail);
 
       const sig = signalFromResponse(res.status, res.body);
       if (sig) {
@@ -193,7 +252,8 @@ async function runCollection() {
         await setStatus({ estado: `${platform} enfriado (${sig})`, inserted, cuentas: done });
         continue; // nunca reintentar en la misma corrida
       }
-      for (const e of res.errors || []) pushError(errores, platform, handle, e.step, e.detail);
+      // Una cuenta está hecha solo si no se cayó ni disparó el breaker.
+      done++;
       inserted += await pushItems(res.items || []);
       await setStatus({ inserted, cuentas: done });
 
@@ -205,11 +265,15 @@ async function runCollection() {
           .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0))
           .slice(0, IG_COMMENT_PIECES);
         for (const p of conComentarios) {
-          if (cooled.has(platform) || budget.remaining(platform) <= 0) break;
+          if (cooled.has(platform)) break;
+          const motivo = motivoSinFanOut(budget, platform, comentarios);
+          if (motivo) { pushError(errores, platform, handle, "presupuesto", motivo); break; }
           await setStatus({ estado: `instagram: comentarios de @${handle}`, inserted, cuentas: done });
+          comentarios++;
           await budget.spend(platform);
           const cr = await send(tab.id, { type: "ig-comments", pk: p.pk, url: p.url, handle });
           if (!cr.ok) { pushError(errores, platform, handle, "comentarios", cr.error || "sin respuesta"); continue; }
+          for (const e of cr.errors || []) pushError(errores, platform, handle, e.step, e.detail);
           const csig = signalFromResponse(cr.status, cr.body);
           if (csig) {
             cooled.add(platform);
@@ -227,12 +291,16 @@ async function runCollection() {
           .sort((a, b) => (b.replyCount || 0) - (a.replyCount || 0))
           .slice(0, X_REPLY_PIECES);
         for (const p of conRespuestas) {
-          if (cooled.has(platform) || budget.remaining(platform) <= 0) break;
+          if (cooled.has(platform)) break;
+          const motivo = motivoSinFanOut(budget, platform, comentarios);
+          if (motivo) { pushError(errores, platform, handle, "presupuesto", motivo); break; }
           await setStatus({ estado: `x: respuestas de @${handle}`, inserted, cuentas: done });
+          comentarios++;
           const rtab = await openIn(platform, p.url);
           await budget.spend(platform);
           const rr = await send(rtab.id, { type: "dom-replies", url: p.url, handle });
           if (!rr.ok) { pushError(errores, platform, handle, "respuestas", rr.error || "sin respuesta"); continue; }
+          for (const e of rr.errors || []) pushError(errores, platform, handle, e.step, e.detail);
           const rsig = signalFromResponse(rr.status, rr.body);
           if (rsig) {
             cooled.add(platform);
@@ -272,13 +340,28 @@ async function runCollection() {
           if (!res.ok) { pushError(errores, platform, undefined, "búsqueda", `"${q}": ${res.error || "sin respuesta"}`); continue; }
           await budget.spend(platform);
           const sig = signalFromResponse(res.status, res.body);
-          if (sig) { cooled.add(platform); await reportSignal(platform, sig); continue; }
+          if (sig) {
+            cooled.add(platform);
+            await reportSignal(platform, sig);
+            pushError(errores, platform, undefined, "breaker", sig);
+            continue;
+          }
           if (res.json) candidateLists.push(candidatesFromIgSearch(res.json, q));
         } else {
           const tab = await openIn(platform, searchUrl(platform, q));
+          // La navegación ya consumió el request: se descuenta como en las cuentas.
+          await budget.spend(platform);
           const res = await send(tab.id, { type: "dom-collect", query: q });
           if (!res.ok) { pushError(errores, platform, undefined, "búsqueda", `"${q}": ${res.error || "sin respuesta"}`); continue; }
-          await budget.spend(platform);
+          // Faltaba: una búsqueda contra un muro de login se guardaba como
+          // "0 resultados" y la corrida seguía golpeando la plataforma.
+          const sig = signalFromResponse(res.status, res.body);
+          if (sig) {
+            cooled.add(platform);
+            await reportSignal(platform, sig);
+            pushError(errores, platform, undefined, "breaker", sig);
+            continue;
+          }
           inserted += await pushItems(res.items || []);
           candidateLists.push(candidatesFromItems(res.items || [], q));
         }
@@ -333,12 +416,17 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
 
 // Alarma diaria con deriva horaria (spec §3.3): disparar entre la hora
 // configurada y +40 min.
+const DERIVA_MIN = 40;
 async function scheduleAlarm() {
   const { hora } = await chrome.storage.sync.get({ hora: "09:00" });
   const [h, m] = hora.split(":").map(Number);
   const next = new Date();
-  next.setHours(h, (m || 0) + Math.floor(Math.random() * 40), 0, 0);
+  // La deriva se suma DESPUÉS de decidir el día: sumándola antes, una alarma que
+  // dispara a las 09:05 se reprogramaba para las 09:30 del mismo día y la
+  // corrida salía dos veces.
+  next.setHours(h, m || 0, 0, 0);
   if (next <= new Date()) next.setDate(next.getDate() + 1);
+  next.setMinutes(next.getMinutes() + Math.floor(Math.random() * DERIVA_MIN));
   chrome.alarms.create("corrida-diaria", { when: +next });
 }
 chrome.runtime.onInstalled.addListener(() => {
@@ -348,5 +436,11 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(scheduleAlarm);
 chrome.storage.onChanged.addListener((ch) => { if (ch.hora) scheduleAlarm(); });
 chrome.alarms.onAlarm.addListener((a) => {
-  if (a.name === "corrida-diaria") { runCollection().finally(scheduleAlarm); }
+  if (a.name !== "corrida-diaria") return;
+  // Reprogramar ANTES de correr: si la corrida se cae (o el worker muere), la
+  // alarma ya quedó puesta y el monitoreo no se apaga en silencio.
+  Promise.resolve(scheduleAlarm())
+    .catch((e) => console.warn("no se pudo reprogramar la alarma", e))
+    .then(() => runCollection())
+    .catch((e) => console.warn("corrida falló", e));
 });

@@ -50,7 +50,9 @@ export interface MonitorConfig {
 }
 
 export const DEFAULT_BUDGET: MonitorConfig["budget"] = {
-  instagram: { requests: 60, pausaMinMs: 6000, pausaMaxMs: 20000 },
+  // IG ≤20/día: la navegación del perfil y la unidad de API en página gastan
+  // dos requests por cuenta, así que 60 era pedirle a la plataforma que mire.
+  instagram: { requests: 20, pausaMinMs: 6000, pausaMaxMs: 20000 },
   x: { requests: 35, pausaMinMs: 6000, pausaMaxMs: 20000 },
   facebook: { requests: 25, pausaMinMs: 8000, pausaMaxMs: 22000 },
   tiktok: { requests: 15, pausaMinMs: 8000, pausaMaxMs: 22000 },

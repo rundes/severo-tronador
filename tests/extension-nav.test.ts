@@ -127,3 +127,29 @@ describe("nav · sameHost / isOnTarget", () => {
     expect(isOnTarget("bad", "https://x.com/")).toBe(false);
   });
 });
+
+// isOnTarget decide si la pestaña ya está donde la queremos: un prefijo suelto
+// daba por buena /FerroOficial cuando pedíamos /Ferro y se colectaba la cuenta
+// equivocada.
+describe("nav · isOnTarget con borde de path", () => {
+  it("el prefijo tiene que cortar en /", () => {
+    expect(isOnTarget("https://x.com/FerroOficial", "https://x.com/Ferro")).toBe(false);
+    expect(isOnTarget("https://x.com/DeSociosFalso", "https://x.com/DeSocios")).toBe(false);
+    expect(isOnTarget("https://x.com/DeSocios/with_replies", "https://x.com/DeSocios")).toBe(true);
+    expect(isOnTarget("https://x.com/DeSocios", "https://x.com/DeSocios")).toBe(true);
+  });
+  it("tolera la barra final (instagram redirige con y sin)", () => {
+    expect(isOnTarget("https://www.instagram.com/somosferro", "https://www.instagram.com/somosferro/")).toBe(true);
+    expect(isOnTarget("https://www.instagram.com/somosferro/", "https://www.instagram.com/somosferro")).toBe(true);
+    expect(isOnTarget("https://www.instagram.com/somosferro2026/", "https://www.instagram.com/somosferro/")).toBe(false);
+  });
+  it("la home de la plataforma matchea cualquier path", () => {
+    expect(isOnTarget("https://www.instagram.com/explore/", "https://www.instagram.com/")).toBe(true);
+  });
+  it("un /status/<id> matchea por id, no por handle", () => {
+    expect(isOnTarget("https://x.com/i/status/222", "https://x.com/FerroOficial/status/222")).toBe(true);
+    expect(isOnTarget("https://x.com/FerroOficial/status/222/photo/1", "https://x.com/FerroOficial/status/222")).toBe(true);
+    expect(isOnTarget("https://x.com/FerroOficial/status/999", "https://x.com/FerroOficial/status/222")).toBe(false);
+    expect(isOnTarget("https://x.com/FerroOficial", "https://x.com/FerroOficial/status/222")).toBe(false);
+  });
+});

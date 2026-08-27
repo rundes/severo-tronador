@@ -5,7 +5,7 @@ import { parseCount, parseXGroupLabel } from "./parse.js";
 
 const clean = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
 const MAX_TEXT = 800;
-const ARTICLES = 'article[data-testid="tweet"], article[role="article"]';
+export const ARTICLES = 'article[data-testid="tweet"], article[role="article"]';
 // handle = path de un solo segmento; nunca rutas de la app.
 const X_HANDLE_PATH = /^\/[A-Za-z0-9_]{1,15}$/;
 const X_NON_HANDLE_PATHS = new Set(["/i", "/home", "/explore", "/search", "/notifications", "/messages"]);
@@ -40,15 +40,44 @@ function metricsFrom(article) {
   return { likeCount: g.likes, replyCount: g.replies, repostCount: g.reposts, viewCount: g.views };
 }
 
+// Nunca el textContent del artículo entero: eso mete la interfaz (Responder,
+// Repostear, Me gusta) adentro del texto de la pieza. Sin tweetText, el alt de
+// la imagen; y si tampoco hay, un placeholder honesto.
 function textFrom(article) {
   const node = article.querySelector('[data-testid="tweetText"]');
-  return clean(node ? node.textContent : article.textContent);
+  const text = clean(node ? node.textContent : "");
+  if (text) return text;
+  const img = article.querySelector("img[alt]");
+  return clean(img ? img.getAttribute("alt") : "") || "(tweet sin texto)";
+}
+
+// Un repost no es una pieza de la cuenta: lo escribió otro.
+const REPOST = /reposte[oó]|reposted|retwitte[oó]|retweeted/i;
+function isRepost(article) {
+  const ctx = article.querySelector('[data-testid="socialContext"]');
+  return !!ctx && REPOST.test(clean(ctx.textContent));
+}
+
+// Une los nodos de texto descendientes con espacios: X pega "38,2 mil" y
+// "Seguidores" en spans contiguos y textContent devuelve "38,2 milSeguidores",
+// donde el sufijo "mil" deja de ser sufijo y parseCount lee 38 en vez de 38200.
+function joinedText(el) {
+  if (!el) return "";
+  const parts = [];
+  const walk = (node) => {
+    for (const child of node.childNodes || []) {
+      if (child.nodeType === 3) parts.push(child.textContent);
+      else walk(child);
+    }
+  };
+  walk(el);
+  return clean(parts.join(" "));
 }
 
 // Seguidores del perfil: "38,2 mil Seguidores" en a[href$="/followers"].
 export function parseXProfile(doc) {
   const link = doc.querySelector('a[href$="/followers"], a[href$="/verified_followers"]');
-  const followers = link ? parseCount(clean(link.textContent)) : null;
+  const followers = link ? parseCount(joinedText(link)) : null;
   return followers == null ? null : { followers };
 }
 
@@ -59,6 +88,7 @@ export function parseXTimeline(doc, handle, sinceIso) {
   const items = [];
   const seen = new Set();
   for (const art of doc.querySelectorAll(ARTICLES)) {
+    if (isRepost(art)) continue;
     const url = statusUrl(art);
     if (!url || seen.has(url)) continue;
     const text = textFrom(art);

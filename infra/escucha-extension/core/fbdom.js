@@ -36,8 +36,15 @@ function reactionsFrom(article) {
   return undefined;
 }
 
+// Los seguidores salen del encabezado del perfil ([role="main"]): el body
+// entero trae "Páginas sugeridas" con SUS seguidores y se colaban como propios.
+// El body queda como último recurso (no siempre hay role="main").
 export function parseFbProfile(doc) {
-  const followers = countBefore(doc.body ? doc.body.textContent : "", "seguidores|followers");
+  const main = doc && typeof doc.querySelector === "function" ? doc.querySelector('[role="main"]') : null;
+  const fromMain = main ? countBefore(main.textContent, "seguidores|followers") : null;
+  const followers = fromMain != null
+    ? fromMain
+    : countBefore(doc && doc.body ? doc.body.textContent : "", "seguidores|followers");
   return followers == null ? null : { followers };
 }
 

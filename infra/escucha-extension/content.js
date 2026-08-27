@@ -21,6 +21,12 @@ const SCROLL_PAUSE_MS = 2000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Muestra del texto de la página para el breaker del orquestador: en X/FB/TikTok
+// el bloqueo llega como muro de login o "algo salió mal" adentro de un 200, así
+// que sin esto signalFromResponse no tiene con qué verlo.
+const BODY_SAMPLE = 4000;
+const bodySample = () => ((document.body && document.body.textContent) || "").slice(0, BODY_SAMPLE);
+
 // Carga perezosa y cacheada de los módulos puros.
 let corePromise = null;
 function core() {
@@ -116,6 +122,7 @@ async function igCollect(handle, since) {
 // Comentarios de UNA pieza, hasta IG_COMMENT_PAGES páginas (~40 comentarios).
 async function igComments(pk, url, handle) {
   const { ig } = await core();
+  const errors = [];
   let items = [];
   let status = 200;
   let body = "";
@@ -124,13 +131,18 @@ async function igComments(pk, url, handle) {
     const q = `/api/v1/media/${encodeURIComponent(pk)}/comments/?can_support_threading=true&permalink_enabled=false${minId ? `&min_id=${encodeURIComponent(minId)}` : ""}`;
     const r = await igFetch(q);
     status = Math.max(status, r.status);
-    if (!r.json) { body = r.body; break; }
+    // Sin esto, IG devolviendo 400 una semana entera se veía como "0 comentarios".
+    if (r.status !== 200 || !r.json) {
+      body = r.body;
+      errors.push({ step: "comentarios", detail: `HTTP ${r.status}` });
+      break;
+    }
     items = items.concat(ig.commentsFromJson(r.json, url, handle));
     minId = ig.nextMinId(r.json);
     if (!minId) break;
     await sleep(1200 + Math.floor(Math.random() * 800));
   }
-  return { ok: true, status, body, items };
+  return { ok: true, status, body, items, errors };
 }
 
 // ---- DOM: X / Facebook / TikTok ----
@@ -154,7 +166,9 @@ async function domProfile(handle, since) {
   if (isX(h)) {
     profile = xdom.parseXProfile(document);
     items = xdom.parseXTimeline(document, handle, since);
-    if (document.querySelectorAll("article").length === 0) errors.push({ step: "parse", detail: "0 artículos" });
+    // Mismo selector que el parser: contar "article" a secas cuenta artículos de
+    // la interfaz y tapa un timeline realmente vacío.
+    if (document.querySelectorAll(xdom.ARTICLES).length === 0) errors.push({ step: "parse", detail: "0 artículos" });
   } else if (h.includes("facebook.com")) {
     profile = fbdom.parseFbProfile(document);
     items = fbdom.parseFbTimeline(document, handle, profile ? profile.followers : undefined);
@@ -167,21 +181,33 @@ async function domProfile(handle, since) {
     errors.push({ step: "dispatch", detail: `hostname sin parser: ${h}` });
   }
   if (!profile) errors.push({ step: "profile", detail: "seguidores no encontrados en el DOM" });
+  // El perfil también muestra piezas de otros (reposts, citas): sellarles los
+  // seguidores de esta cuenta inventa amplificación, y pedirles las respuestas
+  // gasta presupuesto en algo que no es de la cuenta.
+  const own = String(handle || "").replace(/^@/, "").toLowerCase();
+  const esPropio = (i) => !own || String(i.author || "").toLowerCase() === own;
   // Los seguidores viajan en cada pieza: amplificación/adhesión son server-side.
   if (profile && profile.followers != null) {
-    items = items.map((i) => ({ ...i, metrics: { ...i.metrics, followers: profile.followers } }));
+    items = items.map((i) => (esPropio(i) ? { ...i, metrics: { ...i.metrics, followers: profile.followers } } : i));
   }
   const pieces = items
-    .filter((i) => i.kind === "post")
+    .filter((i) => i.kind === "post" && esPropio(i))
     .map((i) => ({ url: i.url, replyCount: (i.metrics && i.metrics.replyCount) || 0 }));
-  return { ok: true, status: 200, items, pieces, profile, errors };
+  return { ok: true, status: 200, body: bodySample(), items, pieces, profile, errors };
 }
 
 // Respuestas de una pieza de X (la pestaña ya está en /status/<id>).
 async function domReplies(url, handle) {
   const { xdom } = await core();
   await scrollDown(2, 1500);
-  return { ok: true, status: 200, items: xdom.parseXReplies(document, url, handle) };
+  const items = xdom.parseXReplies(document, url, handle);
+  const errors = [];
+  // 0 respuestas con un solo artículo no es una pieza sin respuestas: es una
+  // página que no cargó (o un muro). Que se vea en el resumen de la corrida.
+  if (items.length === 0 && document.querySelectorAll(xdom.ARTICLES).length <= 1) {
+    errors.push({ step: "parse", detail: "0 respuestas" });
+  }
+  return { ok: true, status: 200, body: bodySample(), items, errors };
 }
 
 // Búsquedas A/B por DOM (sin `since`: es descubrimiento, no seguimiento).
@@ -193,34 +219,43 @@ async function domCollect(handle) {
   if (isX(h)) items = xdom.parseXTimeline(document, handle, undefined);
   else if (h.includes("facebook.com")) items = fbdom.parseFbTimeline(document, handle, undefined);
   else if (h.includes("tiktok.com")) items = ttdom.parseTikTokTimeline(document, handle, undefined);
-  return { ok: true, status: 200, items };
+  return { ok: true, status: 200, body: bodySample(), items };
 }
 
 // Orquestador → content: ejecutá esta unidad y devolveme datos + status.
 chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
+  // Una sola respuesta por mensaje: si la unidad falla después de haber
+  // contestado, el segundo sendResponse tira "port closed" y el sw se cuelga
+  // hasta el timeout.
+  let sent = false;
+  const reply = (r) => {
+    if (sent) return;
+    sent = true;
+    try { sendResponse(r); } catch { /* puerto cerrado: el sw ya cortó por timeout */ }
+  };
   (async () => {
     try {
       if (msg.type === "ig-collect") {
-        sendResponse(await igCollect(msg.handle, msg.since));
+        reply(await igCollect(msg.handle, msg.since));
       } else if (msg.type === "ig-comments") {
-        sendResponse(await igComments(msg.pk, msg.url, msg.handle));
+        reply(await igComments(msg.pk, msg.url, msg.handle));
       } else if (msg.type === "dom-profile") {
-        sendResponse(await domProfile(msg.handle, msg.since));
+        reply(await domProfile(msg.handle, msg.since));
       } else if (msg.type === "dom-replies") {
-        sendResponse(await domReplies(msg.url, msg.handle));
+        reply(await domReplies(msg.url, msg.handle));
       } else if (msg.type === "ig-search") {
         const r = await igFetch(`/api/v1/web/search/topsearch/?context=blended&query=${encodeURIComponent(msg.query)}`);
-        sendResponse({ ok: true, status: r.status, body: r.body, json: r.json });
+        reply({ ok: true, status: r.status, body: r.body, json: r.json });
       } else if (msg.type === "dom-collect") {
         // msg.query es solo informativo (lo usa el orquestador para armar
         // candidatos); el autor siempre sale del DOM.
-        sendResponse(await domCollect(msg.handle));
+        reply(await domCollect(msg.handle));
       } else {
-        sendResponse({ ok: false, error: "tipo desconocido" });
+        reply({ ok: false, error: "tipo desconocido" });
       }
     } catch (e) {
-      sendResponse({ ok: false, error: String((e && e.message) || e) });
+      reply({ ok: false, error: String((e && e.message) || e) });
     }
-  })();
+  })().catch(() => reply({ ok: false, error: "fallo inesperado" }));
   return true; // async
 });

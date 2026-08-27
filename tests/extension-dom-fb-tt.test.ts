@@ -62,3 +62,33 @@ describe("ttdom", () => {
     }]);
   });
 });
+
+// El body de Facebook trae "Páginas sugeridas" con sus propios seguidores: si
+// se lee el body entero, el perfil se queda con los seguidores de otro.
+describe("fbdom · seguidores del encabezado, no del body entero", () => {
+  const doc = new JSDOM(`<html><body>
+    <div role="banner"><span>Facebook</span></div>
+    <div role="main">
+      <h1>Ferro Oficial</h1>
+      <div><span>3,4 mil seguidores</span><span>120 seguidos</span></div>
+    </div>
+    <div role="complementary"><span>Páginas sugeridas</span><span>980 mil seguidores</span></div>
+  </body></html>`).window.document;
+
+  it("prefiere el region main cuando existe", () => {
+    expect(parseFbProfile(doc)).toEqual({ followers: 3400 });
+  });
+
+  it("cae al body si no hay main", () => {
+    const sinMain = new JSDOM(`<html><body><span>7,5 mil seguidores</span></body></html>`).window.document;
+    expect(parseFbProfile(sinMain)).toEqual({ followers: 7500 });
+  });
+
+  it("main sin seguidores cae al body antes de rendirse", () => {
+    const mainVacio = new JSDOM(`<html><body>
+      <div role="main"><h1>Ferro</h1></div>
+      <div><span>1,2 mil seguidores</span></div>
+    </body></html>`).window.document;
+    expect(parseFbProfile(mainVacio)).toEqual({ followers: 1200 });
+  });
+});

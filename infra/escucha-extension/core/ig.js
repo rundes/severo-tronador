@@ -10,8 +10,10 @@ const toIso = (sec) =>
     ? new Date(sec * 1000).toISOString()
     : undefined;
 
+// El contrato de /api/extension/items es numérico y no negativo: la API interna
+// devuelve floats (play_count) y, en cuentas raras, contadores negativos.
 const numOrUndef = (v) =>
-  typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
+  typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined;
 
 export function mediaUrl(pk, code) {
   return code

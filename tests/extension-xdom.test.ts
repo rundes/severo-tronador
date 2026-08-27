@@ -96,3 +96,72 @@ describe("xdom · respuestas", () => {
     expect(parseXReplies(doc, "https://x.com/FerroOficial/status/222", "FerroOficial")).toEqual([]);
   });
 });
+
+// El link de seguidores de X viene con los nodos pegados ("38,2 mil" +
+// "Seguidores" sin espacio en el medio): textContent los concatena y parseCount
+// leía 38 en vez de 38200. Hay que unir los nodos de texto con espacios.
+describe("xdom · seguidores sin espacio entre nodos", () => {
+  const doc = (inner: string) =>
+    new JSDOM(`<html><body><a href="/FerroOficial/followers">${inner}</a></body></html>`).window.document;
+
+  it("nodos pegados: 38,2 mil + Seguidores → 38200", () => {
+    expect(parseXProfile(doc("<span>38,2 mil</span><span>Seguidores</span>"))).toEqual({ followers: 38200 });
+  });
+  it("nodos anidados y con espacios siguen funcionando", () => {
+    expect(parseXProfile(doc("<span><span>136K</span></span><span>Followers</span>"))).toEqual({ followers: 136000 });
+    expect(parseXProfile(doc("<span>1.806</span> Seguidores"))).toEqual({ followers: 1806 });
+  });
+  it("verified_followers también cuenta", () => {
+    const d = new JSDOM(`<html><body><a href="/x/verified_followers"><span>2,1 mil</span><span>Seguidores verificados</span></a></body></html>`).window.document;
+    expect(parseXProfile(d)).toEqual({ followers: 2100 });
+  });
+});
+
+describe("xdom · tweets sin texto y reposts", () => {
+  const media = (o: { handle: string; id: string; alt?: string }) => `
+    <article data-testid="tweet" role="article">
+      <div data-testid="User-Name"><a href="/${o.handle}"><span>${o.handle}</span></a>
+        <a href="/${o.handle}/status/${o.id}"><time datetime="2026-08-26T09:00:00.000Z">hoy</time></a></div>
+      <div data-testid="tweetPhoto">${o.alt == null ? "<img>" : `<img alt="${o.alt}">`}</div>
+      <div>texto de la interfaz que no es el tweet: Responder Repostear Me gusta</div>
+    </article>`;
+
+  it("tweet de solo imagen usa el alt, nunca el texto del artículo entero", () => {
+    const doc = new JSDOM(`<html><body>${media({ handle: "FerroOficial", id: "444", alt: "Foto del gol de Ferro" })}</body></html>`).window.document;
+    const [item] = parseXTimeline(doc, "FerroOficial", undefined);
+    expect(item.text).toBe("Foto del gol de Ferro");
+  });
+
+  it("sin alt cae en el placeholder, no en la interfaz", () => {
+    const doc = new JSDOM(`<html><body>${media({ handle: "FerroOficial", id: "445" })}</body></html>`).window.document;
+    const [item] = parseXTimeline(doc, "FerroOficial", undefined);
+    expect(item.text).toBe("(tweet sin texto)");
+  });
+
+  it("los reposts no son piezas de la cuenta", () => {
+    const repost = `
+      <article data-testid="tweet" role="article">
+        <div data-testid="socialContext">FerroOficial reposteó</div>
+        <div data-testid="User-Name"><a href="/otracuenta"><span>otracuenta</span></a>
+          <a href="/otracuenta/status/777"><time datetime="2026-08-26T10:00:00.000Z">hoy</time></a></div>
+        <div data-testid="tweetText">esto lo escribió otro</div>
+      </article>`;
+    const doc = new JSDOM(`<html><body>
+      ${repost}
+      ${tweet({ handle: "FerroOficial", id: "888", text: "esto sí es nuestro", at: "2026-08-26T11:00:00.000Z" })}
+    </body></html>`).window.document;
+    expect(parseXTimeline(doc, "FerroOficial", undefined).map((i) => i.url)).toEqual([
+      "https://x.com/FerroOficial/status/888",
+    ]);
+  });
+});
+
+describe("xdom · ARTICLES", () => {
+  it("se exporta y matchea los mismos artículos que usa el parser", async () => {
+    const { ARTICLES } = await import("../infra/escucha-extension/core/xdom.js");
+    expect(typeof ARTICLES).toBe("string");
+    const doc = new JSDOM(`<html><body>${tweet({ handle: "a", id: "1", text: "hola mundo", at: "2026-08-26T09:00:00.000Z" })}</body></html>`).window.document;
+    expect(doc.querySelectorAll(ARTICLES)).toHaveLength(1);
+    expect(parseXTimeline(doc, "a", undefined)).toHaveLength(1);
+  });
+});

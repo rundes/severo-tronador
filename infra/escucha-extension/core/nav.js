@@ -97,13 +97,26 @@ export function sameHost(url, host) {
   }
 }
 
-// ¿La pestaña ya está en la URL pedida? Compara origin+pathname (ignora query/hash
-// y redirecciones a subrutas del mismo path).
+const STATUS_ID = /\/status\/(\d+)/;
+
+// ¿La pestaña ya está en la URL pedida? Compara origin+pathname (ignora
+// query/hash y acepta subrutas: /DeSocios/with_replies sigue siendo /DeSocios).
+// El prefijo tiene que cortar en "/": /Ferro NO matchea /FerroOficial, que era
+// cómo se terminaba colectando la cuenta equivocada.
+// Para /status/<id>, X reescribe el handle (/i/status/<id>, /photo/1): manda el id.
 export function isOnTarget(tabUrl, expectedUrl) {
   try {
     const t = new URL(tabUrl);
     const e = new URL(expectedUrl);
-    return t.origin === e.origin && t.pathname.startsWith(e.pathname);
+    if (t.origin !== e.origin) return false;
+    const expectedStatus = e.pathname.match(STATUS_ID);
+    if (expectedStatus) {
+      const actual = t.pathname.match(STATUS_ID);
+      return !!actual && actual[1] === expectedStatus[1];
+    }
+    const tp = t.pathname.replace(/\/+$/, "");
+    const ep = e.pathname.replace(/\/+$/, "");
+    return tp === ep || tp.startsWith(`${ep}/`);
   } catch {
     return false;
   }

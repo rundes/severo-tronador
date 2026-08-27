@@ -44,6 +44,7 @@
   "web_accessible_resources": [
     {
       "resources": ["core/parse.js", "core/ig.js", "core/xdom.js", "core/fbdom.js", "core/ttdom.js"],
+      "use_dynamic_url": true,
       "matches": [
         "https://*.facebook.com/*",
         "https://*.instagram.com/*",

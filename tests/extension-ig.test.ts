@@ -140,3 +140,48 @@ describe("ig · historias y userId de scripts", () => {
     expect(userIdFromScripts(vacio)).toBeNull();
   });
 });
+
+// Las métricas viajan al server con un contrato numérico: un float o un
+// negativo de la API interna rompe el informe aguas abajo.
+describe("ig · métricas numéricas", () => {
+  it("redondea floats y descarta negativos/NaN/no-números", () => {
+    const json = {
+      items: [{
+        pk: "1", code: "A", media_type: 1, taken_at: at("2026-08-26T09:00:00.000Z"),
+        like_count: 12.7, comment_count: -3, play_count: 5400.4,
+        caption: { text: "t" }, user: { pk: 1 },
+      }],
+    };
+    const { items, pieces } = itemsFromFeed(json, "h", 1000.6, undefined);
+    expect(items[0].metrics.likeCount).toBe(13);
+    expect(items[0].metrics.commentCount).toBeUndefined();
+    expect(items[0].metrics.viewCount).toBe(5400);
+    expect(items[0].metrics.followers).toBe(1001);
+    expect(pieces[0].commentCount).toBe(0);
+  });
+
+  it("NaN, Infinity y strings quedan en undefined", () => {
+    const json = {
+      items: [{
+        pk: "1", code: "A", media_type: 1, taken_at: at("2026-08-26T09:00:00.000Z"),
+        like_count: Number.NaN, view_count: Number.POSITIVE_INFINITY, comment_count: "41",
+        caption: { text: "t" }, user: { pk: 1 },
+      }],
+    };
+    const { items } = itemsFromFeed(json, "h", Number.NaN, undefined);
+    expect(items[0].metrics.likeCount).toBeUndefined();
+    expect(items[0].metrics.viewCount).toBeUndefined();
+    expect(items[0].metrics.commentCount).toBeUndefined();
+    expect(items[0].metrics.followers).toBeUndefined();
+  });
+
+  it("los likes de un comentario siguen la misma regla", () => {
+    const json = { comments: [
+      { pk: "c1", text: "vamos", user: { username: "hincha" }, comment_like_count: 2.6 },
+      { pk: "c2", text: "aguante", user: { username: "hincha2" }, comment_like_count: -1 },
+    ] };
+    const items = commentsFromJson(json, "https://www.instagram.com/p/A/", "h");
+    expect(items[0].metrics.likeCount).toBe(3);
+    expect(items[1].metrics.likeCount).toBeUndefined();
+  });
+});
