@@ -66,11 +66,15 @@ export function ClaudeLinkCard({
               ? "Subí un archivo o pegá el texto del informe."
               : params.informe_error === "grande"
                 ? "El informe supera los 400.000 caracteres."
-                : params.informe_error
-                  ? "No se pudo importar el informe."
-                  : null
+                : params.informe_error === "tipo"
+                  ? "Ese archivo no es un informe: subí .md, .html o .txt."
+                  : params.informe_error === "invalido"
+                    ? "No encontré ninguna sección reconocible en el informe."
+                    : params.informe_error
+                      ? "No se pudo importar el informe."
+                      : null
         }
-        detalle={params.informe_error && !["vacio", "grande"].includes(params.informe_error) ? params.informe_error : null}
+        detalle={null}
       />
 
       <div className="space-y-2">
