@@ -21,6 +21,7 @@ import { getClientBrief, briefText, mergeSuggestions, mergeBriefUpdates, saveCli
 import { renderReportEmail } from "@/lib/report-html";
 import { renderDailyReportPdf } from "@/lib/pdf/daily-report-pdf";
 import { reportFilename } from "@/lib/report-file";
+import { reportTitle } from "@/lib/report-markdown";
 
 const HISTORY_CAP = 14;
 // Techo de salida del informe. Si el modelo lo toca, el informe llega
@@ -249,6 +250,14 @@ export interface DailyReport {
   // menciones). Es para el operador, no para el informe: se muestra en el
   // panel y en el mail, nunca en el cuerpo ni en el PDF.
   notaOperativa?: string;
+  // De dónde salió el informe: lo generó Tronador con la API, lo escribió el
+  // operador con Claude in Chrome y entró por MCP, o se importó a mano desde
+  // el panel. Ausente en los informes previos a este campo → "tronador".
+  origen?: "tronador" | "claude-chrome" | "import";
+  // Conversación de claude.ai desde la que se importó (si había vínculo).
+  conversationUrl?: string;
+  // Tesis del día ya extraída, para no re-parsear el markdown en cada listado.
+  titulo?: string;
 }
 
 interface ReportStore {
@@ -268,7 +277,10 @@ export async function readDailyReports(projectId: string): Promise<ReportStore> 
   return (data?.config as ReportStore | undefined) ?? { latest: null, history: [] };
 }
 
-async function saveReport(projectId: string, report: DailyReport): Promise<void> {
+// Exportada: la importación de informes (lib/report-import.ts) guarda por el
+// mismo camino que la generación, para que historial, tope y recorte del
+// markdown del historial sean idénticos vengan de donde vengan.
+export async function saveReport(projectId: string, report: DailyReport): Promise<void> {
   const store = await readDailyReports(projectId);
   const history = [store.latest, ...store.history]
     .filter((r): r is DailyReport => Boolean(r))
@@ -549,6 +561,8 @@ En "notaOperativa" (opcional, hasta 600 caracteres, para el operador y no para e
     items7d: items7.length,
     pull,
     notaOperativa,
+    origen: "tronador",
+    titulo: reportTitle(markdown) ?? undefined,
   };
   await saveReport(projectId, report);
   try {
