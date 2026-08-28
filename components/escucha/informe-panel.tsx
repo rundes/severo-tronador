@@ -5,8 +5,10 @@ import Link from "next/link";
 import { generarInformeAhora } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
 import { ExtensionTokenButton } from "@/components/escucha/extension-token-button";
+import { ClaudeLinkCard } from "@/components/escucha/claude-link-card";
 import { ReportView } from "@/components/escucha/report-view";
 import type { DailyReport } from "@/lib/daily-report";
+import type { ClaudeLink } from "@/lib/claude-link";
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -15,6 +17,40 @@ function fecha(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// De dónde salió el informe. Los guardados antes de que existiera el campo son
+// de Tronador: ese es el default, no "desconocido".
+const ORIGEN_LABEL: Record<NonNullable<DailyReport["origen"]>, string> = {
+  tronador: "Tronador",
+  "claude-chrome": "Claude",
+  import: "Importado",
+};
+
+function OrigenBadge({ report }: { report: DailyReport }) {
+  const origen = report.origen ?? "tronador";
+  const accent =
+    origen === "tronador"
+      ? "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+      : "border-[oklch(52%_0.13_255)]/40 text-[oklch(52%_0.13_255)]";
+  return (
+    <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.1em] ${accent}`}>
+      {ORIGEN_LABEL[origen]}
+    </span>
+  );
+}
+
+function ConversacionLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[11px] text-[oklch(52%_0.13_255)] underline-offset-2 hover:underline"
+    >
+      conversación →
+    </a>
+  );
 }
 
 // Lo que el modelo observó sobre la herramienta, la config o la calidad del
@@ -38,10 +74,14 @@ export function InformePanel({
   latest,
   history,
   generado,
+  claude,
+  params,
 }: {
   latest: DailyReport | null;
   history: DailyReport[];
   generado: boolean;
+  claude: ClaudeLink;
+  params: Record<string, string | undefined>;
 }) {
   return (
     <div className="space-y-6">
@@ -55,17 +95,21 @@ export function InformePanel({
         </Link>
       </p>
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-        <div className="text-sm text-zinc-700 dark:text-zinc-200">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
           {latest ? (
             <>
-              Último informe:{" "}
-              <span className="font-mono tabular-nums">{fecha(latest.at)}</span>
-              {" · "}
-              <span className="font-mono tabular-nums">{latest.items24h}</span>{" "}
-              menciones 24h
+              <span>
+                Último informe:{" "}
+                <span className="font-mono tabular-nums">{fecha(latest.at)}</span>
+                {" · "}
+                <span className="font-mono tabular-nums">{latest.items24h}</span>{" "}
+                menciones 24h
+              </span>
+              <OrigenBadge report={latest} />
+              {latest.conversationUrl && <ConversacionLink url={latest.conversationUrl} />}
             </>
           ) : (
-            "Todavía no hay informes. El cron corre todos los días a las 09:00; también podés generar uno ahora."
+            "Todavía no hay informes. El cron corre todos los días a las 09:00; también podés generar uno ahora, o importar el que hayas escrito con Claude."
           )}
         </div>
         <form action={generarInformeAhora}>
@@ -109,6 +153,9 @@ export function InformePanel({
                     <span className="font-mono tabular-nums">{fecha(r.at)}</span>
                     {" · "}
                     {r.items24h} menciones
+                    {r.titulo ? ` · ${r.titulo}` : ""}{" "}
+                    <OrigenBadge report={r} />
+                    {r.conversationUrl && <> <ConversacionLink url={r.conversationUrl} /></>}
                   </summary>
                   <div className="mt-2 flex justify-end">
                     <a
@@ -128,6 +175,8 @@ export function InformePanel({
           </ul>
         </section>
       )}
+
+      <ClaudeLinkCard link={claude} params={params} />
 
       <section className="space-y-2 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">

@@ -27,6 +27,7 @@ import type { SourceStatus } from "@/components/escucha/source-rows";
 import { getClientBrief } from "@/lib/client-brief";
 import { getConnectorConfig } from "@/lib/connectors/config";
 import { readExtensionRun } from "@/lib/extension-run";
+import { readClaudeLink } from "@/lib/claude-link";
 
 // Página autenticada con fetch vivo de fuentes externas (tab monitor): el
 // prerender de build pagaba todas esas llamadas (y con el enriquecimiento de
@@ -153,7 +154,12 @@ export default async function EscuchaPage({
           params={params}
         />
       ) : tab === "informe" ? (
-        <InformePanel {...await readDailyReports(projectId)} generado={params.generado === "1"} />
+        <InformePanel
+          {...await readDailyReports(projectId)}
+          generado={params.generado === "1"}
+          claude={await readClaudeLink(projectId)}
+          params={params}
+        />
       ) : result ? (
         <Monitor
           result={result}

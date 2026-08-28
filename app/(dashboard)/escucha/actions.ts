@@ -20,6 +20,9 @@ import { signedReadUrl } from "@/lib/gcs";
 import { projectOwnsAudio } from "@/lib/radio-runs";
 import { addEntry, getClientBrief, markApplied, removeEntry, saveClientBrief, setBriefUpdateStatus, setMaster, setSuggestionStatus, MASTER_MAX_CHARS, type ProposalBlock } from "@/lib/client-brief";
 import { proposeScenario } from "@/lib/scenario-ai";
+import { issueMcpToken, mcpUrl } from "@/lib/mcp-token";
+import { isClaudeConversationUrl, readClaudeLink, saveClaudeLink, type ClaudeLink } from "@/lib/claude-link";
+import { importReport, MAX_IMPORT_CHARS } from "@/lib/report-import";
 
 // Firma una URL de lectura para reproducir un audio de radio guardado en GCS.
 //
@@ -395,4 +398,81 @@ export async function resolverActorSugerido(input: { id: string; accepted: boole
   }
   await saveClientBrief(projectId, setSuggestionStatus(brief, input.id, input.accepted ? "accepted" : "dismissed"));
   revalidatePath("/escucha");
+}
+
+// -- Vínculo con Claude (MCP remoto, conversación, importación) -----------
+
+// URL base pública de la app. Mismo default que lib/daily-report.ts: si algún
+// día se separan, el mail y el conector apuntarían a hosts distintos.
+function appUrl(): string {
+  return (process.env.APP_URL ?? "https://severo-tronador.vercel.app").replace(/\/$/, "");
+}
+
+// URL del conector MCP del proyecto: la genera un owner y se muestra UNA vez
+// (contiene el token). Regenerarla invalida la anterior.
+export async function generarUrlMcp(): Promise<{ url: string }> {
+  const { id: projectId } = await requireMember("owner");
+  const token = await issueMcpToken(projectId);
+  return { url: mcpUrl(appUrl(), token) };
+}
+
+// Conversación de claude.ai vinculada al proyecto. Vacío desvincula.
+export async function vincularConversacion(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const raw = String(formData.get("conversationUrl") ?? "").trim();
+  const current = await readClaudeLink(projectId);
+  if (!raw) {
+    // Desvincular: se van la URL y su fecha; la telemetría del canal
+    // (lastToolAt/client/lastReportAt) sigue siendo cierta y se conserva.
+    const resto: ClaudeLink = { ...current };
+    delete resto.conversationUrl;
+    delete resto.linkedAt;
+    await saveClaudeLink(projectId, resto);
+    revalidatePath("/escucha");
+    redirect("/escucha?tab=informe&claude=1");
+  }
+  if (!isClaudeConversationUrl(raw)) redirect("/escucha?tab=informe&claude_error=url");
+  await saveClaudeLink(projectId, { ...current, conversationUrl: raw, linkedAt: new Date().toISOString() });
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe&claude=1");
+}
+
+// Importar un informe escrito afuera: archivo .md/.html o texto pegado. Se
+// decide html vs markdown por la extensión del archivo y, si no hay archivo,
+// por si el texto arranca con "<".
+export async function importarInforme(formData: FormData) {
+  const { id: projectId } = await requireMember("editor");
+  const archivo = formData.get("archivo");
+  const pegado = String(formData.get("texto") ?? "");
+  const enviarMail = formData.get("enviarMail") !== null;
+
+  let contenido = "";
+  let esHtml = false;
+  if (archivo instanceof File && archivo.size > 0) {
+    contenido = await archivo.text();
+    esHtml = /\.html?$/i.test(archivo.name);
+  } else {
+    contenido = pegado;
+  }
+  const t = contenido.trim();
+  if (!t) redirect("/escucha?tab=informe&informe_error=vacio");
+  if (contenido.length > MAX_IMPORT_CHARS) redirect("/escucha?tab=informe&informe_error=grande");
+  // Un HTML pegado a mano arranca con <!doctype o con una etiqueta.
+  if (!esHtml && t.startsWith("<")) esHtml = true;
+
+  try {
+    const link = await readClaudeLink(projectId);
+    await importReport(projectId, {
+      markdown: esHtml ? undefined : t,
+      html: esHtml ? contenido : undefined,
+      origen: "import",
+      conversationUrl: link.conversationUrl,
+      enviarMail,
+    });
+  } catch (e) {
+    log.warn("escucha.import_failed", { projectId, error: (e as Error).message });
+    redirect(`/escucha?tab=informe&informe_error=${encodeURIComponent((e as Error).message.slice(0, 200))}`);
+  }
+  revalidatePath("/escucha");
+  redirect("/escucha?tab=informe&importado=1");
 }
