@@ -277,18 +277,31 @@ export async function readDailyReports(projectId: string): Promise<ReportStore> 
   return (data?.config as ReportStore | undefined) ?? { latest: null, history: [] };
 }
 
+// Un `at` ilegible (fila vieja escrita a mano) va al fondo del historial en
+// vez de romper el orden con un NaN.
+const reportTime = (r: DailyReport): number => {
+  const t = Date.parse(r.at ?? "");
+  return Number.isFinite(t) ? t : 0;
+};
+
 // Exportada: la importación de informes (lib/report-import.ts) guarda por el
 // mismo camino que la generación, para que historial, tope y recorte del
 // markdown del historial sean idénticos vengan de donde vengan.
 export async function saveReport(projectId: string, report: DailyReport): Promise<void> {
   const store = await readDailyReports(projectId);
-  const history = [store.latest, ...store.history]
+  // Ordenado por fecha, no por orden de llegada: una importación con fecha
+  // vieja (un informe que el operador escribió afuera hace tres días) no puede
+  // quedar como "último informe" y tapar al de hoy en el panel, el mail y la
+  // memoria que se le pasa al modelo.
+  const [latest, ...resto] = [report, store.latest, ...store.history]
     .filter((r): r is DailyReport => Boolean(r))
+    .sort((a, b) => reportTime(b) - reportTime(a));
+  const history = resto
     .slice(0, HISTORY_CAP)
     // El historial no necesita el markdown completo de cada día: pesa.
     .map((r) => ({ ...r, markdown: r.markdown.slice(0, 4000), pull: undefined }));
   try {
-    await upsertConectorConfig(key(projectId), { latest: report, history });
+    await upsertConectorConfig(key(projectId), { latest, history });
   } catch (error) {
     log.warn("daily_report.save_failed", { error: (error as Error).message });
   }

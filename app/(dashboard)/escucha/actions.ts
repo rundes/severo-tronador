@@ -440,6 +440,20 @@ export async function vincularConversacion(formData: FormData) {
 // Importar un informe escrito afuera: archivo .md/.html o texto pegado. Se
 // decide html vs markdown por la extensión del archivo y, si no hay archivo,
 // por si el texto arranca con "<".
+// Lo que el panel acepta como informe escrito afuera: markdown, HTML o texto.
+const EXT_INFORME = /\.(md|markdown|html?|txt)$/i;
+
+// Códigos de error de la importación. La pantalla los traduce a una frase; el
+// mensaje real de la excepción queda en el log del servidor.
+type ImportErrorCode = "vacio" | "grande" | "tipo" | "invalido";
+
+function codigoImportError(e: unknown): ImportErrorCode {
+  const msg = e instanceof Error ? e.message : "";
+  if (/llegaron los dos vac|dos vacíos/i.test(msg)) return "vacio";
+  if (/supera los .*caracteres/i.test(msg)) return "grande";
+  return "invalido";
+}
+
 export async function importarInforme(formData: FormData) {
   const { id: projectId } = await requireMember("editor");
   const archivo = formData.get("archivo");
@@ -449,6 +463,11 @@ export async function importarInforme(formData: FormData) {
   let contenido = "";
   let esHtml = false;
   if (archivo instanceof File && archivo.size > 0) {
+    // Tamaño y extensión se miran ANTES de leer: archivo.text() trae el
+    // archivo entero a memoria del servidor, y un .pdf o un .zip no son un
+    // informe por más que pesen poco.
+    if (archivo.size > MAX_IMPORT_CHARS) redirect("/escucha?tab=informe&informe_error=grande");
+    if (!EXT_INFORME.test(archivo.name)) redirect("/escucha?tab=informe&informe_error=tipo");
     contenido = await archivo.text();
     esHtml = /\.html?$/i.test(archivo.name);
   } else {
@@ -470,8 +489,10 @@ export async function importarInforme(formData: FormData) {
       enviarMail,
     });
   } catch (e) {
+    // El detalle va al log del servidor: en la URL solo viaja un código, para
+    // no publicar el mensaje interno en la barra de direcciones del operador.
     log.warn("escucha.import_failed", { projectId, error: (e as Error).message });
-    redirect(`/escucha?tab=informe&informe_error=${encodeURIComponent((e as Error).message.slice(0, 200))}`);
+    redirect(`/escucha?tab=informe&informe_error=${codigoImportError(e)}`);
   }
   revalidatePath("/escucha");
   redirect("/escucha?tab=informe&importado=1");

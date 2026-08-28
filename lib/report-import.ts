@@ -32,13 +32,27 @@ import { log } from "@/lib/logger";
 // 400.000 deja margen sobrado y frena un pegado accidental de un sitio entero.
 export const MAX_IMPORT_CHARS = 400_000;
 
+// Techo de salida. La fila de conector_config guarda latest + 14 de historial:
+// un informe de 300 KB convertido a markdown la haría inmanejable. El informe
+// de referencia pesa ~9 KB de markdown, así que 40.000 deja margen de sobra y
+// solo recorta lo que ya no es un informe.
+export const MAX_STORED_CHARS = 40_000;
+
+// Margen de reloj para el `at` que manda quien importa: una zona horaria mal
+// leída adelanta unas horas, pero un informe fechado mañana es un error.
+const MAX_FUTURO_MS = 6 * 3600_000;
+
 // Etiquetas de largo máximo para el título.
 const MAX_TITULO = 200;
 
 // Lo que nunca es informe. `head` incluido porque el parser de turndown recibe
 // el documento completo cuando le pasan un HTML con <html>/<head>.
+// TITLE/META/LINK/BASE van aparte de HEAD: turndown parsea el fragmento que le
+// dan, y un <title> pegado suelto (o un head que el parser no reconstruyó)
+// aparecía como primera línea del markdown y se volvía el h1 del informe.
 const DROP_TAGS = new Set([
-  "SCRIPT", "STYLE", "NOSCRIPT", "HEAD", "NAV", "HEADER", "FOOTER",
+  "SCRIPT", "STYLE", "NOSCRIPT", "HEAD", "TITLE", "META", "LINK", "BASE",
+  "NAV", "HEADER", "FOOTER",
   "IMG", "SVG", "IFRAME", "FORM", "BUTTON", "TEMPLATE",
 ]);
 // .scrollnote es una instrucción de la pantalla ("deslizá la tabla"), no del
@@ -169,7 +183,9 @@ function normalize(md: string): string {
 
 // El informe abre con "# " y la tesis del día. Si el documento no trae h1, se
 // usa el título explícito; si tampoco hay, la primera línea con contenido SE
-// CONVIERTE en el h1 (no se duplica arriba).
+// CONVIERTE en el h1 (no se duplica arriba) — salvo que esa línea sea un
+// heading: bajar un "## 01 El escenario" a h1 le come una sección al informe,
+// así que ahí se antepone un h1 sintético con el mismo texto.
 function ensureTitle(md: string, titulo?: string): string {
   if (reportTitle(md)) return md;
   const t = (titulo ?? "").trim().slice(0, MAX_TITULO);
@@ -177,15 +193,34 @@ function ensureTitle(md: string, titulo?: string): string {
   const lines = md.split("\n");
   const i = lines.findIndex((l) => l.trim());
   if (i === -1) return md;
-  const primera = lines[i].trim().replace(/^#+\s*/, "").slice(0, MAX_TITULO);
+  const cruda = lines[i].trim();
+  const primera = cruda.replace(/^#+\s*/, "").slice(0, MAX_TITULO);
   if (!primera) return md;
+  if (/^#+\s/.test(cruda)) return `# ${primera}\n\n${md}`.trim();
   return [...lines.slice(0, i), `# ${primera}`, ...lines.slice(i + 1)].join("\n");
 }
 
-function isoOrThrow(at: string): string {
-  const t = Date.parse(at);
-  if (!Number.isFinite(t)) throw new Error(`Fecha inválida: ${at}`);
+// El `at` lo manda quien importa (la tool MCP o el panel). Date.parse acepta
+// cualquier cosa con formatos locales del motor ("Aug 26 2026", "26/08/2026"
+// leída como mes/día): se exige la forma ISO para que la fecha del informe no
+// dependa de cómo interpretó el runtime, y no se acepta el futuro.
+const AT_ISO = /^\d{4}-\d{2}-\d{2}([T ]|$)/;
+
+function isoOrThrow(at: string, now = Date.now()): string {
+  const crudo = at.trim();
+  if (!AT_ISO.test(crudo)) throw new Error(`Fecha inválida (se espera ISO): ${at}`);
+  const t = Date.parse(crudo);
+  if (!Number.isFinite(t)) throw new Error(`Fecha inválida (se espera ISO): ${at}`);
+  if (t > now + MAX_FUTURO_MS) throw new Error(`Fecha en el futuro: ${at}`);
   return new Date(t).toISOString();
+}
+
+// El markdown que se guarda tiene tope propio: pasado ese punto lo que sobra
+// ya no es informe. Se recorta y se registra, nunca en silencio.
+function capStored(projectId: string, markdown: string): string {
+  if (markdown.length <= MAX_STORED_CHARS) return markdown;
+  log.warn("report_import.truncated", { projectId, chars: markdown.length, cap: MAX_STORED_CHARS });
+  return markdown.slice(0, MAX_STORED_CHARS);
 }
 
 export interface ImportReportInput {
@@ -228,14 +263,19 @@ export async function importReport(
   // Mismo camino que el informe generado: el bloque ```json final es interno
   // (propuestas de brief + nota operativa) y no viaja en el cuerpo.
   const { markdown: cuerpo, briefUpdates: delJson, notaOperativa: notaJson } = splitReport(crudo);
-  const monitor = await getMonitorConfig(projectId);
-  const markdown = withCountdown(ensureTitle(cuerpo, input.titulo), countdownBlock(monitor.calendar));
+  const conTitulo = ensureTitle(cuerpo, input.titulo);
 
-  const blocks = parseReportMarkdown(markdown);
+  // La validación va ANTES de la cuenta regresiva: el bloque ```countdown que
+  // escribe el código no es un bloque "h", así que con un calendario cargado
+  // haría pasar por informe un documento sin una sola línea de cuerpo.
+  const blocks = parseReportMarkdown(conTitulo);
   // Solo headings no es un informe: sin cuerpo no se guarda nada.
   if (blocks.filter((b) => b.t !== "h").length === 0) {
     throw new Error("El informe no tiene ninguna sección reconocible");
   }
+
+  const monitor = await getMonitorConfig(projectId);
+  const markdown = capStored(projectId, withCountdown(conTitulo, countdownBlock(monitor.calendar)));
 
   const [items24, items7] = await Promise.all([
     readCachedItems(projectId, 1),

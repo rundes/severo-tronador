@@ -48,8 +48,11 @@ export function normalizeLink(raw: unknown): ClaudeLink {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const r = raw as Record<string, unknown>;
   const out: ClaudeLink = {};
+  // La validación se repite al leer, no solo al guardar: la fila la pudo
+  // escribir una versión anterior del servidor o alguien a mano, y el panel
+  // publica esta URL como link de salida.
   const url = str(r.conversationUrl);
-  if (url) out.conversationUrl = url;
+  if (url && isClaudeConversationUrl(url)) out.conversationUrl = url;
   const linkedAt = str(r.linkedAt);
   if (linkedAt) out.linkedAt = linkedAt;
   const lastToolAt = str(r.lastToolAt);

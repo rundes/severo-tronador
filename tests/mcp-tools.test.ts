@@ -201,6 +201,14 @@ describe("makeTools", () => {
     expect(uno.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(1);
   });
 
+  it("get_recent_items: el filtro es por fuente, no por autor", async () => {
+    // "ferroenaccion" es el autor de la mención de instagram: el filtro dice
+    // fuente y tiene que decir la verdad, si no el modelo cree que filtró y no.
+    const porAutor = await run("get_recent_items", { hours: 24 * 30, source: "ferroenaccion" });
+    expect(porAutor).toContain("sin menciones");
+    expect(porAutor).not.toContain("propuesta de salud mental");
+  });
+
   it("get_run_status: última corrida con sus errores", async () => {
     const out = await run("get_run_status");
     expect(out).toContain("2026-08-26");

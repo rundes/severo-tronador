@@ -34,7 +34,7 @@ vi.mock("@/lib/client-brief", async (orig) => ({
   saveClientBrief: (p: string, b: typeof brief) => saveClientBrief(p, b),
 }));
 
-import { htmlToMarkdown, importReport, MAX_IMPORT_CHARS } from "@/lib/report-import";
+import { htmlToMarkdown, importReport, MAX_IMPORT_CHARS, MAX_STORED_CHARS } from "@/lib/report-import";
 import { parseReportMarkdown, sectionsOf, type Block } from "@/lib/report-markdown";
 
 const FIXTURE = readFileSync(resolve(__dirname, "fixtures/informe-ferro.html"), "utf8");
@@ -98,6 +98,10 @@ describe("htmlToMarkdown · informe de referencia", () => {
     for (const basura of ["telemetria", "no-entra", "font-family", "Monitoreo de redes y elecciones", "base64", "Deslizá la tabla"]) {
       expect(md).not.toContain(basura);
     }
+  });
+
+  it("tira el <title> del documento: no es el título del informe", () => {
+    expect(md).not.toContain("Informe Ferro 26-ago-2026");
   });
 
   it("las secciones quedan en orden y con el título limpio", () => {
@@ -178,6 +182,16 @@ describe("importReport", () => {
     expect(report.markdown).toBe("# Lo que pasó hoy\n\nY después esto.");
   });
 
+  it("sin h1 ni título: un heading de sección no se degrada a h1, se antepone uno", async () => {
+    const r = await importReport("p1", { markdown: "## 01 El escenario\n\nTexto suelto.", at: AT, origen: "import" });
+    expect(r.titulo).toBe("01 El escenario");
+    expect(r.secciones).toBe(1);
+    const [, report] = saveReport.mock.calls[0] as [string, import("@/lib/daily-report").DailyReport];
+    expect(report.markdown.startsWith("# 01 El escenario")).toBe(true);
+    // La sección sigue siendo sección: el h1 no se la comió.
+    expect(report.markdown).toContain("## 01 El escenario");
+  });
+
   it("procesa el bloque ```json interno igual que el informe generado", async () => {
     const r = await importReport("p1", {
       markdown:
@@ -247,5 +261,80 @@ describe("importReport", () => {
       /fecha/i,
     );
     expect(saveReport).not.toHaveBeenCalled();
+  });
+});
+
+describe("importReport · guardas de entrada", () => {
+  beforeEach(() => {
+    saveReport.mockClear();
+    emailDailyReport.mockClear();
+    emailDailyReport.mockResolvedValue({ sent: 2 });
+    saveClientBrief.mockClear();
+    brief = { entries: [], pendingUpdates: [], suggestions: [] };
+    monitor = { ...monitor, calendar: [] };
+  });
+
+  const AT = "2026-08-26T15:30:00.000Z";
+
+  it("sin secciones pero con calendario: la cuenta regresiva no salva el informe vacío", async () => {
+    // El bloque ```countdown que inserta el código no es un bloque "h", así que
+    // si la validación corre después de withCountdown un informe vacío pasa.
+    monitor = { ...monitor, calendar: [{ label: "Elección", date: "2999-01-01" }] };
+    await expect(
+      importReport("p1", { html: "<html><body><script>x</script></body></html>", at: AT, origen: "import" }),
+    ).rejects.toThrow(/secci/i);
+    expect(saveReport).not.toHaveBeenCalled();
+    expect(emailDailyReport).not.toHaveBeenCalled();
+  });
+
+  it("recorta el markdown guardado en MAX_STORED_CHARS", async () => {
+    const largo = `# Tesis\n\nBajada.\n\n## 01 El escenario\n\n${"palabra ".repeat(9000)}`;
+    expect(largo.length).toBeGreaterThan(MAX_STORED_CHARS);
+    await importReport("p1", { markdown: largo, at: AT, origen: "import" });
+    const [, report] = saveReport.mock.calls[0] as [string, import("@/lib/daily-report").DailyReport];
+    expect(report.markdown).toHaveLength(MAX_STORED_CHARS);
+    expect(report.markdown.startsWith("# Tesis")).toBe(true);
+  });
+
+  it("no recorta un informe por debajo del tope", async () => {
+    await importReport("p1", { markdown: "# T\n\nB.\n\n## 01 X\n\nY.", at: AT, origen: "import" });
+    const [, report] = saveReport.mock.calls[0] as [string, import("@/lib/daily-report").DailyReport];
+    expect(report.markdown.length).toBeLessThan(MAX_STORED_CHARS);
+  });
+});
+
+describe("importReport · fecha del informe", () => {
+  beforeEach(() => {
+    saveReport.mockClear();
+    emailDailyReport.mockClear();
+    emailDailyReport.mockResolvedValue({ sent: 2 });
+    brief = { entries: [], pendingUpdates: [], suggestions: [] };
+    monitor = { ...monitor, calendar: [] };
+  });
+
+  const CUERPO = "# T\n\nB.\n\n## 01 X\n\nY.";
+
+  it("acepta la forma ISO y la normaliza", async () => {
+    const r = await importReport("p1", { markdown: CUERPO, at: "2026-08-26", origen: "import" });
+    expect(r.at).toBe("2026-08-26T00:00:00.000Z");
+  });
+
+  it("rechaza fechas que no son ISO aunque Date.parse las entienda", async () => {
+    for (const at of ["26/08/2026", "Aug 26 2026", "ayer", "2026", "20260826"]) {
+      await expect(importReport("p1", { markdown: CUERPO, at, origen: "import" })).rejects.toThrow(/fecha/i);
+    }
+    expect(saveReport).not.toHaveBeenCalled();
+  });
+
+  it("rechaza una fecha más de 6 h en el futuro", async () => {
+    const futuro = new Date(Date.now() + 7 * 3600_000).toISOString();
+    await expect(importReport("p1", { markdown: CUERPO, at: futuro, origen: "import" })).rejects.toThrow(/futur/i);
+    expect(saveReport).not.toHaveBeenCalled();
+  });
+
+  it("acepta un margen de hasta 6 h por diferencia de reloj", async () => {
+    const casi = new Date(Date.now() + 3600_000).toISOString();
+    const r = await importReport("p1", { markdown: CUERPO, at: casi, origen: "import" });
+    expect(r.at).toBe(casi);
   });
 });

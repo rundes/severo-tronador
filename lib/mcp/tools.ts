@@ -69,7 +69,13 @@ const MetricsArgs = z.object({
 const RecentItemsArgs = z.object({
   hours: z.number().int().min(1).max(HORAS_MAX).default(24).describe("Ventana en horas"),
   limit: z.number().int().min(1).max(ITEMS_MAX).default(100).describe("Máximo de menciones"),
-  source: z.string().trim().min(1).max(60).optional().describe("Filtro por fuente, subcadena (ej. \"instagram\", \"x\")"),
+  source: z
+    .string()
+    .trim()
+    .min(1)
+    .max(60)
+    .optional()
+    .describe("Filtro por fuente (plataforma o colector: \"instagram\", \"x\", \"extension\"); no filtra por autor"),
 });
 const ListReportsArgs = z.object({
   limit: z.number().int().min(1).max(15).default(10),
@@ -212,7 +218,7 @@ export function makeTools(projectId: string): McpToolDef[] {
       name: "get_recent_items",
       title: "Menciones recientes",
       description:
-        "Menciones del historial del proyecto en las últimas N horas: fuente, autor, texto, URL, fecha y métricas cuando el colector las trajo. Opcionalmente filtradas por fuente (subcadena).",
+        "Menciones del historial del proyecto en las últimas N horas: fuente, autor, texto, URL, fecha y métricas cuando el colector las trajo. El filtro \"fuente\" compara contra la plataforma y el colector (\"instagram/extension\"), por segmento y prefijo; no busca por autor ni por texto.",
       inputSchema: RecentItemsArgs,
       handler: async (raw) => {
         const { hours, limit, source } = RecentItemsArgs.parse(raw);
@@ -229,7 +235,9 @@ export function makeTools(projectId: string): McpToolDef[] {
             .some((seg) => seg.startsWith(needle));
         const items = (await readCachedItems(projectId, days))
           .filter((i) => !i.publishedAt || Date.parse(i.publishedAt) >= corte)
-          .filter((i) => !q || matchSource(i.source, q) || (i.author ?? "").toLowerCase().includes(q))
+          // Solo fuente: el parámetro se llama "fuente" y filtrar además por
+          // autor devolvía menciones de otra plataforma sin avisar.
+          .filter((i) => !q || matchSource(i.source, q))
           .slice(0, limit);
         if (items.length === 0) return `(sin menciones en las últimas ${hours} horas${source ? ` para "${source}"` : ""})`;
         const line = (i: (typeof items)[number]) => {

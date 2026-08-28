@@ -151,12 +151,46 @@ describe("importarInforme", () => {
     expect(importReport).not.toHaveBeenCalled();
   });
 
-  it("si la importación falla, el mensaje vuelve en informe_error", async () => {
-    importReport.mockRejectedValueOnce(new Error("El informe no tiene ninguna sección reconocible"));
+  it("archivo con extensión que no es informe: ni siquiera lo lee", async () => {
     const fd = new FormData();
-    fd.set("texto", "# T\n\nB.");
-    const url = await run(() => importarInforme(fd));
-    expect(url.startsWith("/escucha?tab=informe&informe_error=")).toBe(true);
-    expect(decodeURIComponent(url)).toContain("ninguna sección reconocible");
+    fd.set("archivo", file("informe.pdf", "%PDF-1.7"));
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&informe_error=tipo");
+    expect(importReport).not.toHaveBeenCalled();
+  });
+
+  it("archivo .txt: entra como markdown", async () => {
+    const fd = new FormData();
+    fd.set("archivo", file("informe.txt", "# Tesis\n\nBajada."));
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&importado=1");
+    const [, input] = importReport.mock.calls[0] as unknown as [string, import("@/lib/report-import").ImportReportInput];
+    expect(input.markdown).toContain("# Tesis");
+  });
+
+  it("archivo por encima del tope: se rechaza por size, sin leerlo a memoria", async () => {
+    const grande = file("informe.md", "x");
+    // El archivo real pesaría 400 KB: se falsea el size para no construirlo.
+    Object.defineProperty(grande, "size", { value: 400_001 });
+    const leer = vi.spyOn(grande, "text");
+    const fd = new FormData();
+    fd.set("archivo", grande);
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&informe_error=grande");
+    expect(leer).not.toHaveBeenCalled();
+    expect(importReport).not.toHaveBeenCalled();
+  });
+
+  it("si la importación falla, vuelve un código y el mensaje queda en el log", async () => {
+    const casos: [string, string][] = [
+      ["El informe no tiene ninguna sección reconocible", "invalido"],
+      ["Fecha inválida: ayer", "invalido"],
+      ["Mandá markdown o html: llegaron los dos vacíos", "vacio"],
+      ["El informe supera los 400000 caracteres", "grande"],
+      ["cualquier cosa rara de adentro", "invalido"],
+    ];
+    for (const [mensaje, codigo] of casos) {
+      importReport.mockRejectedValueOnce(new Error(mensaje));
+      const fd = new FormData();
+      fd.set("texto", "# T\n\nB.");
+      expect(await run(() => importarInforme(fd))).toBe(`/escucha?tab=informe&informe_error=${codigo}`);
+    }
   });
 });

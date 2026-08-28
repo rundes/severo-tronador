@@ -14,6 +14,7 @@ vi.mock("@/lib/db/supabase", () => ({
 
 import {
   isClaudeConversationUrl,
+  normalizeLink,
   readClaudeLink,
   saveClaudeLink,
   touchClaudeLink,
@@ -43,6 +44,30 @@ describe("isClaudeConversationUrl", () => {
   });
 });
 
+describe("normalizeLink", () => {
+  it("descarta una conversationUrl que no sea de claude.ai", () => {
+    // La fila se escribió antes de la validación, o a mano: al leerla no puede
+    // volver un link de salida arbitrario para el panel.
+    for (const bad of ["https://evil.com/chat/x", "http://claude.ai/chat/x", "javascript:alert(1)", "claude.ai/chat/x"]) {
+      expect(normalizeLink({ conversationUrl: bad, client: "Claude Code" })).toEqual({ client: "Claude Code" });
+    }
+  });
+
+  it("conserva la conversación válida y el resto de los campos", () => {
+    expect(
+      normalizeLink({
+        conversationUrl: " https://claude.ai/chat/x ",
+        linkedAt: "2026-08-28T10:00:00.000Z",
+        client: "Claude in Chrome",
+      }),
+    ).toEqual({
+      conversationUrl: "https://claude.ai/chat/x",
+      linkedAt: "2026-08-28T10:00:00.000Z",
+      client: "Claude in Chrome",
+    });
+  });
+});
+
 describe("claude-link persistencia", () => {
   beforeEach(() => {
     upsert.mockClear();
@@ -62,6 +87,11 @@ describe("claude-link persistencia", () => {
       client: "Claude in Chrome",
       lastToolAt: "2026-08-28T10:00:00.000Z",
     });
+  });
+
+  it("read: una conversación de otro dominio guardada antes no vuelve al panel", async () => {
+    maybeSingle.mockResolvedValue({ data: { config: { conversationUrl: "https://chatgpt.com/c/x", client: "Claude Code" } } });
+    expect(await readClaudeLink(PID)).toEqual({ client: "Claude Code" });
   });
 
   it("save: escribe en claude-link:<pid> con project_id null", async () => {
