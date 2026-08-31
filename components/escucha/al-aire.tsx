@@ -17,7 +17,7 @@ export function AlAireBar({ state }: { state: AlAire | null }) {
       {state.ultimo && (
         <span className="text-zinc-500">Último: {state.ultimo.station} · {STATUS[state.ultimo.status] ?? state.ultimo.status}{state.ultimo.status === "done" ? ` (${state.ultimo.mentions} menciones)` : ""}</span>
       )}
-      <Link href="/escucha?tab=escenario#audio" className="ml-auto underline">Configurar →</Link>
+      <Link href="/escucha?tab=entorno#audio" className="ml-auto underline">Configurar →</Link>
     </section>
   );
 }

@@ -88,10 +88,10 @@ export function InformePanel({
       <p className="text-xs text-zinc-500">
         El brief, los actores sugeridos y el escenario se editan en la pestaña{" "}
         <Link
-          href="/escucha?tab=escenario"
+          href="/escucha?tab=entorno"
           className="font-medium text-[oklch(52%_0.13_255)] underline-offset-2 hover:underline"
         >
-          Escenario →
+          Entorno →
         </Link>
       </p>
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">

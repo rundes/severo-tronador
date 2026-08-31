@@ -8,7 +8,7 @@ interface ReportTrayProps {
 export function ReportTray({ markedCount, disabled = false }: ReportTrayProps) {
   function handlePopout() {
     window.open(
-      "/escucha?tab=monitor&solo=1",
+      "/escucha?tab=monitoreo&solo=1",
       "_blank",
       "popup=yes,width=1100,height=820",
     );

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { runListening } from "@/lib/listening";
 import { TERRITORY } from "@/lib/config";
 import { getListeningConfig } from "@/lib/listening-config";
@@ -7,8 +6,13 @@ import {
   lastListeningUpdate,
   readPullSummary,
   countsBySource,
+  readCachedItems,
   type SourceCounts,
 } from "@/lib/listening-cache";
+import { resumirMenciones } from "@/lib/escucha-resumen";
+import { SintesisCorrida } from "@/components/escucha/sintesis-corrida";
+import { MetricasResumen } from "@/components/escucha/metricas-resumen";
+import { reportTitle } from "@/lib/report-markdown";
 import { dbConfigured } from "@/lib/db/supabase";
 import { requireProject } from "@/lib/workspace";
 import { listMarcas } from "@/lib/escucha-marcas";
@@ -72,30 +76,43 @@ export default async function EscuchaPage({
   const params = (await searchParams) ?? {};
 
   const { id: projectId } = await requireProject();
-  // "config" quedó como alias de "escenario" para links viejos.
-  if (params.tab === "config") redirect("/escucha?tab=escenario");
+  // Los alias de tabs viejas ("config", "escenario", "monitor") los resuelve
+  // resolveTab; los redirects de actions siguen funcionando sin reescribirse.
   const tab = resolveTab(params.tab);
   const persistOk = dbConfigured();
-  // Agenda de audio: la usa Escenario (bloque Audio y video) y Monitorear ("Al aire").
-  const needsAgenda = tab === "escenario" || tab === "monitor";
+  // Agenda de audio: la usan Entorno (bloque Audio y video) y Monitoreo ("Al aire").
+  const needsAgenda = tab === "entorno" || tab === "monitoreo";
 
-  // El fetch de fuentes vivas (runListening) solo corre en el tab monitor;
-  // el tab escenario lee stats del cache (baratas) en vez de pegarle a las APIs.
-  const [result, cfg, lastXUpdate, marcas, descartados, summary, counts, runs, extensionRun] =
+  // El fetch de fuentes vivas (runListening) solo corre en el tab Monitoreo;
+  // Entorno lee stats del cache (baratas) en vez de pegarle a las APIs, y las
+  // tarjetas de síntesis/métricas de Informe y Monitoreo salen del cache de 7
+  // días con una sola lectura.
+  const [result, cfg, lastXUpdate, marcas, descartados, summary, counts, runs, extensionRun, cachedWeek] =
     await Promise.all([
-      tab === "monitor" ? runListening(projectId) : Promise.resolve(null),
+      tab === "monitoreo" ? runListening(projectId) : Promise.resolve(null),
       getListeningConfig(projectId),
       lastListeningUpdate(projectId, "x-api"),
       persistOk ? listMarcas(projectId) : Promise.resolve([]),
       persistOk ? listDescartes(projectId) : Promise.resolve([]),
-      tab === "escenario" ? readPullSummary(projectId) : Promise.resolve(null),
-      tab === "escenario"
+      tab === "entorno" ? readPullSummary(projectId) : Promise.resolve(null),
+      tab === "entorno"
         ? countsBySource(projectId)
         : Promise.resolve<SourceCounts>({ byConnector: {}, bySource: {} }),
       needsAgenda && persistOk ? listRecentRuns(projectId) : Promise.resolve([]),
-      tab === "escenario" ? readExtensionRun(projectId) : Promise.resolve(null),
+      tab !== "monitoreo" ? readExtensionRun(projectId) : Promise.resolve(null),
+      tab !== "entorno" ? readCachedItems(projectId, 7) : Promise.resolve([]),
     ]);
   const upcoming = needsAgenda ? agendaUpcoming(cfg.radioStreams) : [];
+  const resumen24 = resumirMenciones(cachedWeek, 24);
+  const resumen7 = resumirMenciones(cachedWeek, 24 * 7);
+
+  const reports = tab === "informe" ? await readDailyReports(projectId) : null;
+  const ultimoInforme = reports?.latest
+    ? {
+        at: reports.latest.at,
+        titulo: reports.latest.titulo ?? reportTitle(reports.latest.markdown) ?? "(sin título)",
+      }
+    : null;
 
   const sources = sourceStatuses(cfg.rssFeeds.length);
 
@@ -124,19 +141,19 @@ export default async function EscuchaPage({
         aria-label="Secciones de escucha"
         className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800"
       >
-        <Link href="/escucha?tab=escenario" className={tabLinkCls(tab === "escenario")}>
-          Escenario
-        </Link>
-        <Link href="/escucha?tab=monitor" className={tabLinkCls(tab === "monitor")}>
-          Monitorear
-        </Link>
         <Link href="/escucha?tab=informe" className={tabLinkCls(tab === "informe")}>
           Informe
+        </Link>
+        <Link href="/escucha?tab=monitoreo" className={tabLinkCls(tab === "monitoreo")}>
+          Monitoreo
+        </Link>
+        <Link href="/escucha?tab=entorno" className={tabLinkCls(tab === "entorno")}>
+          Entorno
         </Link>
       </nav>
 
       {/* Tab content */}
-      {tab === "escenario" ? (
+      {tab === "entorno" ? (
         <EscenarioTab
           cfg={cfg}
           monitor={await getMonitorConfig(projectId)}
@@ -153,21 +170,27 @@ export default async function EscuchaPage({
           persistOk={persistOk}
           params={params}
         />
-      ) : tab === "informe" ? (
-        <InformePanel
-          {...await readDailyReports(projectId)}
-          generado={params.generado === "1"}
-          claude={await readClaudeLink(projectId)}
-          params={params}
-        />
+      ) : tab === "informe" && reports ? (
+        <>
+          <SintesisCorrida run={extensionRun} resumen24={resumen24} ultimoInforme={ultimoInforme} />
+          <InformePanel
+            {...reports}
+            generado={params.generado === "1"}
+            claude={await readClaudeLink(projectId)}
+            params={params}
+          />
+        </>
       ) : result ? (
-        <Monitor
-          result={result}
-          marcas={marcas}
-          descartados={descartados}
-          persistOk={persistOk}
-          alAire={alAireState(upcoming, runs)}
-        />
+        <>
+          <MetricasResumen resumen24={resumen24} resumen7={resumen7} keywords={cfg.keywords} />
+          <Monitor
+            result={result}
+            marcas={marcas}
+            descartados={descartados}
+            persistOk={persistOk}
+            alAire={alAireState(upcoming, runs)}
+          />
+        </>
       ) : null}
     </div>
   );
