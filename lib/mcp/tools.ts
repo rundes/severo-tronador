@@ -12,13 +12,20 @@
 // proyecto equivocado— y opcional en las de lectura, donde cae al default del
 // conector. La autorización es por membresía del email en cada llamada:
 // lectura exige ser miembro, escritura exige editor u owner.
-// Ninguna tool ejecuta barridos ni edita la configuración del monitor: el
-// escenario se sigue aplicando desde el panel.
+// Ninguna tool ejecuta barridos: la colecta la siguen corriendo la extensión y
+// los crons. El escenario (keywords, cuentas, búsquedas, calendario) SÍ se
+// puede editar vía update_scenario, siempre de forma aditiva —agregar/sacar
+// ítems puntuales, nunca reemplazo total— para que una conversación no pueda
+// pisar la configuración entera de un proyecto.
 import { z } from "zod";
 import { getProject, listProjectsForEmail, roleAllows, type ProjectWithRole } from "@/lib/projects";
 import type { McpScope } from "@/lib/mcp-token";
-import { getListeningConfig } from "@/lib/listening-config";
-import { getMonitorConfig } from "@/lib/monitor-config";
+import { getListeningConfig, saveListeningConfig } from "@/lib/listening-config";
+import {
+  getMonitorConfig,
+  saveMonitorConfig,
+  type MonitorAccount,
+} from "@/lib/monitor-config";
 import {
   commentsSection,
   countdownItems,
@@ -54,6 +61,8 @@ export const TOOL_NAMES = [
   "get_report",
   "save_report",
   "link_conversation",
+  "get_scenario",
+  "update_scenario",
 ] as const;
 
 // list_projects existe solo en el alcance cuenta: en el conector por proyecto
@@ -114,6 +123,98 @@ const SaveReportArgs = z.object({
     .optional(),
   enviarMail: z.boolean().default(true),
 });
+
+// ── Escenario editable (update_scenario) ─────────────────────────────────
+const PlatformEnum = z.enum(["instagram", "x", "facebook", "tiktok"]);
+const CategoryEnum = z.enum(["organizacion", "medio", "individual", "institucional", "opera"]);
+const Txt = (max: number) => z.string().trim().min(1).max(max);
+const TxtList = (maxItems: number, maxLen = 120) => z.array(Txt(maxLen)).min(1).max(maxItems);
+
+const ScenarioAccount = z.object({
+  handle: Txt(80).describe("Handle sin @"),
+  platform: PlatformEnum,
+  category: CategoryEnum.describe("Categorías que NUNCA se comparan entre sí en el informe"),
+  vinculo: Txt(300).optional().describe("Pertenencia política declarada o detectada (clave en medios)"),
+  nota: Txt(300).optional(),
+});
+
+// Todo aditivo y opcional: add*/remove* sobre listas, zona/pais como set
+// puntual. Sin reemplazo total a propósito. La exigencia de "al menos un
+// cambio" va en el handler y no en un .refine(): el alcance cuenta extiende
+// este schema con .extend() y ZodEffects no lo permite.
+const UpdateScenarioArgs = z.object({
+  zona: Txt(120).optional().describe("Setea la zona del proyecto"),
+  pais: z.string().trim().length(2).optional().describe("Código de país (ej: AR)"),
+  addKeywords: TxtList(50, 80).optional(),
+  removeKeywords: TxtList(50, 80).optional(),
+  addAccounts: z.array(ScenarioAccount).min(1).max(50).optional()
+    .describe("Cuentas del plan de monitoreo; si (handle, platform) ya existe se actualizan categoría/vínculo/nota"),
+  removeAccounts: z.array(z.object({ handle: Txt(80), platform: PlatformEnum })).min(1).max(50).optional(),
+  addSearchesA: TxtList(30).optional().describe("Búsquedas de la dirección A del conflicto"),
+  removeSearchesA: TxtList(30).optional(),
+  addSearchesB: TxtList(30).optional().describe("Búsquedas de la dirección B del conflicto"),
+  removeSearchesB: TxtList(30).optional(),
+  addCalendar: z.array(z.object({
+    label: Txt(160),
+    date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "date en formato YYYY-MM-DD"),
+  })).min(1).max(30).optional()
+    .describe("Hitos del calendario; un label existente se actualiza a la fecha nueva"),
+  removeCalendar: TxtList(30, 160).optional().describe("Labels de hitos a sacar"),
+  addFuentes: TxtList(50, 300).optional().describe("URLs de medios/portales para la escucha"),
+  removeFuentes: TxtList(50, 300).optional(),
+  addRssFeeds: TxtList(50, 300).optional(),
+  removeRssFeeds: TxtList(50, 300).optional(),
+  addXHandles: TxtList(50, 80).optional().describe("Handles de X para el timeline (sin @)"),
+  removeXHandles: TxtList(50, 80).optional(),
+  addEntidades: z.array(z.object({ nombre: Txt(120), definicion: Txt(500) })).min(1).max(30).optional()
+    .describe("Definiciones de lugares/personas/cargos para no confundir identidades"),
+  removeEntidades: TxtList(30).optional(),
+  addNoRepetir: TxtList(30, 500).optional()
+    .describe("Correcciones que el informe no debe volver a cometer"),
+});
+
+const normHandle = (h: string) => h.trim().replace(/^@+/, "");
+const lcKey = (s: string) => s.trim().toLowerCase();
+
+// Merge aditivo case-insensitive sobre una lista de strings. Devuelve la lista
+// nueva y anota el resumen en `cambios` solo si hubo movimiento.
+function mergeList(
+  actual: string[],
+  add: string[] | undefined,
+  remove: string[] | undefined,
+  cambios: string[],
+  etiqueta: string,
+  norm: (s: string) => string = (s) => s.trim(),
+): string[] {
+  const quitar = new Set((remove ?? []).map((s) => lcKey(norm(s))));
+  let sacadas = 0;
+  let lista = actual.filter((s) => {
+    const fuera = quitar.has(lcKey(norm(s)));
+    if (fuera) sacadas++;
+    return !fuera;
+  });
+  const vistas = new Set(lista.map((s) => lcKey(norm(s))));
+  let sumadas = 0;
+  let repetidas = 0;
+  for (const s of add ?? []) {
+    const v = norm(s);
+    if (vistas.has(lcKey(v))) {
+      repetidas++;
+      continue;
+    }
+    vistas.add(lcKey(v));
+    lista = [...lista, v];
+    sumadas++;
+  }
+  // Solo cuenta como cambio lo que movió la lista: repetidas solas no
+  // justifican un guardado (y se informan junto a las altas reales).
+  if (sumadas || sacadas) {
+    cambios.push(
+      `${etiqueta}: +${sumadas}${repetidas ? ` (${repetidas} repetidas)` : ""}${sacadas ? `, -${sacadas}` : ""} → ${lista.length}`,
+    );
+  }
+  return lista;
+}
 
 const fecha = (iso: string): string => (iso ? iso.slice(0, 10) : "s/d");
 const origenDe = (r: DailyReport): string => r.origen ?? "tronador";
@@ -374,6 +475,218 @@ function projectTools(projectId: string): McpToolDef[] {
         return `Conversación vinculada: ${conversationUrl.trim()}`;
       },
     },
+    {
+      name: "get_scenario",
+      title: "Escenario de monitoreo",
+      description:
+        "Escenario completo del proyecto tal como lo aplican la escucha y el monitor: zona, keywords, fuentes, RSS, handles de X, cuentas del plan con categoría y vínculo, búsquedas simétricas A/B, calendario, entidades definidas y correcciones no-repetir. Leelo antes de editar con update_scenario.",
+      inputSchema: Empty,
+      handler: async () => {
+        const [cfg, monitor] = await Promise.all([
+          getListeningConfig(projectId),
+          getMonitorConfig(projectId),
+        ]);
+        const cuenta = (a: MonitorAccount) =>
+          `- @${normHandle(a.handle)} (${a.platform}) [${a.category}]${a.vinculo ? ` · vínculo: ${a.vinculo}` : ""}${a.nota ? ` · nota: ${a.nota}` : ""}`;
+        const lista = (xs: string[]) => (xs.length ? xs.map((x) => `- ${x}`).join("\n") : "(vacío)");
+        return [
+          `Zona: ${cfg.zona || "sin definir"} (${cfg.pais})`,
+          "",
+          "## Keywords",
+          lista(cfg.keywords),
+          "",
+          "## Cuentas del plan",
+          monitor.accounts.length ? monitor.accounts.map(cuenta).join("\n") : "(vacío)",
+          "",
+          "## Búsquedas dirección A",
+          lista(monitor.searchesA),
+          "",
+          "## Búsquedas dirección B",
+          lista(monitor.searchesB),
+          "",
+          "## Calendario",
+          monitor.calendar.length
+            ? monitor.calendar.map((e) => `- ${e.label} · ${e.date}`).join("\n")
+            : "(vacío)",
+          "",
+          "## Fuentes (portales)",
+          lista(cfg.fuentes),
+          "",
+          "## RSS",
+          lista(cfg.rssFeeds),
+          "",
+          "## Handles de X (timeline)",
+          lista(cfg.xHandles),
+          "",
+          "## Entidades definidas",
+          Object.keys(monitor.entidades).length
+            ? Object.entries(monitor.entidades).map(([n, d]) => `- ${n}: ${d}`).join("\n")
+            : "(vacío)",
+          "",
+          "## No repetir",
+          lista(monitor.noRepetir),
+        ].join("\n");
+      },
+    },
+    {
+      name: "update_scenario",
+      title: "Editar el escenario",
+      description:
+        "Edita el escenario de monitoreo del proyecto de forma ADITIVA: agrega o saca keywords, cuentas de redes (con categoría y vínculo), medios/fuentes, RSS, handles de X, búsquedas simétricas A/B, hitos del calendario, entidades y correcciones no-repetir; setea zona/país. Nunca reemplaza listas enteras. Los barridos siguientes toman la configuración nueva. Leé get_scenario antes para no duplicar.",
+      inputSchema: UpdateScenarioArgs,
+      handler: async (raw) => {
+        const args = UpdateScenarioArgs.parse(raw);
+        if (Object.keys(args).length === 0) {
+          throw new Error("Mandá al menos un cambio (mirá get_scenario para ver el estado actual)");
+        }
+        const cambios: string[] = [];
+
+        const tocaEscucha =
+          args.zona !== undefined || args.pais !== undefined ||
+          args.addKeywords || args.removeKeywords ||
+          args.addFuentes || args.removeFuentes ||
+          args.addRssFeeds || args.removeRssFeeds ||
+          args.addXHandles || args.removeXHandles;
+        if (tocaEscucha) {
+          const cfg = await getListeningConfig(projectId);
+          const next = { ...cfg };
+          const antes = cambios.length;
+          if (args.zona !== undefined) {
+            next.zona = args.zona;
+            cambios.push(`zona → ${args.zona}`);
+          }
+          if (args.pais !== undefined) {
+            next.pais = args.pais.toUpperCase();
+            cambios.push(`pais → ${next.pais}`);
+          }
+          next.keywords = mergeList(cfg.keywords, args.addKeywords, args.removeKeywords, cambios, "keywords");
+          next.fuentes = mergeList(cfg.fuentes, args.addFuentes, args.removeFuentes, cambios, "fuentes");
+          next.rssFeeds = mergeList(cfg.rssFeeds, args.addRssFeeds, args.removeRssFeeds, cambios, "rss");
+          next.xHandles = mergeList(cfg.xHandles, args.addXHandles, args.removeXHandles, cambios, "xHandles", normHandle);
+          // Guardar solo si algo se movió: una llamada toda-repetida no
+          // reescribe la fila.
+          if (cambios.length > antes) await saveListeningConfig(projectId, next);
+        }
+
+        const tocaMonitor =
+          args.addAccounts || args.removeAccounts ||
+          args.addSearchesA || args.removeSearchesA ||
+          args.addSearchesB || args.removeSearchesB ||
+          args.addCalendar || args.removeCalendar ||
+          args.addEntidades || args.removeEntidades ||
+          args.addNoRepetir;
+        if (tocaMonitor) {
+          const monitor = await getMonitorConfig(projectId);
+          const next = { ...monitor };
+          const antes = cambios.length;
+
+          if (args.addAccounts || args.removeAccounts) {
+            const keyDe = (h: string, p: string) => `${p}:${lcKey(normHandle(h))}`;
+            const fuera = new Set((args.removeAccounts ?? []).map((a) => keyDe(a.handle, a.platform)));
+            let sacadas = 0;
+            let cuentas = monitor.accounts.filter((a) => {
+              const va = fuera.has(keyDe(a.handle, a.platform));
+              if (va) sacadas++;
+              return !va;
+            });
+            let sumadas = 0;
+            let actualizadas = 0;
+            for (const a of args.addAccounts ?? []) {
+              const k = keyDe(a.handle, a.platform);
+              const idx = cuentas.findIndex((x) => keyDe(x.handle, x.platform) === k);
+              const limpia: MonitorAccount = {
+                handle: normHandle(a.handle),
+                platform: a.platform,
+                category: a.category,
+                ...(a.vinculo ? { vinculo: a.vinculo } : {}),
+                ...(a.nota ? { nota: a.nota } : {}),
+              };
+              if (idx >= 0) {
+                // Existe: se actualiza lo que vino, conservando vinculo/nota
+                // previos si la llamada no los trae.
+                cuentas = cuentas.map((x, i) => (i === idx ? { ...x, ...limpia } : x));
+                actualizadas++;
+              } else {
+                cuentas = [...cuentas, limpia];
+                sumadas++;
+              }
+            }
+            next.accounts = cuentas;
+            if (sumadas || actualizadas || sacadas) {
+              cambios.push(
+                `cuentas: +${sumadas}${actualizadas ? `, ${actualizadas} actualizadas` : ""}${sacadas ? `, -${sacadas}` : ""} → ${cuentas.length}`,
+              );
+            }
+          }
+
+          next.searchesA = mergeList(monitor.searchesA, args.addSearchesA, args.removeSearchesA, cambios, "búsquedas A");
+          next.searchesB = mergeList(monitor.searchesB, args.addSearchesB, args.removeSearchesB, cambios, "búsquedas B");
+          next.noRepetir = mergeList(monitor.noRepetir, args.addNoRepetir, undefined, cambios, "no repetir");
+
+          if (args.addCalendar || args.removeCalendar) {
+            const fueraCal = new Set((args.removeCalendar ?? []).map(lcKey));
+            let sacados = 0;
+            let calendario = monitor.calendar.filter((e) => {
+              const va = fueraCal.has(lcKey(e.label));
+              if (va) sacados++;
+              return !va;
+            });
+            let sumados = 0;
+            let movidos = 0;
+            for (const e of args.addCalendar ?? []) {
+              if (Number.isNaN(Date.parse(e.date))) throw new Error(`Fecha inválida: ${e.date}`);
+              const idx = calendario.findIndex((x) => lcKey(x.label) === lcKey(e.label));
+              if (idx >= 0) {
+                calendario = calendario.map((x, i) => (i === idx ? { label: x.label, date: e.date } : x));
+                movidos++;
+              } else {
+                calendario = [...calendario, { label: e.label, date: e.date }];
+                sumados++;
+              }
+            }
+            next.calendar = calendario;
+            if (sumados || movidos || sacados) {
+              cambios.push(
+                `calendario: +${sumados}${movidos ? `, ${movidos} refechados` : ""}${sacados ? `, -${sacados}` : ""} → ${calendario.length}`,
+              );
+            }
+          }
+
+          if (args.addEntidades || args.removeEntidades) {
+            const entidades = { ...monitor.entidades };
+            let bajas = 0;
+            for (const n of args.removeEntidades ?? []) {
+              const k = Object.keys(entidades).find((x) => lcKey(x) === lcKey(n));
+              if (k) {
+                delete entidades[k];
+                bajas++;
+              }
+            }
+            let altas = 0;
+            for (const e of args.addEntidades ?? []) {
+              altas++;
+              entidades[e.nombre] = e.definicion;
+            }
+            next.entidades = entidades;
+            if (altas || bajas) {
+              cambios.push(`entidades: ${altas ? `+${altas}` : ""}${altas && bajas ? ", " : ""}${bajas ? `-${bajas}` : ""} → ${Object.keys(entidades).length}`);
+            }
+          }
+
+          if (cambios.length > antes) await saveMonitorConfig(projectId, next);
+        }
+
+        if (cambios.length === 0) {
+          return "Sin cambios efectivos: todo lo pedido ya estaba (o no existía para sacar). El escenario quedó como estaba.";
+        }
+        return [
+          "Escenario actualizado:",
+          ...cambios.map((c) => `- ${c}`),
+          "",
+          "Los próximos barridos de la extensión y los crons toman esta configuración.",
+        ].join("\n");
+      },
+    },
   ];
 }
 
@@ -389,6 +702,7 @@ const WRITE_TOOLS: ReadonlySet<string> = new Set([
   "propose_brief_updates",
   "save_report",
   "link_conversation",
+  "update_scenario",
 ]);
 
 const ProjectRefRequired = z

@@ -15,8 +15,24 @@ vi.mock("@/lib/projects", () => ({
     return rank[role] >= rank[min];
   },
 }));
+const { saveListeningConfig, saveMonitorConfig } = vi.hoisted(() => ({
+  saveListeningConfig: vi.fn(async () => {}),
+  saveMonitorConfig: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/listening-config", () => ({
-  getListeningConfig: async () => ({ zona: "Caballito", pais: "AR", keywords: ["ferro", "elecciones"] }),
+  getListeningConfig: async () => ({
+    zona: "Caballito",
+    pais: "AR",
+    radioKm: null,
+    lat: null,
+    lng: null,
+    keywords: ["ferro", "elecciones"],
+    fuentes: ["https://ferroweb.ar"],
+    rssFeeds: [],
+    xHandles: ["fenotartaglia"],
+    radioStreams: [],
+  }),
+  saveListeningConfig,
 }));
 const monitor = {
   accounts: [
@@ -33,6 +49,7 @@ const monitor = {
 vi.mock("@/lib/monitor-config", async (orig) => ({
   ...(await orig<typeof import("@/lib/monitor-config")>()),
   getMonitorConfig: async () => monitor,
+  saveMonitorConfig,
 }));
 
 const reports = {
@@ -130,11 +147,13 @@ describe("makeTools", () => {
     importReport.mockClear();
     saveClientBrief.mockClear();
     saveClaudeLink.mockClear();
+    saveListeningConfig.mockClear();
+    saveMonitorConfig.mockClear();
     brief = { ...brief, pendingUpdates: [] };
     link = { conversationUrl: "https://claude.ai/chat/x" };
   });
 
-  it("expone exactamente las 10 tools de la spec, con descripción y schema", () => {
+  it("expone exactamente las 12 tools de la spec, con descripción y schema", () => {
     expect(tools.map((t) => t.name)).toEqual([
       "get_project",
       "get_brief",
@@ -146,6 +165,8 @@ describe("makeTools", () => {
       "get_report",
       "save_report",
       "link_conversation",
+      "get_scenario",
+      "update_scenario",
     ]);
     expect(tools.map((t) => t.name)).toEqual([...TOOL_NAMES]);
     for (const t of tools) {
@@ -273,6 +294,84 @@ describe("makeTools", () => {
     expect(saveClaudeLink).not.toHaveBeenCalled();
   });
 
+  it("get_scenario: escenario completo — zona, keywords, cuentas, búsquedas, calendario, fuentes", async () => {
+    const out = await run("get_scenario");
+    expect(out).toContain("Caballito");
+    expect(out).toContain("- ferro");
+    expect(out).toContain("@somosferro2026 (instagram) [organizacion]");
+    expect(out).toContain("## Búsquedas dirección A");
+    expect(out).toContain("Elección · 2999-01-01");
+    expect(out).toContain("https://ferroweb.ar");
+    expect(out).toContain("fenotartaglia");
+  });
+
+  it("update_scenario: sin ningún cambio → rechaza sin guardar", async () => {
+    await expect(run("update_scenario", {})).rejects.toThrow(/al menos un cambio/);
+    expect(saveListeningConfig).not.toHaveBeenCalled();
+    expect(saveMonitorConfig).not.toHaveBeenCalled();
+  });
+
+  it("update_scenario: keywords aditivas con dedupe case-insensitive y bajas", async () => {
+    const out = await run("update_scenario", {
+      addKeywords: ["FERRO", "padron 2026"],
+      removeKeywords: ["elecciones"],
+    });
+    expect(saveListeningConfig).toHaveBeenCalledTimes(1);
+    const [pid, cfg] = saveListeningConfig.mock.calls[0] as unknown as [string, { keywords: string[] }];
+    expect(pid).toBe("p1");
+    expect(cfg.keywords).toEqual(["ferro", "padron 2026"]);
+    expect(out).toContain("keywords: +1 (1 repetidas), -1");
+    expect(saveMonitorConfig).not.toHaveBeenCalled();
+  });
+
+  it("update_scenario: agrega cuenta nueva y actualiza la existente sin duplicar", async () => {
+    const out = await run("update_scenario", {
+      addAccounts: [
+        { handle: "@somosferro2026", platform: "instagram", category: "organizacion", vinculo: "Somos Ferro" },
+        { handle: "cuentanueva", platform: "x", category: "medio", vinculo: "independiente" },
+      ],
+      removeAccounts: [{ handle: "ferroweb", platform: "instagram" }],
+    });
+    expect(saveMonitorConfig).toHaveBeenCalledTimes(1);
+    const [, cfg] = saveMonitorConfig.mock.calls[0] as unknown as [string, { accounts: { handle: string; vinculo?: string }[] }];
+    expect(cfg.accounts).toHaveLength(2);
+    expect(cfg.accounts.map((a) => a.handle)).toEqual(["somosferro2026", "cuentanueva"]);
+    expect(cfg.accounts[0].vinculo).toBe("Somos Ferro");
+    expect(out).toContain("cuentas: +1, 1 actualizadas, -1 → 2");
+  });
+
+  it("update_scenario: refecha un hito existente por label y agrega uno nuevo", async () => {
+    const out = await run("update_scenario", {
+      addCalendar: [
+        { label: "elección", date: "2999-02-02" },
+        { label: "Cierre de listas", date: "2999-01-15" },
+      ],
+    });
+    const [, cfg] = saveMonitorConfig.mock.calls[0] as unknown as [string, { calendar: { label: string; date: string }[] }];
+    expect(cfg.calendar).toEqual([
+      { label: "Elección", date: "2999-02-02" },
+      { label: "Cierre de listas", date: "2999-01-15" },
+    ]);
+    expect(out).toContain("calendario: +1, 1 refechados → 2");
+  });
+
+  it("update_scenario: categoría o plataforma inválida → rechaza sin guardar", async () => {
+    await expect(
+      run("update_scenario", { addAccounts: [{ handle: "x", platform: "threads", category: "medio" }] }),
+    ).rejects.toThrow();
+    await expect(
+      run("update_scenario", { addCalendar: [{ label: "x", date: "mañana" }] }),
+    ).rejects.toThrow();
+    expect(saveMonitorConfig).not.toHaveBeenCalled();
+  });
+
+  it("update_scenario: todo repetido → no guarda nada y avisa que no hubo cambios efectivos", async () => {
+    const out = await run("update_scenario", { addKeywords: ["ferro"] });
+    expect(out).toContain("Sin cambios efectivos");
+    expect(saveListeningConfig).not.toHaveBeenCalled();
+    expect(saveMonitorConfig).not.toHaveBeenCalled();
+  });
+
   it("onUse se dispara con el projectId del closure en cada llamada", async () => {
     const onUse = vi.fn();
     const conUse = makeTools("p1", { onUse });
@@ -294,6 +393,8 @@ describe("makeTools con alcance cuenta (multiproyecto)", () => {
     importReport.mockClear();
     saveClientBrief.mockClear();
     saveClaudeLink.mockClear();
+    saveListeningConfig.mockClear();
+    saveMonitorConfig.mockClear();
     listProjectsForEmail.mockClear();
     brief = { ...brief, pendingUpdates: [] };
     link = { conversationUrl: "https://claude.ai/chat/x" };
@@ -308,7 +409,7 @@ describe("makeTools con alcance cuenta (multiproyecto)", () => {
   });
 
   it("project es OBLIGATORIO en las escrituras y opcional en las lecturas (a nivel schema)", () => {
-    const writes = ["propose_brief_updates", "save_report", "link_conversation"];
+    const writes = ["propose_brief_updates", "save_report", "link_conversation", "update_scenario"];
     for (const t of acct) {
       if (t.name === "list_projects") continue;
       const optional = (t.inputSchema.shape.project as unknown as { isOptional(): boolean }).isOptional();
@@ -351,6 +452,15 @@ describe("makeTools con alcance cuenta (multiproyecto)", () => {
     expect(saveClaudeLink).not.toHaveBeenCalled();
     await expect(runAcct("propose_brief_updates", { updates: [{ seccion: "1", texto: "x" }] })).rejects.toThrow(/Falta "project"/);
     expect(saveClientBrief).not.toHaveBeenCalled();
+    await expect(runAcct("update_scenario", { addKeywords: ["x"] })).rejects.toThrow(/Falta "project"/);
+    expect(saveListeningConfig).not.toHaveBeenCalled();
+  });
+
+  it("update_scenario con project explícito → guarda en el proyecto pedido", async () => {
+    const out = await runAcct("update_scenario", { project: "centro", addKeywords: ["padron"] });
+    expect(saveListeningConfig).toHaveBeenCalledTimes(1);
+    expect((saveListeningConfig.mock.calls[0] as unknown as [string])[0]).toBe("p2");
+    expect(out).toContain("[proyecto: Centro de Estudio (centro)]");
   });
 
   it("escritura con project explícito → escribe en ese proyecto", async () => {

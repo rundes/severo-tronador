@@ -91,8 +91,10 @@ export function ClaudeLinkCard({
         </ol>
         <McpUrlButton />
         <p className="max-w-[70ch] text-[11px] text-zinc-500">
-          Tools disponibles: {TOOL_NAMES.join(", ")}. Ninguna ejecuta barridos ni
-          edita el escenario: eso se sigue aplicando desde la pestaña Escenario.
+          Tools disponibles: {TOOL_NAMES.join(", ")}. Ninguna ejecuta barridos
+          (eso sigue en la extensión y los crons); <code>update_scenario</code>{" "}
+          edita el escenario de forma aditiva —keywords, cuentas, medios,
+          calendario— sin poder reemplazar listas enteras.
         </p>
         <div className="space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
           <h3 className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
@@ -103,9 +105,9 @@ export function ClaudeLinkCard({
             <code>list_projects</code> y el parámetro <code>project</code> en
             cada tool (opcional para leer —sin él lee este proyecto—,
             obligatorio para escribir: <code>save_report</code>,{" "}
-            <code>link_conversation</code> y <code>propose_brief_updates</code>{" "}
-            nunca caen a un default). Lectura con ser miembro; escritura exige
-            editor u owner en el proyecto destino.
+            <code>link_conversation</code>, <code>propose_brief_updates</code> y{" "}
+            <code>update_scenario</code> nunca caen a un default). Lectura con
+            ser miembro; escritura exige editor u owner en el proyecto destino.
           </p>
           <McpAccountUrlButton />
         </div>
