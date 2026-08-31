@@ -10,7 +10,7 @@ const {
   resultados,
   correrTool,
   pendiente,
-  verifyMcpToken,
+  verifyMcpScope,
   touchClaudeLink,
   toolHandler,
 } = vi.hoisted(() => {
@@ -67,24 +67,34 @@ const {
     correrTool,
     pendiente,
     toolHandler,
-    verifyMcpToken: vi.fn(async (t: string | null) => (t && t.startsWith("ok") ? "p1" : null)),
+    verifyMcpScope: vi.fn(async (t: string | null) =>
+      t && t.startsWith("ok") ? { kind: "project" as const, projectId: "p1" } : null,
+    ),
     touchClaudeLink: vi.fn(async () => {}),
   };
 });
 
 vi.mock("mcp-handler", () => ({ createMcpHandler }));
 vi.mock("next/server", () => ({ after: (fn: () => void) => fn() }));
-vi.mock("@/lib/mcp-token", () => ({ verifyMcpToken }));
+vi.mock("@/lib/mcp-token", () => ({ verifyMcpScope }));
 vi.mock("@/lib/claude-link", () => ({ touchClaudeLink }));
+// El mock imita el contrato real de makeTools(scope, {onUse}): la telemetría
+// la dispara la TOOL con el proyecto resuelto, no la ruta.
 vi.mock("@/lib/mcp/tools", () => ({
   TOOL_NAMES: ["get_brief"],
-  makeTools: (projectId: string) => [
+  makeTools: (
+    scope: { kind: string; projectId: string },
+    opts?: { onUse?: (pid: string) => void },
+  ) => [
     {
       name: "get_brief",
       title: "Brief",
-      description: `Brief de ${projectId}`,
+      description: `Brief de ${scope.projectId}`,
       inputSchema: { parse: (x: unknown) => x },
-      handler: toolHandler,
+      handler: async () => {
+        opts?.onUse?.(scope.projectId);
+        return toolHandler();
+      },
     },
   ],
 }));
@@ -121,7 +131,7 @@ describe("POST /api/mcp/[token]/[transport]", () => {
     resultados.length = 0;
     correrTool.value = false;
     pendiente.value = Promise.resolve();
-    verifyMcpToken.mockClear();
+    verifyMcpScope.mockClear();
     touchClaudeLink.mockClear();
     toolHandler.mockClear();
     toolHandler.mockResolvedValue("texto de la tool");
@@ -136,7 +146,7 @@ describe("POST /api/mcp/[token]/[transport]", () => {
   it("transport que no es mcp → 404 sin siquiera verificar el token", async () => {
     const res = await POST(req("ok-t", { transport: "sse" }), ctx("ok-t", "sse"));
     expect(res.status).toBe(404);
-    expect(verifyMcpToken).not.toHaveBeenCalled();
+    expect(verifyMcpScope).not.toHaveBeenCalled();
     expect(createMcpHandler).not.toHaveBeenCalled();
   });
 
@@ -259,11 +269,11 @@ describe("POST /api/mcp/[token]/[transport]", () => {
     for (let i = 0; i < RATE_LIMIT; i++) {
       expect((await POST(req(`ok-ip-${i}`, { ip }), ctx(`ok-ip-${i}`))).status).toBe(200);
     }
-    verifyMcpToken.mockClear();
+    verifyMcpScope.mockClear();
     const res = await POST(req("ok-ip-x", { ip }), ctx("ok-ip-x"));
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("60");
-    expect(verifyMcpToken).not.toHaveBeenCalled();
+    expect(verifyMcpScope).not.toHaveBeenCalled();
   });
 });
 

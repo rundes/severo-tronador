@@ -15,18 +15,26 @@ const { touchClaudeLink, pingHandler } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/mcp-token", () => ({
-  verifyMcpToken: async (t: string | null) => (t === "tok-ok" ? "p1" : null),
+  verifyMcpScope: async (t: string | null) =>
+    t === "tok-ok" ? { kind: "project", projectId: "p1" } : null,
 }));
 vi.mock("@/lib/claude-link", () => ({ touchClaudeLink }));
+// Contrato real de makeTools(scope, {onUse}): la telemetría sale de la tool.
 vi.mock("@/lib/mcp/tools", () => ({
   TOOL_NAMES: ["ping"],
-  makeTools: () => [
+  makeTools: (
+    scope: { projectId: string },
+    opts?: { onUse?: (pid: string) => void },
+  ) => [
     {
       name: "ping",
       title: "Ping",
       description: "Devuelve pong",
       inputSchema: z.object({}),
-      handler: pingHandler,
+      handler: async () => {
+        opts?.onUse?.(scope.projectId);
+        return pingHandler();
+      },
     },
   ],
 }));

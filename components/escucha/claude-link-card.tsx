@@ -5,7 +5,7 @@
 // propios (McpUrlButton) o son forms con server actions.
 import { vincularConversacion, importarInforme } from "@/app/(dashboard)/escucha/actions";
 import { SubmitButton, FormStatus } from "@/components/ui/submit-button";
-import { McpUrlButton } from "@/components/escucha/mcp-url-button";
+import { McpAccountUrlButton, McpUrlButton } from "@/components/escucha/mcp-url-button";
 import { TOOL_NAMES } from "@/lib/mcp/tools";
 import type { ClaudeLink } from "@/lib/claude-link";
 
@@ -94,6 +94,21 @@ export function ClaudeLinkCard({
           Tools disponibles: {TOOL_NAMES.join(", ")}. Ninguna ejecuta barridos ni
           edita el escenario: eso se sigue aplicando desde la pestaña Escenario.
         </p>
+        <div className="space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <h3 className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
+            Conector multiproyecto
+          </h3>
+          <p className="max-w-[70ch] text-xs text-zinc-500">
+            Un solo conector para todos tus proyectos: suma la tool{" "}
+            <code>list_projects</code> y el parámetro <code>project</code> en
+            cada tool (opcional para leer —sin él lee este proyecto—,
+            obligatorio para escribir: <code>save_report</code>,{" "}
+            <code>link_conversation</code> y <code>propose_brief_updates</code>{" "}
+            nunca caen a un default). Lectura con ser miembro; escritura exige
+            editor u owner en el proyecto destino.
+          </p>
+          <McpAccountUrlButton />
+        </div>
       </div>
 
       <div className="space-y-2">

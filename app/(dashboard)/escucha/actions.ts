@@ -20,7 +20,7 @@ import { signedReadUrl } from "@/lib/gcs";
 import { projectOwnsAudio } from "@/lib/radio-runs";
 import { addEntry, getClientBrief, markApplied, removeEntry, saveClientBrief, setBriefUpdateStatus, setMaster, setSuggestionStatus, MASTER_MAX_CHARS, type ProposalBlock } from "@/lib/client-brief";
 import { proposeScenario } from "@/lib/scenario-ai";
-import { issueMcpToken, mcpUrl } from "@/lib/mcp-token";
+import { issueAccountMcpToken, issueMcpToken, mcpUrl } from "@/lib/mcp-token";
 import { isClaudeConversationUrl, readClaudeLink, saveClaudeLink, type ClaudeLink } from "@/lib/claude-link";
 import { importReport, MAX_IMPORT_CHARS } from "@/lib/report-import";
 
@@ -413,6 +413,21 @@ function appUrl(): string {
 export async function generarUrlMcp(): Promise<{ url: string }> {
   const { id: projectId } = await requireMember("owner");
   const token = await issueMcpToken(projectId);
+  return { url: mcpUrl(appUrl(), token) };
+}
+
+// URL del conector MCP multiproyecto: un solo conector en claude.ai que llega
+// a TODOS los proyectos donde el email del operador es miembro (lectura como
+// miembro, escritura como editor/owner y siempre con `project` explícito).
+// El proyecto activo al generarla queda como default de LECTURA. Regenerarla
+// invalida la anterior; no toca los conectores por proyecto.
+export async function generarUrlMcpCuenta(): Promise<{ url: string }> {
+  const { id: projectId } = await requireMember("owner");
+  // currentUserEmail nunca devuelve null: cae a "desconocido". Un token de
+  // cuenta para ese placeholder no autorizaría nada y ensuciaría la fila.
+  const email = await currentUserEmail();
+  if (!email || email === "desconocido") throw new Error("Sesión sin email");
+  const token = await issueAccountMcpToken(email, projectId);
   return { url: mcpUrl(appUrl(), token) };
 }
 

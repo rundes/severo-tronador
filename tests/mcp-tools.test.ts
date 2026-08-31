@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
 
+const { listProjectsForEmail } = vi.hoisted(() => ({
+  listProjectsForEmail: vi.fn(async () => [
+    { id: "p1", nombre: "Ferro", slug: "ferro", created_by: null, archived_at: null, created_at: "", role: "owner" as const },
+    { id: "p2", nombre: "Centro de Estudio", slug: "centro", created_by: null, archived_at: null, created_at: "", role: "editor" as const },
+    { id: "p3", nombre: "Solo Lectura", slug: "lectura", created_by: null, archived_at: null, created_at: "", role: "viewer" as const },
+  ]),
+}));
 vi.mock("@/lib/projects", () => ({
   getProject: async () => ({ id: "p1", nombre: "Ferro", slug: "ferro", created_by: null, archived_at: null, created_at: "" }),
+  listProjectsForEmail,
+  roleAllows: (role: "owner" | "editor" | "viewer", min: "owner" | "editor" | "viewer") => {
+    const rank = { viewer: 1, editor: 2, owner: 3 };
+    return rank[role] >= rank[min];
+  },
 }));
 vi.mock("@/lib/listening-config", () => ({
   getListeningConfig: async () => ({ zona: "Caballito", pais: "AR", keywords: ["ferro", "elecciones"] }),
@@ -259,5 +271,115 @@ describe("makeTools", () => {
   it("link_conversation: rechaza cualquier URL que no sea de claude.ai", async () => {
     await expect(run("link_conversation", { conversationUrl: "https://chatgpt.com/c/x" })).rejects.toThrow(/claude\.ai/);
     expect(saveClaudeLink).not.toHaveBeenCalled();
+  });
+
+  it("onUse se dispara con el projectId del closure en cada llamada", async () => {
+    const onUse = vi.fn();
+    const conUse = makeTools("p1", { onUse });
+    await conUse.find((t) => t.name === "get_brief")!.handler({});
+    expect(onUse).toHaveBeenCalledWith("p1");
+  });
+});
+
+describe("makeTools con alcance cuenta (multiproyecto)", () => {
+  const scope = { kind: "account" as const, email: "op@estudio.ar", defaultProjectId: "p1" };
+  const onUse = vi.fn();
+  const acct = makeTools(scope, { onUse });
+  const acctByName = new Map(acct.map((t) => [t.name, t]));
+  const runAcct = (name: string, args: Record<string, unknown> = {}) =>
+    acctByName.get(name as ToolName)!.handler(args);
+
+  beforeEach(() => {
+    onUse.mockClear();
+    importReport.mockClear();
+    saveClientBrief.mockClear();
+    saveClaudeLink.mockClear();
+    listProjectsForEmail.mockClear();
+    brief = { ...brief, pendingUpdates: [] };
+    link = { conversationUrl: "https://claude.ai/chat/x" };
+  });
+
+  it("expone list_projects más las 10 tools, todas con parámetro project", () => {
+    expect(acct.map((t) => t.name)).toEqual(["list_projects", ...TOOL_NAMES]);
+    for (const t of acct) {
+      if (t.name === "list_projects") continue;
+      expect(Object.keys(t.inputSchema.shape)).toContain("project");
+    }
+  });
+
+  it("project es OBLIGATORIO en las escrituras y opcional en las lecturas (a nivel schema)", () => {
+    const writes = ["propose_brief_updates", "save_report", "link_conversation"];
+    for (const t of acct) {
+      if (t.name === "list_projects") continue;
+      const optional = (t.inputSchema.shape.project as unknown as { isOptional(): boolean }).isOptional();
+      expect(optional, t.name).toBe(!writes.includes(t.name));
+    }
+  });
+
+  it("list_projects: nombre, slug, id, rol y el default de lectura marcado", async () => {
+    const out = await runAcct("list_projects");
+    expect(out).toContain("Ferro");
+    expect(out).toContain("slug: centro");
+    expect(out).toContain("rol: viewer");
+    expect(out).toMatch(/Ferro.*default de lectura/);
+    expect(out).not.toMatch(/Centro.*default de lectura/);
+  });
+
+  it("lectura sin project: usa el default del conector y lo dice en el prefijo", async () => {
+    const out = await runAcct("get_brief");
+    expect(out).toContain("[proyecto: Ferro (ferro)]");
+    expect(out).toContain("# BRIEF MAESTRO");
+    expect(onUse).toHaveBeenCalledWith("p1");
+  });
+
+  it("lectura con project por slug, nombre o id: resuelve el proyecto pedido", async () => {
+    expect(await runAcct("get_brief", { project: "centro" })).toContain("[proyecto: Centro de Estudio (centro)]");
+    expect(await runAcct("get_brief", { project: "Centro de Estudio" })).toContain("(centro)");
+    expect(await runAcct("get_brief", { project: "p2" })).toContain("(centro)");
+    expect(onUse).toHaveBeenCalledWith("p2");
+  });
+
+  it("lectura sin project y sin default utilizable → error que pide project", async () => {
+    const sinDefault = makeTools({ ...scope, defaultProjectId: null });
+    await expect(sinDefault.find((t) => t.name === "get_brief")!.handler({})).rejects.toThrow(/project/);
+  });
+
+  it("escritura SIN project → rechaza sin escribir, aunque haya default", async () => {
+    await expect(runAcct("save_report", { markdown: "# X" })).rejects.toThrow(/Falta "project"/);
+    expect(importReport).not.toHaveBeenCalled();
+    await expect(runAcct("link_conversation", { conversationUrl: "https://claude.ai/chat/n" })).rejects.toThrow(/Falta "project"/);
+    expect(saveClaudeLink).not.toHaveBeenCalled();
+    await expect(runAcct("propose_brief_updates", { updates: [{ seccion: "1", texto: "x" }] })).rejects.toThrow(/Falta "project"/);
+    expect(saveClientBrief).not.toHaveBeenCalled();
+  });
+
+  it("escritura con project explícito → escribe en ese proyecto", async () => {
+    const out = await runAcct("save_report", { project: "centro", html: "<h1>x</h1>" });
+    expect(importReport).toHaveBeenCalledTimes(1);
+    expect((importReport.mock.calls[0] as unknown as [string])[0]).toBe("p2");
+    expect(out).toContain("[proyecto: Centro de Estudio (centro)]");
+    expect(onUse).toHaveBeenCalledWith("p2");
+  });
+
+  it("escritura con rol viewer → rechaza por rol", async () => {
+    await expect(runAcct("save_report", { project: "lectura", markdown: "# X" })).rejects.toThrow(/editor/);
+    expect(importReport).not.toHaveBeenCalled();
+  });
+
+  it("project que no coincide con ninguna membresía → error que lista los disponibles", async () => {
+    await expect(runAcct("get_brief", { project: "otro" })).rejects.toThrow(/ferro, centro, lectura/);
+  });
+
+  it("nombre ambiguo → error que pide slug o id", async () => {
+    listProjectsForEmail.mockResolvedValueOnce([
+      { id: "p1", nombre: "Dup", slug: "dup-1", created_by: null, archived_at: null, created_at: "", role: "owner" as const },
+      { id: "p2", nombre: "Dup", slug: "dup-2", created_by: null, archived_at: null, created_at: "", role: "owner" as const },
+    ]);
+    await expect(runAcct("get_brief", { project: "Dup" })).rejects.toThrow(/ambiguo/);
+  });
+
+  it("email sin membresías → error, no cae a ningún proyecto", async () => {
+    listProjectsForEmail.mockResolvedValueOnce([]);
+    await expect(runAcct("get_brief")).rejects.toThrow(/ningún proyecto/);
   });
 });

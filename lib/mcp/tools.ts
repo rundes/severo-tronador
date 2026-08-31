@@ -4,11 +4,19 @@
 // acá no se importa nada de mcp-handler ni del SDK y los tests llaman a los
 // handlers directo.
 //
-// Ninguna tool recibe projectId: el proyecto lo resuelve el token de la URL y
-// viaja por el closure de makeTools(). Ninguna tool ejecuta barridos ni edita
-// la configuración del monitor: el escenario se sigue aplicando desde el panel.
+// El proyecto lo resuelve el token de la URL. Con alcance PROYECTO (conector
+// clásico) viaja por el closure y ninguna tool recibe projectId. Con alcance
+// CUENTA (conector multiproyecto) cada tool acepta `project` (nombre, slug o
+// id): OBLIGATORIO en las de escritura —save_report manda mails y
+// link_conversation pisa el vínculo, un default silencioso escribiría en el
+// proyecto equivocado— y opcional en las de lectura, donde cae al default del
+// conector. La autorización es por membresía del email en cada llamada:
+// lectura exige ser miembro, escritura exige editor u owner.
+// Ninguna tool ejecuta barridos ni edita la configuración del monitor: el
+// escenario se sigue aplicando desde el panel.
 import { z } from "zod";
-import { getProject } from "@/lib/projects";
+import { getProject, listProjectsForEmail, roleAllows, type ProjectWithRole } from "@/lib/projects";
+import type { McpScope } from "@/lib/mcp-token";
 import { getListeningConfig } from "@/lib/listening-config";
 import { getMonitorConfig } from "@/lib/monitor-config";
 import {
@@ -48,7 +56,9 @@ export const TOOL_NAMES = [
   "link_conversation",
 ] as const;
 
-export type ToolName = (typeof TOOL_NAMES)[number];
+// list_projects existe solo en el alcance cuenta: en el conector por proyecto
+// no hay nada que listar.
+export type ToolName = (typeof TOOL_NAMES)[number] | "list_projects";
 
 export interface McpToolDef {
   name: ToolName;
@@ -111,7 +121,9 @@ const origenDe = (r: DailyReport): string => r.origen ?? "tronador";
 // recupera del h1 del markdown, igual que hace el PDF y el mail.
 const tituloDe = (r: DailyReport): string => r.titulo ?? reportTitle(r.markdown) ?? "(sin título)";
 
-export function makeTools(projectId: string): McpToolDef[] {
+// Tools del alcance proyecto: el projectId viaja por el closure, ninguna
+// recibe `project`. Es el cuerpo histórico de makeTools, intacto.
+function projectTools(projectId: string): McpToolDef[] {
   return [
     {
       name: "get_project",
@@ -363,4 +375,145 @@ export function makeTools(projectId: string): McpToolDef[] {
       },
     },
   ];
+}
+
+export interface McpToolsOptions {
+  // Telemetría del vínculo (touchClaudeLink): la ruta la agenda desde acá con
+  // el proyecto YA resuelto — en alcance cuenta puede ser otro en cada llamada.
+  onUse?: (projectId: string) => void;
+}
+
+// Escritura = manda mails, pisa el vínculo o encola propuestas. Estas exigen
+// `project` explícito en alcance cuenta y rol editor u owner.
+const WRITE_TOOLS: ReadonlySet<string> = new Set([
+  "propose_brief_updates",
+  "save_report",
+  "link_conversation",
+]);
+
+const ProjectRefRequired = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .describe("Proyecto destino (OBLIGATORIO): nombre, slug o id — ver list_projects");
+const ProjectRefOptional = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .optional()
+  .describe("Proyecto a leer: nombre, slug o id (ver list_projects); sin esto usa el default del conector");
+
+// Resuelve la referencia de proyecto contra las membresías del email. La misma
+// consulta hace de autorización: lo que el email no integra no existe para el
+// conector. Los mensajes de error listan slugs porque los lee el modelo y
+// tiene que poder autocorregirse en la llamada siguiente.
+async function resolveProjectRef(
+  email: string,
+  ref: string | undefined,
+  defaultProjectId: string | null,
+  write: boolean,
+): Promise<ProjectWithRole> {
+  const projects = await listProjectsForEmail(email);
+  if (projects.length === 0) {
+    throw new Error("El email de este conector no es miembro de ningún proyecto");
+  }
+  const slugs = projects.map((p) => p.slug).join(", ");
+  let match: ProjectWithRole | undefined;
+  if (ref) {
+    const needle = ref.trim().toLowerCase();
+    const porIdOSlug = projects.filter((p) => p.id === ref.trim() || p.slug.toLowerCase() === needle);
+    const porNombre = projects.filter((p) => p.nombre.trim().toLowerCase() === needle);
+    const hits = porIdOSlug.length > 0 ? porIdOSlug : porNombre;
+    if (hits.length === 0) {
+      throw new Error(`Ningún proyecto del conector coincide con "${ref}". Disponibles: ${slugs}`);
+    }
+    if (hits.length > 1) {
+      throw new Error(`"${ref}" es ambiguo (${hits.map((p) => p.slug).join(", ")}): usá el slug o el id`);
+    }
+    match = hits[0];
+  } else {
+    if (write) {
+      throw new Error(
+        'Falta "project": las tools de escritura lo exigen SIEMPRE en el conector multiproyecto (llamá list_projects para ver los disponibles)',
+      );
+    }
+    match = defaultProjectId ? projects.find((p) => p.id === defaultProjectId) : undefined;
+    if (!match) {
+      throw new Error(`Este conector no tiene proyecto default utilizable: pasá "project". Disponibles: ${slugs}`);
+    }
+  }
+  if (write && !roleAllows(match.role, "editor")) {
+    throw new Error(`Tu rol en ${match.slug} es ${match.role}: escribir exige editor u owner`);
+  }
+  return match;
+}
+
+// Tools del alcance cuenta: las mismas del proyecto más list_projects, con
+// `project` agregado al schema y el proyecto resuelto EN CADA llamada.
+// projectTools(id) son closures puros sin IO, así que reconstruirlas por
+// llamada con el id resuelto es más barato que enhebrar el id por parámetro.
+function accountTools(
+  scope: Extract<McpScope, { kind: "account" }>,
+  opts: McpToolsOptions,
+): McpToolDef[] {
+  const listProjects: McpToolDef = {
+    name: "list_projects",
+    title: "Proyectos del conector",
+    description:
+      "Lista los proyectos a los que este conector tiene acceso (los del email del operador): nombre, slug, id, rol y cuál es el default de lectura. El parámetro `project` de las demás tools acepta cualquiera de los tres.",
+    inputSchema: Empty,
+    handler: async () => {
+      const projects = await listProjectsForEmail(scope.email);
+      if (projects.length === 0) return "(el email de este conector no es miembro de ningún proyecto)";
+      return projects
+        .map(
+          (p) =>
+            `- ${p.nombre} · slug: ${p.slug} · id: ${p.id} · rol: ${p.role}${p.id === scope.defaultProjectId ? " · default de lectura" : ""}`,
+        )
+        .join("\n");
+    },
+  };
+  // Base solo para nombres/títulos/schemas/descripciones: sus handlers no se
+  // llaman nunca (el projectId real se resuelve por llamada).
+  const base = projectTools("__account__");
+  const tools = base.map((t): McpToolDef => {
+    const write = WRITE_TOOLS.has(t.name);
+    return {
+      ...t,
+      description: `${t.description} Parámetro \`project\` (${write ? "OBLIGATORIO: nombre, slug o id" : "opcional: nombre, slug o id; sin él usa el proyecto default del conector"}).`,
+      inputSchema: t.inputSchema.extend({
+        project: write ? ProjectRefRequired : ProjectRefOptional,
+      }),
+      handler: async (raw) => {
+        const { project, ...rest } = (raw ?? {}) as Record<string, unknown>;
+        const ref = typeof project === "string" && project.trim() ? project : undefined;
+        const destino = await resolveProjectRef(scope.email, ref, scope.defaultProjectId, write);
+        opts.onUse?.(destino.id);
+        const tool = projectTools(destino.id).find((x) => x.name === t.name)!;
+        const out = await tool.handler(rest);
+        // El prefijo dice SIEMPRE sobre qué proyecto se operó: es la defensa
+        // barata contra leer datos de un proyecto creyendo que son de otro.
+        return `[proyecto: ${destino.nombre} (${destino.slug})]\n${out}`;
+      },
+    };
+  });
+  return [listProjects, ...tools];
+}
+
+// Punto de entrada de la ruta. Acepta el projectId pelado (alcance proyecto,
+// compatibilidad con los llamadores históricos) o un McpScope.
+export function makeTools(scope: string | McpScope, opts: McpToolsOptions = {}): McpToolDef[] {
+  const s: McpScope = typeof scope === "string" ? { kind: "project", projectId: scope } : scope;
+  if (s.kind === "project") {
+    return projectTools(s.projectId).map((t) => ({
+      ...t,
+      handler: async (args) => {
+        opts.onUse?.(s.projectId);
+        return t.handler(args);
+      },
+    }));
+  }
+  return accountTools(s, opts);
 }

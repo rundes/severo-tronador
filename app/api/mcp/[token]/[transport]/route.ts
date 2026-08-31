@@ -12,8 +12,9 @@
 //      debería costar una lectura por request) y 60 req/min por token después.
 //
 // El handler se construye DENTRO de la función de request, no a nivel de
-// módulo: el projectId sale del token y viaja por el closure de makeTools(),
-// que es lo que permite que ninguna tool reciba projectId. Es además el patrón
+// módulo: el ALCANCE sale del token y viaja por el closure de makeTools() —
+// un proyecto fijo (conector clásico) o una cuenta que resuelve el proyecto
+// por membresía en cada llamada (conector multiproyecto). Es además el patrón
 // oficial de mcp-handler para rutas dinámicas (createMcpHandler(...)(req) por
 // request); el costo es un McpServer por request, que el adapter iba a crear
 // igual porque sirve stateless.
@@ -24,7 +25,7 @@
 import { after } from "next/server";
 import { createMcpHandler, type McpHandlerOptions } from "mcp-handler";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { verifyMcpToken } from "@/lib/mcp-token";
+import { verifyMcpScope } from "@/lib/mcp-token";
 import { touchClaudeLink } from "@/lib/claude-link";
 import { makeTools } from "@/lib/mcp/tools";
 import { rateLimitOk } from "@/lib/mcp/rate-limit";
@@ -100,13 +101,19 @@ async function handle(
     return tooMany();
   }
 
-  const projectId = await verifyMcpToken(token);
-  if (!projectId) {
+  const scope = await verifyMcpScope(token);
+  if (!scope) {
     log.warn("mcp.token_invalid", { token: tokenTag(token) });
     return notFound();
   }
+  // Para logs: el projectId identifica al conector de proyecto; el de cuenta
+  // se identifica por el tag del token (el email no va a logs).
+  const scopeTag: Record<string, string> =
+    scope.kind === "project"
+      ? { projectId: scope.projectId }
+      : { account: tokenTag(token) };
   if (!rateLimitOk(token)) {
-    log.warn("mcp.rate_limited", { scope: "token", projectId });
+    log.warn("mcp.rate_limited", { scope: "token", ...scopeTag });
     return tooMany();
   }
 
@@ -114,18 +121,20 @@ async function handle(
 
   const handler = createMcpHandler(
     (server: McpServer) => {
-      for (const tool of makeTools(projectId)) {
+      // Telemetría del vínculo fuera del camino crítico. makeTools la invoca
+      // DESDE la tool en ejecución (con el proyecto ya resuelto: en alcance
+      // cuenta cambia por llamada) y no después de `await handler(req)`,
+      // porque el leg stateless despacha el mensaje sin esperarlo y devuelve
+      // el Response SSE antes de que la tool corra: afuera nunca veríamos que
+      // hubo una llamada. Desde la tool, además, es lo único que distingue
+      // uso real de handshake (initialize y tools/list llegan siempre).
+      const onUse = (usedProjectId: string) =>
+        after(() => touchClaudeLink(usedProjectId, ua ?? clientName(server) ?? "desconocido"));
+      for (const tool of makeTools(scope, { onUse })) {
         server.registerTool(
           tool.name,
           { title: tool.title, description: tool.description, inputSchema: tool.inputSchema },
           async (args: unknown) => {
-            // Telemetría del vínculo fuera del camino crítico. Va ACÁ y no
-            // después de `await handler(req)` porque el leg stateless despacha
-            // el mensaje sin esperarlo y devuelve el Response SSE antes de que
-            // la tool corra: afuera nunca veríamos que hubo una llamada.
-            // Adentro del callback, además, es lo único que distingue uso real
-            // de handshake (initialize y tools/list llegan siempre).
-            after(() => touchClaudeLink(projectId, ua ?? clientName(server) ?? "desconocido"));
             try {
               const text = await tool.handler((args ?? {}) as Record<string, unknown>);
               return { content: [{ type: "text" as const, text }] };
@@ -135,7 +144,7 @@ async function handle(
               const message = (
                 e instanceof Error ? e.message || "error desconocido" : "error interno"
               ).slice(0, MAX_ERROR_CHARS);
-              log.warn("mcp.tool_failed", { projectId, tool: tool.name, error: message });
+              log.warn("mcp.tool_failed", { ...scopeTag, tool: tool.name, error: message });
               return { content: [{ type: "text" as const, text: `Error: ${message}` }], isError: true };
             }
           },
@@ -150,7 +159,7 @@ async function handle(
       onEvent: (e: McpEvent) => {
         if (e?.type !== "ERROR") return;
         log.warn("mcp.protocol_error", {
-          projectId,
+          ...scopeTag,
           source: e.source,
           severity: e.severity,
           error: (e.error instanceof Error ? e.error.message : String(e.error)).slice(
