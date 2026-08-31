@@ -168,17 +168,13 @@ export default async function EscuchaPage({
           upcoming={upcoming}
           runs={runs}
           persistOk={persistOk}
+          claude={await readClaudeLink(projectId)}
           params={params}
         />
       ) : tab === "informe" && reports ? (
         <>
           <SintesisCorrida run={extensionRun} resumen24={resumen24} ultimoInforme={ultimoInforme} />
-          <InformePanel
-            {...reports}
-            generado={params.generado === "1"}
-            claude={await readClaudeLink(projectId)}
-            params={params}
-          />
+          <InformePanel {...reports} generado={params.generado === "1"} />
         </>
       ) : result ? (
         <>

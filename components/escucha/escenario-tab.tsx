@@ -8,6 +8,8 @@ import { BloquePrensa } from "@/components/escucha/bloque-prensa";
 import { BloqueRedes } from "@/components/escucha/bloque-redes";
 import { BloqueAudio } from "@/components/escucha/bloque-audio";
 import { BloqueReglas } from "@/components/escucha/bloque-reglas";
+import { ClaudeLinkCard } from "@/components/escucha/claude-link-card";
+import { ExtensionSetupCard } from "@/components/escucha/extension-setup-card";
 import { timeAgo, type SourceStatus } from "@/components/escucha/source-rows";
 import { RefreshOnSave } from "@/components/escucha/refresh-on-save";
 
@@ -22,6 +24,7 @@ import type { ClientBrief } from "@/lib/client-brief";
 import type { PullSummary, SourceCounts } from "@/lib/listening-cache";
 import type { RadioRun } from "@/lib/radio-runs";
 import type { ExtensionRun } from "@/lib/extension-run";
+import type { ClaudeLink } from "@/lib/claude-link";
 
 export function EscenarioTab(props: {
   cfg: ListeningConfig;
@@ -37,6 +40,7 @@ export function EscenarioTab(props: {
   upcoming: Array<{ station: string; programa: string; startMs: number; endMs: number }>;
   runs: RadioRun[];
   persistOk: boolean;
+  claude: ClaudeLink;
   params: Record<string, string | undefined>;
 }) {
   const { brief, params, summary, now } = props;
@@ -123,6 +127,8 @@ export function EscenarioTab(props: {
         params={params}
       />
       <BloqueReglas monitor={props.monitor} proposal={proposal} persistOk={props.persistOk} params={params} />
+      <ClaudeLinkCard link={props.claude} params={params} />
+      <ExtensionSetupCard />
     </div>
   );
 }

@@ -444,12 +444,12 @@ export async function vincularConversacion(formData: FormData) {
     delete resto.linkedAt;
     await saveClaudeLink(projectId, resto);
     revalidatePath("/escucha");
-    redirect("/escucha?tab=informe&claude=1");
+    redirect("/escucha?tab=entorno&claude=1");
   }
-  if (!isClaudeConversationUrl(raw)) redirect("/escucha?tab=informe&claude_error=url");
+  if (!isClaudeConversationUrl(raw)) redirect("/escucha?tab=entorno&claude_error=url");
   await saveClaudeLink(projectId, { ...current, conversationUrl: raw, linkedAt: new Date().toISOString() });
   revalidatePath("/escucha");
-  redirect("/escucha?tab=informe&claude=1");
+  redirect("/escucha?tab=entorno&claude=1");
 }
 
 // Importar un informe escrito afuera: archivo .md/.html o texto pegado. Se
@@ -481,16 +481,16 @@ export async function importarInforme(formData: FormData) {
     // Tamaño y extensión se miran ANTES de leer: archivo.text() trae el
     // archivo entero a memoria del servidor, y un .pdf o un .zip no son un
     // informe por más que pesen poco.
-    if (archivo.size > MAX_IMPORT_CHARS) redirect("/escucha?tab=informe&informe_error=grande");
-    if (!EXT_INFORME.test(archivo.name)) redirect("/escucha?tab=informe&informe_error=tipo");
+    if (archivo.size > MAX_IMPORT_CHARS) redirect("/escucha?tab=entorno&informe_error=grande");
+    if (!EXT_INFORME.test(archivo.name)) redirect("/escucha?tab=entorno&informe_error=tipo");
     contenido = await archivo.text();
     esHtml = /\.html?$/i.test(archivo.name);
   } else {
     contenido = pegado;
   }
   const t = contenido.trim();
-  if (!t) redirect("/escucha?tab=informe&informe_error=vacio");
-  if (contenido.length > MAX_IMPORT_CHARS) redirect("/escucha?tab=informe&informe_error=grande");
+  if (!t) redirect("/escucha?tab=entorno&informe_error=vacio");
+  if (contenido.length > MAX_IMPORT_CHARS) redirect("/escucha?tab=entorno&informe_error=grande");
   // Un HTML pegado a mano arranca con <!doctype o con una etiqueta.
   if (!esHtml && t.startsWith("<")) esHtml = true;
 
@@ -507,8 +507,8 @@ export async function importarInforme(formData: FormData) {
     // El detalle va al log del servidor: en la URL solo viaja un código, para
     // no publicar el mensaje interno en la barra de direcciones del operador.
     log.warn("escucha.import_failed", { projectId, error: (e as Error).message });
-    redirect(`/escucha?tab=informe&informe_error=${codigoImportError(e)}`);
+    redirect(`/escucha?tab=entorno&informe_error=${codigoImportError(e)}`);
   }
   revalidatePath("/escucha");
-  redirect("/escucha?tab=informe&importado=1");
+  redirect("/escucha?tab=entorno&importado=1");
 }

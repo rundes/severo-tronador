@@ -74,7 +74,7 @@ describe("vincularConversacion", () => {
   it("guarda la URL de claude.ai y vuelve con claude=1", async () => {
     const fd = new FormData();
     fd.set("conversationUrl", " https://claude.ai/chat/2f0c1f9a ");
-    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=informe&claude=1");
+    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=entorno&claude=1");
     expect(link.conversationUrl).toBe("https://claude.ai/chat/2f0c1f9a");
     expect(link.linkedAt).toBeTruthy();
   });
@@ -82,7 +82,7 @@ describe("vincularConversacion", () => {
   it("URL de otro dominio: no guarda y avisa", async () => {
     const fd = new FormData();
     fd.set("conversationUrl", "https://chatgpt.com/c/x");
-    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=informe&claude_error=url");
+    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=entorno&claude_error=url");
     expect(saveClaudeLink).not.toHaveBeenCalled();
   });
 
@@ -90,7 +90,7 @@ describe("vincularConversacion", () => {
     link = { conversationUrl: "https://claude.ai/chat/x", lastToolAt: "2026-08-26T00:00:00.000Z" };
     const fd = new FormData();
     fd.set("conversationUrl", "   ");
-    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=informe&claude=1");
+    expect(await run(() => vincularConversacion(fd))).toBe("/escucha?tab=entorno&claude=1");
     expect(link).toEqual({ lastToolAt: "2026-08-26T00:00:00.000Z" });
   });
 });
@@ -102,7 +102,7 @@ describe("importarInforme", () => {
     const fd = new FormData();
     fd.set("archivo", file("informe.html", "<h1>Tesis</h1><p>Bajada</p>"));
     fd.set("enviarMail", "on");
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&importado=1");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&importado=1");
     const [pid, input] = importReport.mock.calls[0] as unknown as [string, import("@/lib/report-import").ImportReportInput];
     expect(pid).toBe("p1");
     expect(input.html).toContain("<h1>Tesis</h1>");
@@ -114,7 +114,7 @@ describe("importarInforme", () => {
   it("archivo .md: lo importa como markdown", async () => {
     const fd = new FormData();
     fd.set("archivo", file("informe.md", "# Tesis\n\nBajada."));
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&importado=1");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&importado=1");
     const [, input] = importReport.mock.calls[0] as unknown as [string, import("@/lib/report-import").ImportReportInput];
     expect(input.markdown).toContain("# Tesis");
     expect(input.html).toBeUndefined();
@@ -140,28 +140,28 @@ describe("importarInforme", () => {
   });
 
   it("nada cargado: no importa y avisa", async () => {
-    expect(await run(() => importarInforme(new FormData()))).toBe("/escucha?tab=informe&informe_error=vacio");
+    expect(await run(() => importarInforme(new FormData()))).toBe("/escucha?tab=entorno&informe_error=vacio");
     expect(importReport).not.toHaveBeenCalled();
   });
 
   it("por encima del límite: no importa y avisa", async () => {
     const fd = new FormData();
     fd.set("texto", "x".repeat(400_001));
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&informe_error=grande");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&informe_error=grande");
     expect(importReport).not.toHaveBeenCalled();
   });
 
   it("archivo con extensión que no es informe: ni siquiera lo lee", async () => {
     const fd = new FormData();
     fd.set("archivo", file("informe.pdf", "%PDF-1.7"));
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&informe_error=tipo");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&informe_error=tipo");
     expect(importReport).not.toHaveBeenCalled();
   });
 
   it("archivo .txt: entra como markdown", async () => {
     const fd = new FormData();
     fd.set("archivo", file("informe.txt", "# Tesis\n\nBajada."));
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&importado=1");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&importado=1");
     const [, input] = importReport.mock.calls[0] as unknown as [string, import("@/lib/report-import").ImportReportInput];
     expect(input.markdown).toContain("# Tesis");
   });
@@ -173,7 +173,7 @@ describe("importarInforme", () => {
     const leer = vi.spyOn(grande, "text");
     const fd = new FormData();
     fd.set("archivo", grande);
-    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=informe&informe_error=grande");
+    expect(await run(() => importarInforme(fd))).toBe("/escucha?tab=entorno&informe_error=grande");
     expect(leer).not.toHaveBeenCalled();
     expect(importReport).not.toHaveBeenCalled();
   });
@@ -190,7 +190,7 @@ describe("importarInforme", () => {
       importReport.mockRejectedValueOnce(new Error(mensaje));
       const fd = new FormData();
       fd.set("texto", "# T\n\nB.");
-      expect(await run(() => importarInforme(fd))).toBe(`/escucha?tab=informe&informe_error=${codigo}`);
+      expect(await run(() => importarInforme(fd))).toBe(`/escucha?tab=entorno&informe_error=${codigo}`);
     }
   });
 });

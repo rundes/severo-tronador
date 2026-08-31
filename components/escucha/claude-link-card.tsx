@@ -1,4 +1,4 @@
-// Tarjeta "Claude" del tab Informe: URL del conector MCP, conversación
+// Tarjeta "Claude" del tab Entorno: URL del conector MCP, conversación
 // vinculada, estado del canal e importación de un informe escrito afuera.
 //
 // Server component: los pedazos interactivos viven en archivos "use client"
