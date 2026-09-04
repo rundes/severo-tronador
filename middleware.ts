@@ -10,6 +10,9 @@ const PUBLIC_PATHS = new Set<string>([
   "/privacidad",
   "/terminos",
   "/eliminacion-datos",
+  // Landing pública de la serie de informes de Ferro (solo lectura, sin datos
+  // operativos: la página excluye nota operativa y links de conversación).
+  "/ferro",
 ]);
 
 export default async function middleware(req: NextRequest) {
